@@ -39,10 +39,11 @@ import {
 import { ListStudentsQueryDto } from './dto/list.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
 import {
+  COLUMN_DESCRIPTIONS,
   EXCEL_COLUMNS,
   MAX_UPLOAD_SIZE_BYTES,
   REQUIRED_STUDENT_COLUMNS,
-  SAMPLE_ROW,
+  SAMPLE_ROWS,
   TERM_DEFINITIONS,
 } from './constants/excel.constants';
 import * as XLSX from 'xlsx';
@@ -90,25 +91,61 @@ export class StudentsController {
 
   @Get('upload/template')
   @ApiOperation({
-    summary: 'Download the bulk-upload Excel template',
+    summary: 'Download the bulk-upload template (Excel or CSV)',
     description:
-      'Returns an .xlsx with the canonical column headers and one sample row. Open in Excel, fill rows, then upload via /students/upload/validate then /students/upload/confirm.',
+      'Returns the canonical column headers + several realistic sample rows. ' +
+      'Open in Excel/Sheets, replace the samples with your data, save as .xlsx ' +
+      '(or .csv), then upload via /students/upload/validate → /students/upload/confirm. ' +
+      'Excel format additionally includes an "Instructions" sheet with per-column help.\n\n' +
+      'Query: ?format=csv to get a CSV (default is xlsx).',
   })
-  async downloadTemplate(@Req() req: Request) {
+  async downloadTemplate(
+    @Req() req: Request,
+    @Query('format') format?: 'xlsx' | 'csv',
+  ) {
     const headers = [
       ...REQUIRED_STUDENT_COLUMNS,
       EXCEL_COLUMNS.IMG_URL,
       ...TERM_DEFINITIONS.flatMap((t) => [t.feeCol, t.discountCol]),
     ];
-    const ws = XLSX.utils.json_to_sheet([SAMPLE_ROW], { header: headers });
-    // Tighten column widths a little
-    (ws as any)['!cols'] = headers.map((h) => ({
+
+    const studentsSheet = XLSX.utils.json_to_sheet(SAMPLE_ROWS, {
+      header: headers,
+    });
+    (studentsSheet as any)['!cols'] = headers.map((h) => ({
       wch: Math.max(14, h.length + 2),
     }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Students');
-    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+
     const res = (req as any).res;
+
+    if ((format ?? 'xlsx') === 'csv') {
+      const csv = XLSX.utils.sheet_to_csv(studentsSheet);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="svbk-students-upload-template.csv"',
+      );
+      // Prepend BOM so Excel opens UTF-8 correctly
+      res.send('﻿' + csv);
+      return;
+    }
+
+    // Excel: include a second "Instructions" sheet with per-column help
+    const instructionsSheet = XLSX.utils.json_to_sheet(COLUMN_DESCRIPTIONS, {
+      header: ['column', 'required', 'example', 'notes'],
+    });
+    (instructionsSheet as any)['!cols'] = [
+      { wch: 24 }, // column
+      { wch: 10 }, // required
+      { wch: 22 }, // example
+      { wch: 70 }, // notes
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, studentsSheet, 'Students');
+    XLSX.utils.book_append_sheet(wb, instructionsSheet, 'Instructions');
+
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

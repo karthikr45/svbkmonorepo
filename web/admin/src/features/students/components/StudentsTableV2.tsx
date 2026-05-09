@@ -136,9 +136,9 @@ export function StudentsTableV2({ onUpload, onShowLegacy }: Props) {
     });
   }, [students, classFilter, search]);
 
-  function downloadTemplate() {
+  function downloadTemplate(format: "xlsx" | "csv" = "xlsx") {
     try {
-      const url = `${getApiBaseUrl()}/students/upload/template`;
+      const url = `${getApiBaseUrl()}/students/upload/template?format=${format}`;
       window.location.href = url;
     } catch (err) {
       alert(getApiErrorMessage(err, "Could not start download"));
@@ -159,12 +159,27 @@ export function StudentsTableV2({ onUpload, onShowLegacy }: Props) {
         }
         actions={
           <>
-            <Button variant="ghost" size="md" onClick={downloadTemplate}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 4v12m0 0l-4-4m4 4l4-4" />
-              </svg>
-              Excel template
-            </Button>
+            <div className="inline-flex rounded-lg overflow-hidden border border-slate-200 bg-white shadow-sm">
+              <button
+                type="button"
+                onClick={() => downloadTemplate("xlsx")}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                title="Download Excel template (with samples + instructions)"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 4v12m0 0l-4-4m4 4l4-4" />
+                </svg>
+                Excel template
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadTemplate("csv")}
+                className="px-2.5 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-700 border-l border-slate-200 transition-colors"
+                title="Download CSV instead"
+              >
+                CSV
+              </button>
+            </div>
             <Button variant="outline" size="md" onClick={onUpload}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
