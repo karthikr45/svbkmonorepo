@@ -9,10 +9,12 @@ export function DashboardMain({
 }) {
   return (
     <main
-      className={`flex-1 overflow-auto px-4 py-5 sm:px-6 sm:py-8 md:px-8 md:py-10 ${className}`}
-      style={{ backgroundColor: "var(--app-search-bg)" }}
+      className={`flex-1 overflow-auto ${className}`}
+      style={{ backgroundColor: "var(--app-page-bg)" }}
     >
-      {children}
+      <div className="px-4 py-5 sm:px-6 sm:py-8 md:px-8 md:py-10 max-w-[1400px] mx-auto">
+        {children}
+      </div>
     </main>
   );
 }

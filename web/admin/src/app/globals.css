@@ -18,72 +18,122 @@
 }
 
 /* ========== App / Dashboard global theme ========== */
-/* Change colors below in one place – they apply to navbar, sidebar, cards, buttons, table, badges. */
+/* Premium SaaS palette: cool neutrals + brand-blue accent. */
 :root {
-  --app-sidebar-bg: #f4f4f5;
-  --app-sidebar-text: #3f3f46;
-  --app-sidebar-border: #e4e4e7;
-  --app-nav-active-bg: #fef3e2;
-  --app-nav-active-text: #9a4d1e;
-  --app-nav-hover-bg: #e4e4e7;
-  --app-nav-icon: #71717a;
+  /* Surfaces */
+  --app-sidebar-bg: #ffffff;
+  --app-sidebar-text: #475569;       /* slate-600 */
+  --app-sidebar-border: #e2e8f0;     /* slate-200 */
+  --app-sidebar-section: #94a3b8;    /* slate-400, used for section captions */
+  --app-nav-active-bg: #eff6ff;      /* blue-50 */
+  --app-nav-active-text: #0b54ab;    /* brand */
+  --app-nav-hover-bg: #f1f5f9;       /* slate-100 */
+  --app-nav-icon: #64748b;           /* slate-500 */
+
   --app-navbar-bg: #ffffff;
-  --app-navbar-border: #e4e4e7;
-  --app-search-bg: #fafafa;
-  --app-search-border: #e4e4e7;
-  --app-search-placeholder: #71717a;
-  --app-search-focus: #3b82f6;
+  --app-navbar-border: #e2e8f0;
+  --app-search-bg: #f8fafc;          /* slate-50 */
+  --app-search-border: #e2e8f0;
+  --app-search-placeholder: #94a3b8;
+  --app-search-focus: #0b54ab;
+
+  --app-page-bg: #f8fafc;            /* slate-50 — main content background */
+
+  /* Cards */
   --app-card-bg: #ffffff;
-  --app-card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 4px 12px -2px rgb(0 0 0 / 0.04);
-  --app-card-radius: 0.75rem;
-  --app-stat-icon-blue: #3b82f6;
-  --app-stat-icon-orange: #f97316;
-  --app-stat-icon-green: #22c55e;
+  --app-card-border: #e2e8f0;
+  --app-card-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --app-card-shadow-hover: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 6px -1px rgb(15 23 42 / 0.05);
+  --app-card-radius: 0.875rem;       /* 14px — premium, slightly larger */
+
+  /* Stats / chart icons */
+  --app-stat-icon-blue: #0b54ab;
+  --app-stat-icon-purple: #8b5cf6;
+  --app-stat-icon-green: #10b981;
+  --app-stat-icon-amber: #f59e0b;
+
+  /* Brand */
   --app-brand: #0b54ab;
-  --app-success: #22c55e;
-  --app-success-bg: #dcfce7;
-  --app-warning: #ea580c;
-  --app-warning-bg: #ffedd5;
+  --app-brand-hover: #094a96;
+  --app-brand-soft: #eff6ff;
+
+  /* Status */
+  --app-success: #10b981;
+  --app-success-bg: #d1fae5;
+  --app-success-text: #047857;
+  --app-warning: #f59e0b;
+  --app-warning-bg: #fef3c7;
+  --app-warning-text: #b45309;
   --app-danger: #dc2626;
-  --app-danger-text: #dc2626;
-  --app-link: #ea580c;
-  --app-link-hover: #c2410c;
-  --app-text-primary: #18181b;
-  --app-text-secondary: #71717a;
-  --app-table-row-hover: #fafafa;
-  --app-divider: #e4e4e7;
-  /* Spacing – 8px base grid; change here to adjust gaps app-wide */
-  --app-space-xs: 0.5rem;   /* 8px */
+  --app-danger-bg: #fee2e2;
+  --app-danger-text: #b91c1c;
+  --app-link: #0b54ab;
+  --app-link-hover: #094a96;
+
+  /* Text */
+  --app-text-primary: #0f172a;       /* slate-900 */
+  --app-text-secondary: #64748b;     /* slate-500 */
+  --app-text-muted: #94a3b8;         /* slate-400 */
+
+  /* Tables / dividers */
+  --app-table-row-hover: #f8fafc;
+  --app-divider: #e2e8f0;
+
+  /* Spacing scale */
+  --app-space-xs: 0.5rem;
   --app-space-sm: 0.75rem;
   --app-space-md: 1rem;
   --app-space-lg: 1.5rem;
   --app-space-xl: 2rem;
   --app-space-2xl: 2.5rem;
   --app-space-3xl: 3rem;
+
+  /* Shadow ramp */
+  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 6px -1px rgb(15 23 42 / 0.05);
+  --shadow-lg: 0 12px 24px -8px rgb(15 23 42 / 0.12), 0 6px 12px -4px rgb(15 23 42 / 0.06);
+  --shadow-focus: 0 0 0 3px rgb(11 84 171 / 0.18);
+
+  /* Radii */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --app-sidebar-bg: #27272a;
-    --app-sidebar-text: #d4d4d8;
-    --app-sidebar-border: #3f3f46;
-    --app-nav-active-bg: #431407;
-    --app-nav-active-text: #fdba74;
-    --app-nav-hover-bg: #3f3f46;
-    --app-nav-icon: #a1a1aa;
-    --app-navbar-bg: #18181b;
-    --app-navbar-border: #3f3f46;
-    --app-search-bg: #27272a;
-    --app-search-border: #3f3f46;
-    --app-search-placeholder: #a1a1aa;
-    --app-card-bg: #27272a;
+    --app-sidebar-bg: #0f172a;       /* slate-900 */
+    --app-sidebar-text: #cbd5e1;     /* slate-300 */
+    --app-sidebar-border: #1e293b;   /* slate-800 */
+    --app-sidebar-section: #64748b;
+    --app-nav-active-bg: #1e3a8a;    /* blue-900 */
+    --app-nav-active-text: #93c5fd;  /* blue-300 */
+    --app-nav-hover-bg: #1e293b;
+    --app-nav-icon: #94a3b8;
+    --app-navbar-bg: #0f172a;
+    --app-navbar-border: #1e293b;
+    --app-search-bg: #1e293b;
+    --app-search-border: #334155;
+    --app-search-placeholder: #64748b;
+    --app-page-bg: #020617;
+    --app-card-bg: #0f172a;
+    --app-card-border: #1e293b;
     --app-card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3);
-    --app-success-bg: #14532d;
-    --app-warning-bg: #7c2d12;
-    --app-text-primary: #fafafa;
-    --app-text-secondary: #a1a1aa;
-    --app-table-row-hover: #27272a;
-    --app-divider: #3f3f46;
+    --app-success-bg: #064e3b;
+    --app-success-text: #34d399;
+    --app-warning-bg: #78350f;
+    --app-warning-text: #fbbf24;
+    --app-danger-bg: #7f1d1d;
+    --app-danger-text: #fca5a5;
+    --app-text-primary: #f8fafc;
+    --app-text-secondary: #94a3b8;
+    --app-text-muted: #64748b;
+    --app-table-row-hover: #1e293b;
+    --app-divider: #1e293b;
+    --app-brand-soft: #1e3a8a;
   }
 }
 
@@ -172,10 +222,41 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  background: var(--app-page-bg, var(--background));
+  color: var(--app-text-primary, var(--foreground));
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-feature-settings: "cv11", "ss01", "ss03";   /* nicer Geist alternates */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.015em;
+  color: var(--app-text-primary);
+}
+
+/* Tabular numbers for data tables and money values */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Premium focus ring used by inputs and buttons */
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  box-shadow: var(--shadow-focus);
+}
+
+/* Subtle scrollbars in dark/light */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: rgb(148 163 184 / 0.3);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgb(100 116 139 / 0.45); background-clip: padding-box; border: 2px solid transparent; }
+::-webkit-scrollbar-track { background: transparent; }
 
 /* Brand color utility – use .bg-app-brand when var(--app-brand) is not visible */
 .bg-app-brand {

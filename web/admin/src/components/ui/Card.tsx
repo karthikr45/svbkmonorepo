@@ -1,12 +1,30 @@
 import { type HTMLAttributes, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
-export const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
+export interface CardProps extends HTMLAttributes<HTMLDivElement> {
+  /** Density: "default" (premium roomy) or "tight" for tables/list items. */
+  padding?: "none" | "tight" | "default" | "loose";
+  /** Add a subtle hover lift. */
+  interactive?: boolean;
+}
+
+const paddingMap = {
+  none: "p-0",
+  tight: "p-4",
+  default: "p-6",
+  loose: "p-8",
+} as const;
+
+export const Card = forwardRef<HTMLDivElement, CardProps>(
+  ({ className, padding = "default", interactive = false, ...props }, ref) => (
     <div
       ref={ref}
       className={cn(
-        "rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900",
+        "rounded-[var(--app-card-radius)] border bg-[var(--app-card-bg)]",
+        "border-[var(--app-card-border)] shadow-[var(--app-card-shadow)]",
+        "transition-shadow duration-200",
+        interactive && "hover:shadow-[var(--app-card-shadow-hover)] hover:border-slate-300",
+        paddingMap[padding],
         className
       )}
       {...props}
@@ -20,7 +38,7 @@ export const CardHeader = forwardRef<
   HTMLDivElement,
   HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("mb-4", className)} {...props} />
+  <div ref={ref} className={cn("mb-4 flex flex-col gap-1", className)} {...props} />
 ));
 
 CardHeader.displayName = "CardHeader";
@@ -31,7 +49,10 @@ export const CardTitle = forwardRef<
 >(({ className, ...props }, ref) => (
   <h2
     ref={ref}
-    className={cn("text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50", className)}
+    className={cn(
+      "text-base font-semibold tracking-tight text-[var(--app-text-primary)]",
+      className
+    )}
     {...props}
   />
 ));
@@ -44,7 +65,7 @@ export const CardDescription = forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn("text-sm text-zinc-600 dark:text-zinc-400", className)}
+    className={cn("text-sm text-[var(--app-text-secondary)]", className)}
     {...props}
   />
 ));

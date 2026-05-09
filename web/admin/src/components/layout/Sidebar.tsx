@@ -107,7 +107,7 @@ export function Sidebar() {
       />
 
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-full w-20 md:w-72 flex-col shadow-xl ${transitionClass} ${
+        className={`fixed left-0 top-0 z-50 flex h-full w-20 md:w-64 flex-col ${transitionClass} ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } max-w-[85vw]`}
         style={{
@@ -117,7 +117,7 @@ export function Sidebar() {
         aria-label="Main navigation"
       >
         <div
-          className="flex min-w-0 items-center justify-center md:justify-start overflow-hidden border-b px-2 py-4"
+          className="flex min-w-0 items-center justify-center md:justify-start overflow-hidden border-b px-3 py-5"
           style={{ borderColor: "var(--app-sidebar-border)" }}
         >
           <div className="min-w-0 flex-1">
@@ -125,7 +125,13 @@ export function Sidebar() {
           </div>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-4">
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-4">
+          <p
+            className="hidden md:block px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.08em]"
+            style={{ color: "var(--app-sidebar-section)" }}
+          >
+            Workspace
+          </p>
           {navItems.map(({ href, label, icon }) => {
             const active = isActive(href);
             return (
@@ -133,14 +139,26 @@ export function Sidebar() {
                 key={href}
                 href={href}
                 onClick={closeSidebar}
-                className={`flex items-center justify-center md:justify-start gap-4 rounded-xl px-0 md:px-4 py-3 text-base font-medium ${transitionClass} ${active ? "" : "hover:bg-[var(--app-nav-hover-bg)]"}`}
+                className={`group relative flex items-center justify-center md:justify-start gap-3 rounded-lg px-0 md:px-3 py-2.5 text-sm font-medium ${transitionClass} ${
+                  active ? "" : "hover:bg-[var(--app-nav-hover-bg)]"
+                }`}
                 style={
                   active
-                    ? { backgroundColor: "#e0f2fe", color: "#1e58b4" }
+                    ? {
+                        backgroundColor: "var(--app-nav-active-bg)",
+                        color: "var(--app-nav-active-text)",
+                        fontWeight: 600,
+                      }
                     : { color: "var(--app-sidebar-text)" }
                 }
                 title={label}
               >
+                {active && (
+                  <span
+                    className="absolute left-0 top-1/2 hidden h-5 w-0.5 -translate-y-1/2 rounded-r md:block"
+                    style={{ backgroundColor: "var(--app-brand)" }}
+                  />
+                )}
                 <NavIcon name={icon} />
                 <span className="hidden md:inline">{label}</span>
               </Link>
@@ -148,11 +166,34 @@ export function Sidebar() {
           })}
         </nav>
 
-        <div className="border-t px-2 py-4" style={{ borderColor: "var(--app-sidebar-border)" }}>
-          <div className="mb-3 flex items-center justify-center gap-3 rounded-xl px-2 py-2 md:hidden">
+        <div className="border-t px-3 py-3" style={{ borderColor: "var(--app-sidebar-border)" }}>
+          {/* Profile + logout — premium pattern: avatar, name, email, action */}
+          <div className="mb-2 hidden md:flex items-center gap-3 rounded-lg px-2 py-2.5">
             <div
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-medium text-white"
-              style={{ backgroundColor: "var(--app-brand, #0b54ab)" }}
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm"
+              style={{ backgroundColor: "var(--app-brand)" }}
+            >
+              A
+            </div>
+            <div className="min-w-0 flex-1">
+              <p
+                className="text-sm font-semibold leading-tight truncate"
+                style={{ color: "var(--app-text-primary)" }}
+              >
+                Admin
+              </p>
+              <p
+                className="text-xs leading-tight truncate"
+                style={{ color: "var(--app-text-secondary)" }}
+              >
+                Tenant admin
+              </p>
+            </div>
+          </div>
+          <div className="mb-2 flex items-center justify-center md:hidden">
+            <div
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+              style={{ backgroundColor: "var(--app-brand)" }}
             >
               A
             </div>
@@ -160,14 +201,22 @@ export function Sidebar() {
           <button
             type="button"
             onClick={() => { closeSidebar(); logout(); }}
-            className={`flex w-full items-center justify-center md:justify-start gap-4 rounded-xl px-0 md:px-4 py-3 text-base font-medium ${transitionClass} hover:opacity-90`}
-            style={{ color: "var(--app-danger-text)" }}
+            className={`flex w-full items-center justify-center md:justify-start gap-3 rounded-lg px-0 md:px-3 py-2.5 text-sm font-medium ${transitionClass}`}
+            style={{ color: "var(--app-text-secondary)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--app-danger-bg)";
+              e.currentTarget.style.color = "var(--app-danger-text)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "var(--app-text-secondary)";
+            }}
             title="Logout"
           >
             <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            <span className="hidden md:inline">Logout</span>
+            <span className="hidden md:inline">Sign out</span>
           </button>
         </div>
       </aside>
