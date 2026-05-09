@@ -93,7 +93,7 @@ export function clearStoredRefreshToken(): void {
 
 // ─── Public user API ──────────────────────────────────────────────────────────
 
-export function getStoredUser(p0: string): AuthUser | null {
+export function getStoredUser(): AuthUser | null {
   return getStorageItem<AuthUser>(STORAGE_KEY.userDetails);
 }
 

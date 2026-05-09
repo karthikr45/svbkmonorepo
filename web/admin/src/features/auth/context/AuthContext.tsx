@@ -57,6 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearStoredUser();
     setTokenState(null);
     setUserState(null);
+    // Hard-nav guarantees every component remounts with a fresh auth state,
+    // bypassing any stale-state edge cases in route-group layouts.
+    if (typeof window !== "undefined") {
+      window.location.replace("/");
+    }
   }, []);
 
   // Handle forced logout from the 401 interceptor (refresh token expired/invalid).
