@@ -6,6 +6,7 @@ import { Button } from "@/components/ui";
 import { Card } from "@/components/ui/Card";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { getApiBaseUrl } from "@/lib/env";
+import { getStoredToken } from "@/features/auth/services";
 import {
   getAcademicYearsApi,
   getStudentsDetailsByBranchApi,
@@ -136,10 +137,30 @@ export function StudentsTableV2({ onUpload, onShowLegacy }: Props) {
     });
   }, [students, classFilter, search]);
 
-  function downloadTemplate(format: "xlsx" | "csv" = "xlsx") {
+  async function downloadTemplate(format: "xlsx" | "csv" = "xlsx") {
     try {
       const url = `${getApiBaseUrl()}/students/upload/template?format=${format}`;
-      window.location.href = url;
+      // Use the same storage helpers the api-client uses, so the JWT
+      // header attaches whether the user logged in via password or
+      // refresh-token flow. window.location.href can't add headers.
+      const token = getStoredToken();
+      const headers: HeadersInit = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        throw new Error(`Download failed (HTTP ${res.status})`);
+      }
+      const blob = await res.blob();
+      const filename = `svbk-students-upload-template.${format}`;
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
     } catch (err) {
       alert(getApiErrorMessage(err, "Could not start download"));
     }
