@@ -183,4 +183,76 @@ export class UploadService {
       throw err;
     }
   }
+
+  /**
+   * Single-student create path used by the "Add student" UI form.
+   * Mirrors the upload pipeline but for one row.
+   */
+  async createOne(
+    tenantId: string,
+    branch: string,
+    dto: {
+      academicYear: string;
+      admissionNumber: string;
+      name: string;
+      email: string;
+      phoneNumber: string;
+      class: string;
+      section: string;
+      rollNo: string;
+      imgUrl?: string | null;
+      terms?: { term: string; amount: number; discount?: number }[];
+    },
+  ) {
+    return this.dataSource.transaction(async (manager) => {
+      const studentResult = await this.studentsService.bulkUpsert(
+        [
+          {
+            tenantId,
+            branch,
+            admissionNumber: dto.admissionNumber.trim(),
+            academicYear: dto.academicYear.trim(),
+            name: dto.name.trim(),
+            email: dto.email.trim().toLowerCase(),
+            phoneNumber: dto.phoneNumber.trim(),
+            class: dto.class.trim(),
+            section: dto.section.trim(),
+            rollNo: dto.rollNo.trim(),
+            imgUrl: dto.imgUrl ?? null,
+          },
+        ],
+        manager,
+      );
+      const studentId = studentResult.idByKey.get(
+        this.studentsService.key(dto.admissionNumber.trim(), dto.academicYear.trim()),
+      );
+      if (!studentId) {
+        throw new BadRequestException('Failed to upsert student');
+      }
+
+      let feesCreated = 0;
+      if (dto.terms?.length) {
+        feesCreated = await this.feesService.bulkCreate(
+          dto.terms.map((t) => ({
+            tenantId,
+            branch,
+            academicYear: dto.academicYear.trim(),
+            studentId,
+            term: t.term as any,
+            originalAmount: t.amount,
+            totalDiscount: t.discount ?? 0,
+          })),
+          manager,
+        );
+      }
+
+      return {
+        message: 'Student created',
+        studentId,
+        studentsCreated: studentResult.created,
+        studentsUpdated: studentResult.updated,
+        feesCreated,
+      };
+    });
+  }
 }

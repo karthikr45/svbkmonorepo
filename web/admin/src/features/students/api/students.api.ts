@@ -127,5 +127,29 @@ export async function getLatestStudentsApi(): Promise<LatestStudent[]> {
   return get<LatestStudent[]>(API_ENDPOINTS.studentsDetails.getLatestStudents);
 }
 
+export interface CreateStudentTermPayload {
+  term: string;
+  amount: number;
+  discount?: number;
+}
+
+export interface CreateStudentPayload {
+  branch?: string;
+  academicYear: string;
+  admissionNumber: string;
+  name: string;
+  email: string;
+  phoneNumber: string;
+  class: string;
+  section: string;
+  rollNo: string;
+  imgUrl?: string | null;
+  terms?: CreateStudentTermPayload[];
+}
+
+export async function createStudentApi(payload: CreateStudentPayload): Promise<unknown> {
+  return post<unknown, CreateStudentPayload>("/students", payload);
+}
+
 
 

@@ -10,6 +10,7 @@ import {
   getAcademicYearsApi,
   getStudentsDetailsByBranchApi,
 } from "@/features/students/api/students.api";
+import { AddStudentModal } from "./AddStudentModal";
 import type {
   AcademicYearItem,
   StudentFeeRow,
@@ -52,6 +53,8 @@ export function StudentsTableV2({ onUpload, onShowLegacy }: Props) {
   const [students, setStudents] = useState<StudentFeeRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Load academic years on mount
   useEffect(() => {
@@ -66,7 +69,7 @@ export function StudentsTableV2({ onUpload, onShowLegacy }: Props) {
       );
   }, []);
 
-  // Load students whenever year changes
+  // Load students whenever year changes (or after a create)
   useEffect(() => {
     if (!year) return;
     setLoading(true);
@@ -85,7 +88,7 @@ export function StudentsTableV2({ onUpload, onShowLegacy }: Props) {
         setError(getApiErrorMessage(err, "Could not load students")),
       )
       .finally(() => setLoading(false));
-  }, [year]);
+  }, [year, reloadKey]);
 
   const classes = useMemo(() => {
     const set = new Set<string>();
@@ -141,7 +144,7 @@ export function StudentsTableV2({ onUpload, onShowLegacy }: Props) {
               </svg>
               Upload Excel
             </Button>
-            <Button variant="primary" size="md">
+            <Button variant="primary" size="md" onClick={() => setAddOpen(true)}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
@@ -311,6 +314,13 @@ export function StudentsTableV2({ onUpload, onShowLegacy }: Props) {
           </table>
         </div>
       </Card>
+
+      <AddStudentModal
+        open={addOpen}
+        defaultAcademicYear={year}
+        onClose={() => setAddOpen(false)}
+        onCreated={() => setReloadKey((k) => k + 1)}
+      />
     </div>
   );
 }

@@ -37,6 +37,7 @@ import {
   ConfirmUploadResponseDto,
 } from './dto/upload.dto';
 import { ListStudentsQueryDto } from './dto/list.dto';
+import { CreateStudentDto } from './dto/create-student.dto';
 import { MAX_UPLOAD_SIZE_BYTES } from './constants/excel.constants';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes, ApiBody, ApiParam } from '@nestjs/swagger';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -58,6 +59,25 @@ export class StudentsController {
     private readonly studentFeesService: StudentFeesService,
     private readonly feesService: FeesService,
   ) {}
+
+  // ─────────────── Single create ───────────────
+
+  @Post()
+  @ApiOperation({
+    summary: 'Create one student (with optional term fees)',
+    description:
+      'Creates one Student row for (tenant, branch, admissionNumber, academicYear) and optionally a Fee row per term passed in the body.',
+  })
+  async createOne(@Body() dto: CreateStudentDto, @Req() req: Request) {
+    const { tenantId, branch: jwtBranch } = ctxWithBranch(req);
+    const branch = (dto.branch ?? jwtBranch ?? '').trim();
+    if (!branch) {
+      throw new BadRequestException(
+        'branch is required (either in the body or on your JWT)',
+      );
+    }
+    return this.uploadService.createOne(tenantId, branch, { ...dto, branch });
+  }
 
   // ─────────────── Upload ───────────────
 
