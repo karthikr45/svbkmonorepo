@@ -6,36 +6,44 @@ Monorepo for the SVBK school fee management platform.
 
 ```
 .
-├── apps/
-│   ├── api/        @svbk/api          NestJS — single API for school admin + parents (port 3001)
-│   ├── admin/      @svbk/admin        Next.js — admin web portal                     (port 3001 in dev — adjust if it clashes)
-│   ├── parent/     @svbk/parent       Next.js — parent web portal                    (port 3002)
-│   └── students/   @svbk/students     Next.js — students web portal (placeholder)    (port 3003)
+├── api/                       @svbk/api               NestJS — single backend (port 3001)
+├── web/
+│   ├── admin/                 @svbk/admin             Next.js — admin web    (port 3001 dev*)
+│   ├── parent/                @svbk/parent            Next.js — parent web   (port 3002)
+│   └── students/              @svbk/students          Next.js — students web (port 3003)
 ├── mobile/
-│   ├── admin/      @svbk/mobile-admin     Expo — admin mobile app
-│   ├── parent/     @svbk/mobile-parent    Expo — parent mobile app
-│   └── students/   @svbk/mobile-students  Expo — students mobile app
-├── packages/                          shared libraries (types, ui, etc.) — empty for now
+│   ├── admin/                 @svbk/mobile-admin      Expo
+│   ├── parent/                @svbk/mobile-parent     Expo
+│   └── students/              @svbk/mobile-students   Expo
+├── packages/                  shared libs (types, ui, api-client, configs)
 ├── pnpm-workspace.yaml
 ├── turbo.json
 └── package.json
 ```
 
+\* admin web defaults to Next.js's port 3000 in source — adjust to avoid clashing with the API on 3001.
+
+## Why this structure
+
+- **One folder per tier** (`api`, `web`, `mobile`) — instant mental model.
+- **Each leaf is one deployable**. CI/CD targets are obvious; no nesting under a generic `apps/`.
+- **`packages/`** is the only non-deployable folder — anything inside is consumed by code in `api/`, `web/*`, or `mobile/*`.
+- pnpm + Turborepo handle this layout natively (see `pnpm-workspace.yaml`).
+- Adding a new portal (e.g. `web/teacher`) is a folder copy.
+
 ## API design
 
-`apps/api` is the **single backend** for the entire platform. It contains:
+`api/` is the **single backend** for the whole platform. Three audiences:
 
 | Audience | Auth | Routes |
 |---|---|---|
-| Super-admin | password (`/api/auth/signin`) | tenants, tenant-configs, tenant-admins |
-| Tenant admin | password (`/api/auth/signin`) | students, fees, payments, announcements, parents, … (per-tenant) |
-| Parent | OTP (`/api/parent/auth/send-otp` → `/verify-otp`) | `/api/parent/me`, `/api/parent/students`, `/api/parent/dashboard`, `/api/parent/fees`, `/api/parent/payments` |
+| Super-admin | password (`POST /api/auth/signin`) | tenants, tenant-configs, tenant-admins |
+| Tenant admin | password (`POST /api/auth/signin`) | per-tenant CRUD: students, fees, payments, parents, announcements, … |
+| Parent | OTP (`POST /api/parent/auth/send-otp` → `/verify-otp`) | `/api/parent/{me,students,dashboard,fees,payments}` |
 
-All data is **multi-tenant**: every entity carries `tenant_id`. JWT payload includes `role` + `tenantId`, and services filter by it.
+All entities carry `tenant_id`; JWT payload includes `role` + `tenantId`; services filter by it. Parents are linked to children by **admission number** (canonical, doesn't change yearly); the current-year `Student` row is resolved via `(tenantId, branch, admissionNumber, currentAcademicYear)`.
 
-Parents are linked to children by **admission number** (the canonical identity that doesn't change year-over-year). The current-year `Student` row is resolved via `(tenant_id, branch, admission_number, current academic_year)`.
-
-See `apps/api/.env.example` for required env vars.
+See `api/.env.example` for required env vars.
 
 ## Tooling
 
@@ -46,12 +54,12 @@ See `apps/api/.env.example` for required env vars.
 ## Getting started
 
 ```bash
-npm install -g pnpm     # if you don't have pnpm
-pnpm install            # install all workspace deps
-cp apps/api/.env.example apps/api/.env   # then edit DB_*, JWT secrets
+npm install -g pnpm
+pnpm install
+cp api/.env.example api/.env       # then edit DB_*, JWT secrets
 
-pnpm dev                # run all dev servers in parallel
-pnpm build              # build everything
+pnpm dev                           # run all dev servers in parallel
+pnpm build
 ```
 
 ### Run a single workspace
@@ -61,7 +69,7 @@ pnpm --filter @svbk/api dev
 pnpm --filter @svbk/admin dev
 pnpm --filter @svbk/parent dev
 pnpm --filter @svbk/students dev
-pnpm --filter @svbk/mobile-parent dev   # Expo
+pnpm --filter @svbk/mobile-parent dev
 ```
 
 ## Common scripts (root)
@@ -77,13 +85,21 @@ pnpm --filter @svbk/mobile-parent dev   # Expo
 
 ## Environment files
 
-Each app keeps its own `.env`. Real `.env` files are gitignored — commit
-only `.env.example` files.
+Each app keeps its own `.env`. Real `.env` files are gitignored — commit only `.env.example`.
 
-## Sharing code between apps
+## Sharing code via `packages/`
 
-Drop a folder under `packages/` (e.g. `packages/types`) with its own
-`package.json` named `@svbk/types`. Reference from any app:
+Recommended packages to add as the codebase grows:
+
+| Package | Purpose |
+|---|---|
+| `@svbk/types` | Shared DTOs / enums between api ↔ web ↔ mobile |
+| `@svbk/api-client` | Typed HTTP client (can be hand-rolled or generated from Swagger) |
+| `@svbk/ui` | Shared React components (web only) |
+| `@svbk/config-eslint` | Shared ESLint preset |
+| `@svbk/config-tsconfig` | Base `tsconfig.json` files |
+
+Reference any of them from an app:
 
 ```json
 { "dependencies": { "@svbk/types": "workspace:*" } }
