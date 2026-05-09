@@ -1,0 +1,63 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import configuration from './config/configuration';
+import { AuthModule } from './modules/auth/auth.module';
+import { AdminsModule } from './modules/admins/admins.module';
+import { UsersModule } from './modules/users/users.module';
+import { TenantsModule } from './modules/tenants/tenants.module';
+import { TenantConfigsModule } from './modules/tenant-configs/tenant-configs.module';
+import { TenantAdminsModule } from './modules/tenant-admins/tenant-admins.module';
+import { AcademicYearsModule } from './modules/academic-years/academic-years.module';
+import { StudentsModule } from './modules/students/students.module';
+import { FeesModule } from './modules/fees/fees.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { PenaltiesModule } from './modules/penalties/penalties.module';
+import { TemplatesModule } from './modules/templates/templates.module';
+import { AnnouncementsModule } from './modules/announcements/announcements.module';
+import { MediaModule } from './modules/media/media.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [configuration],
+    }),
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        type: 'postgres',
+        host: config.get<string>('database.host'),
+        port: config.get<number>('database.port'),
+        username: config.get<string>('database.username'),
+        password: config.get<string>('database.password'),
+        database: config.get<string>('database.name'),
+        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        synchronize: config.get<boolean>('database.sync'),
+        logging: false,
+      }),
+      inject: [ConfigService],
+    }),
+    AuthModule,
+    AdminsModule,
+    UsersModule,
+    TenantsModule,
+    TenantConfigsModule,
+    TenantAdminsModule,
+    AcademicYearsModule,
+    StudentsModule,
+    FeesModule,
+    PaymentsModule,
+    PenaltiesModule,
+    TemplatesModule,
+    AnnouncementsModule,
+    MediaModule,
+    NotificationsModule,
+    ReportsModule,
+    DashboardModule,
+  ],
+})
+export class AppModule {}

@@ -1,0 +1,607 @@
+"use client";
+
+import { useState, useEffect, useMemo } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { ConfigSection } from "@/components/common";
+import { Button, Input } from "@/components/ui";
+import {
+  getTenantConfigByIdApi,
+  getTenantConfigsByTenantIdApi,
+  getTenantConfigRecordId,
+  saveTenantConfigApi,
+  type SaveTenantConfigPayload,
+  type TenantConfig as TenantConfigPayload,
+} from "@/features/tenants/api/tenants.api";
+import { getApiErrorMessage } from "@/lib/api-client";
+
+/** Form model matches API config fields (tenant id is tracked separately on the page). */
+type TenantConfigForm = Omit<TenantConfigPayload, "tenantId">;
+
+function emptyTenantConfigForm(envTypeLabel: string): TenantConfigForm {
+  return {
+    envType: envTypeLabel,
+    configName: "",
+    logoUrl: "",
+    domainUrl: "",
+    backendUrl: "",
+    storageTab: "accessKeys",
+    accessKey: "",
+    secretKey: "",
+    bucketName: "",
+    gatewayType: "",
+    paymentKey: "",
+    paymentSecret: "",
+    webhookUrl: "",
+    smtpHost: "",
+    smtpPort: "",
+    smtpUser: "",
+    smtpPassword: "",
+    smtpFromName: "",
+    smtpFromEmail: "",
+    smtpSecure: false,
+  };
+}
+
+function serverConfigToForm(row: SaveTenantConfigPayload): TenantConfigForm {
+  const storageTab =
+    row.storageTab === "connectionString" ? "connectionString" : "accessKeys";
+  return {
+    envType: row.envType ?? "",
+    configName: row.configName ?? "",
+    logoUrl: row.logoUrl ?? "",
+    domainUrl: row.domainUrl ?? "",
+    backendUrl: row.backendUrl ?? "",
+    storageTab,
+    accessKey: row.accessKey ?? "",
+    secretKey: row.secretKey ?? "",
+    bucketName: row.bucketName ?? "",
+    gatewayType: row.gatewayType ?? "",
+    paymentKey: row.paymentKey ?? "",
+    paymentSecret: row.paymentSecret ?? "",
+    webhookUrl: row.webhookUrl ?? "",
+    smtpHost: row.smtpHost ?? "",
+    smtpPort: row.smtpPort ?? "",
+    smtpUser: row.smtpUser ?? "",
+    smtpPassword: row.smtpPassword ?? "",
+    smtpFromName: row.smtpFromName ?? "",
+    smtpFromEmail: row.smtpFromEmail ?? "",
+    smtpSecure: Boolean(row.smtpSecure),
+  };
+}
+
+/** Display label for env saved to the API; must match route segment intent. */
+function envTypeLabelFromRouteParam(routeEnv: string | undefined): string {
+  const k = (routeEnv ?? "").toLowerCase();
+  if (k === "production") return "Production";
+  if (k === "qa") return "QA";
+  return "Development";
+}
+
+function envKeyFromApiEnvType(apiEnvType: string | undefined): string {
+  return (apiEnvType ?? "").trim().toLowerCase().replace(/\s+/g, "");
+}
+
+function rowMatchesRouteEnv(row: SaveTenantConfigPayload, routeEnvKey: string): boolean {
+  const raw = row.envType ?? "";
+  const k = envKeyFromApiEnvType(raw);
+  if (routeEnvKey === "production") return k === "production" || raw.toLowerCase() === "production";
+  if (routeEnvKey === "qa") return k === "qa" || raw.toLowerCase() === "qa";
+  return k === "development" || k === "dev" || raw.toLowerCase() === "development";
+}
+
+export default function EnvConfigPage() {
+  const { tenantId, envType } = useParams<{ tenantId: string; envType: string }>();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const resolvedTenantId = Array.isArray(tenantId) ? tenantId[0] : tenantId;
+  const resolvedEnvParam = Array.isArray(envType) ? envType[0] : envType;
+  const configIdFromQuery = searchParams.get("configId")?.trim() || undefined;
+
+  const goBackToTenantConfiguration = () => {
+    if (resolvedTenantId) {
+      router.push(`/tenants/${resolvedTenantId}?tab=configuration`);
+      return;
+    }
+    router.push("/tenants");
+  };
+
+  const routeEnvTypeLabel = useMemo(() => envTypeLabelFromRouteParam(resolvedEnvParam), [resolvedEnvParam]);
+
+  const [config, setConfig] = useState<TenantConfigForm>(() => emptyTenantConfigForm(routeEnvTypeLabel));
+  const [configRecordId, setConfigRecordId] = useState<string | undefined>(undefined);
+  const [errors, setErrors] = useState<Partial<Record<keyof TenantConfigForm, string>>>({});
+  const [showSuccess, setShowSuccess] = useState("");
+  const [showError, setShowError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configLoadError, setConfigLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const tid = String(resolvedTenantId ?? "").trim();
+    if (!tid) {
+      setConfigLoading(false);
+      setConfigLoadError("Missing tenant id.");
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setConfigLoading(true);
+    setConfigLoadError(null);
+
+    (async () => {
+      const fallbackForm = emptyTenantConfigForm(routeEnvTypeLabel);
+
+      try {
+        let row: SaveTenantConfigPayload | null = null;
+
+        if (configIdFromQuery) {
+          try {
+            row = await getTenantConfigByIdApi(configIdFromQuery);
+          } catch {
+            /* e.g. 404 — resolve from tenant list below */
+          }
+        }
+
+        if (!row) {
+          const list = await getTenantConfigsByTenantIdApi(tid);
+          const routeKey = (resolvedEnvParam ?? "").toLowerCase();
+          if (configIdFromQuery) {
+            row =
+              list.find((r) => getTenantConfigRecordId(r) === configIdFromQuery) ??
+              list.find((r) => rowMatchesRouteEnv(r, routeKey)) ??
+              null;
+          } else {
+            row = list.find((r) => rowMatchesRouteEnv(r, routeKey)) ?? null;
+          }
+        }
+
+        if (cancelled) return;
+
+        if (row) {
+          setConfigRecordId(getTenantConfigRecordId(row));
+          setConfig(serverConfigToForm(row));
+        } else {
+          setConfigRecordId(undefined);
+          setConfig(fallbackForm);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setConfigLoadError(getApiErrorMessage(e, "Could not load configuration."));
+          setConfigRecordId(undefined);
+          setConfig(fallbackForm);
+        }
+      } finally {
+        if (!cancelled) setConfigLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedTenantId, resolvedEnvParam, routeEnvTypeLabel, configIdFromQuery]);
+
+  const updateConfig = (updates: Partial<TenantConfigForm>) =>
+    setConfig((prev) => ({ ...prev, ...updates }));
+
+  const validateInput = (field: keyof TenantConfigForm, value: string) => {
+    if (!value.trim()) return "This field is required";
+    if (["logoUrl", "domainUrl", "backendUrl", "webhookUrl"].includes(field)) {
+      if (!/^https?:\/\//.test(value.trim())) return "Enter a valid URL";
+    }
+    if (field === "smtpFromEmail" && value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
+      return "Enter a valid email address";
+    }
+    if (field === "smtpPort" && value.trim() && !/^\d+$/.test(value.trim())) {
+      return "Enter a valid port number";
+    }
+    return "";
+  };
+
+  const onSubmit = async () => {
+    const baseKeys: (keyof TenantConfigForm)[] = [
+      "configName",
+      "logoUrl",
+      "domainUrl",
+      "backendUrl",
+      "gatewayType",
+      "paymentKey",
+      "paymentSecret",
+      "webhookUrl",
+    ];
+    const storageKeys: (keyof TenantConfigForm)[] =
+      config.storageTab === "connectionString"
+        ? ["accessKey"]
+        : ["accessKey", "secretKey", "bucketName"];
+    const keysToValidate = [...baseKeys, ...storageKeys];
+
+    const nextErrors: Partial<Record<keyof TenantConfigForm, string>> = {};
+    keysToValidate.forEach((key) => {
+      const error = validateInput(key, config[key] as string);
+      if (error) nextErrors[key] = error;
+    });
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
+    setSaving(true);
+    setShowError("");
+    setShowSuccess("");
+
+    const payload: SaveTenantConfigPayload = {
+      tenantId: String(resolvedTenantId ?? ""),
+      envType: config.envType,
+      configName: config.configName,
+      logoUrl: config.logoUrl,
+      domainUrl: config.domainUrl,
+      backendUrl: config.backendUrl,
+      storageTab: config.storageTab,
+      accessKey: config.accessKey,
+      secretKey: config.secretKey,
+      bucketName: config.bucketName,
+      gatewayType: config.gatewayType,
+      paymentKey: config.paymentKey,
+      paymentSecret: config.paymentSecret,
+      webhookUrl: config.webhookUrl,
+      smtpHost: config.smtpHost,
+      smtpPort: config.smtpPort,
+      smtpUser: config.smtpUser,
+      smtpPassword: config.smtpPassword,
+      smtpFromName: config.smtpFromName,
+      smtpFromEmail: config.smtpFromEmail,
+      smtpSecure: config.smtpSecure,
+    };
+    try {
+      await saveTenantConfigApi(payload);
+      try {
+        const tid = String(resolvedTenantId ?? "");
+        if (configRecordId) {
+          const refreshed = await getTenantConfigByIdApi(configRecordId);
+          if (refreshed) setConfig(serverConfigToForm(refreshed));
+        } else {
+          const list = await getTenantConfigsByTenantIdApi(tid);
+          const routeKey = (resolvedEnvParam ?? "").toLowerCase();
+          const match = list.find((r) => rowMatchesRouteEnv(r, routeKey));
+          if (match) {
+            setConfigRecordId(getTenantConfigRecordId(match));
+            setConfig(serverConfigToForm(match));
+          }
+        }
+      } catch {
+        /* save succeeded; form refresh is optional */
+      }
+      const tid = String(resolvedTenantId ?? "").trim();
+      if (tid) {
+        router.push(`/tenants/${encodeURIComponent(tid)}?tab=configuration`);
+        return;
+      }
+      setShowSuccess("Configuration saved successfully");
+      window.setTimeout(() => setShowSuccess(""), 3000);
+    } catch (error) {
+      setShowError(getApiErrorMessage(error, "Failed to save configuration. Please try again."));
+      window.setTimeout(() => setShowError(""), 5000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const envLabel = routeEnvTypeLabel;
+  const isEditingConfig = Boolean(configRecordId || configIdFromQuery);
+
+  return (
+    <div className="p-4 sm:p-6">
+      <div className="mb-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            onClick={goBackToTenantConfiguration}
+            variant="outline"
+            size="sm"
+            type="button"
+            className="shrink-0"
+          >
+            ← 
+          </Button>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-bold text-[var(--app-text-primary)]">
+              {envLabel} Configuration
+            </h1>
+            <p className="mt-1 text-sm text-[var(--app-text-secondary)]">
+              Manage settings for the {envLabel} environment
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {configLoading && (
+        <p className="mb-4 text-sm text-[var(--app-text-secondary)]">Loading configuration…</p>
+      )}
+      {configLoadError && !configLoading && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+          {configLoadError} You can edit the fields below and save, or go back and retry.
+        </div>
+      )}
+
+      <form
+        className={`space-y-4 ${configLoading ? "pointer-events-none opacity-60" : ""}`}
+        autoComplete="off"
+        onSubmit={(e) => e.preventDefault()}
+      >
+        <ConfigSection title="General">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-[var(--app-text-secondary)]">
+              Environment Type
+            </label>
+            <select
+              value={config.envType}
+              onChange={(e) => updateConfig({ envType: e.target.value })}
+              disabled
+              title="Environment is set by the page you opened and cannot be changed here."
+              className="h-11 cursor-not-allowed rounded-lg border border-zinc-300 bg-zinc-100 px-3 text-base text-zinc-600 opacity-90 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-300"
+            >
+              <option value="">Select environment</option>
+              <option value="Production">Production</option>
+              <option value="QA">QA</option>
+              <option value="Development">Development</option>
+            </select>
+            {errors.envType && <p className="text-sm text-red-600">{errors.envType}</p>}
+          </div>
+
+          <Input
+            label="Configuration Name"
+            value={config.configName}
+            onChange={(e) => updateConfig({ configName: e.target.value })}
+            error={errors.configName}
+            fullWidth
+          />
+        </ConfigSection>
+
+        <ConfigSection title="Domain Settings">
+          <Input
+            label="Logo URL"
+            value={config.logoUrl}
+            onChange={(e) => updateConfig({ logoUrl: e.target.value })}
+            error={errors.logoUrl}
+            fullWidth
+          />
+          <Input
+            label="Domain URL"
+            value={config.domainUrl}
+            onChange={(e) => updateConfig({ domainUrl: e.target.value })}
+            error={errors.domainUrl}
+            fullWidth
+          />
+          <Input
+            label="Backend API URL"
+            value={config.backendUrl}
+            onChange={(e) => updateConfig({ backendUrl: e.target.value })}
+            error={errors.backendUrl}
+            fullWidth
+          />
+        </ConfigSection>
+
+        <ConfigSection title="File Storage">
+          <div className="sm:col-span-2">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={`rounded-md px-3 py-2 text-sm transition ${config.storageTab === "accessKeys" ? "bg-foreground text-background" : "border border-zinc-300 bg-white"}`}
+                onClick={() => updateConfig({ storageTab: "accessKeys" })}
+              >
+                Access Keys
+              </button>
+              <button
+                type="button"
+                className={`rounded-md px-3 py-2 text-sm transition ${config.storageTab === "connectionString" ? "bg-foreground text-background" : "border border-zinc-300 bg-white"}`}
+                onClick={() => updateConfig({ storageTab: "connectionString" })}
+              >
+                Connection String
+              </button>
+            </div>
+          </div>
+
+          {(config.storageTab === "accessKeys" || !config.storageTab) && (
+            <>
+              <Input
+                label="Client ID / Access Key"
+                value={config.accessKey}
+                onChange={(e) => updateConfig({ accessKey: e.target.value })}
+                error={errors.accessKey}
+                fullWidth
+              />
+              <div className="relative">
+                <Input
+                  id="tenant-cfg-storage-secret"
+                  label="Secret Key"
+                  type={showSecret ? "text" : "password"}
+                  value={config.secretKey}
+                  onChange={(e) => updateConfig({ secretKey: e.target.value })}
+                  error={errors.secretKey}
+                  fullWidth
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSecret(!showSecret)}
+                  className="absolute right-2 top-8 text-sm text-[var(--app-text-secondary)]"
+                >
+                  {showSecret ? "Hide" : "Show"}
+                </button>
+              </div>
+              <Input
+                label="Bucket Name"
+                value={config.bucketName}
+                onChange={(e) => updateConfig({ bucketName: e.target.value })}
+                error={errors.bucketName}
+                fullWidth
+              />
+            </>
+          )}
+
+          {config.storageTab === "connectionString" && (
+            <Input
+              label="Connection String"
+              value={config.accessKey}
+              onChange={(e) => updateConfig({ accessKey: e.target.value })}
+              error={errors.accessKey}
+              fullWidth
+            />
+          )}
+        </ConfigSection>
+
+        <ConfigSection title="Payment Gateway">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-[var(--app-text-secondary)]">
+              Gateway Type
+            </label>
+            <select
+              value={config.gatewayType}
+              onChange={(e) => updateConfig({ gatewayType: e.target.value })}
+              className={`h-11 rounded-lg border px-3 text-base focus:outline-none focus:ring-2 focus:ring-foreground/20 ${
+                errors.gatewayType ? "border-red-500 focus:ring-red-500/20" : "border-zinc-300"
+              }`}
+            >
+              <option value="">Select gateway</option>
+              <option value="Razorpay">Razorpay</option>
+            </select>
+            {errors.gatewayType && <p className="text-sm text-red-600">{errors.gatewayType}</p>}
+          </div>
+
+          <Input
+            label="Client ID / Key ID"
+            value={config.paymentKey}
+            onChange={(e) => updateConfig({ paymentKey: e.target.value })}
+            error={errors.paymentKey}
+            fullWidth
+          />
+          <div className="relative">
+            <Input
+              id="tenant-cfg-payment-secret"
+              label="Secret Key"
+              type={showSecret ? "text" : "password"}
+              value={config.paymentSecret}
+              onChange={(e) => updateConfig({ paymentSecret: e.target.value })}
+              error={errors.paymentSecret}
+              fullWidth
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              onClick={() => setShowSecret(!showSecret)}
+              className="absolute right-2 top-8 text-sm text-[var(--app-text-secondary)]"
+            >
+              {showSecret ? "Hide" : "Show"}
+            </button>
+          </div>
+          <Input
+            label="Webhook URL"
+            value={config.webhookUrl}
+            onChange={(e) => updateConfig({ webhookUrl: e.target.value })}
+            error={errors.webhookUrl}
+            fullWidth
+          />
+        </ConfigSection>
+
+        <ConfigSection title="Email / SMTP Settings">
+          <Input
+            label="SMTP Host"
+            placeholder="e.g. smtp.gmail.com"
+            value={config.smtpHost}
+            onChange={(e) => updateConfig({ smtpHost: e.target.value })}
+            error={errors.smtpHost}
+            fullWidth
+          />
+          <Input
+            label="SMTP Port"
+            placeholder="e.g. 587"
+            value={config.smtpPort}
+            onChange={(e) => updateConfig({ smtpPort: e.target.value })}
+            error={errors.smtpPort}
+            fullWidth
+          />
+          <Input
+            id="tenant-cfg-smtp-user"
+            label="SMTP User"
+            placeholder="e.g. noreply@example.com"
+            value={config.smtpUser}
+            onChange={(e) => updateConfig({ smtpUser: e.target.value })}
+            error={errors.smtpUser}
+            fullWidth
+            autoComplete="off"
+          />
+          <div className="relative">
+            <Input
+              id="tenant-cfg-smtp-secret"
+              label="SMTP Password"
+              type={showSmtpPassword ? "text" : "password"}
+              placeholder="Enter SMTP password"
+              value={config.smtpPassword}
+              onChange={(e) => updateConfig({ smtpPassword: e.target.value })}
+              error={errors.smtpPassword}
+              fullWidth
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              onClick={() => setShowSmtpPassword((s) => !s)}
+              className="absolute right-2 top-8 text-sm text-[var(--app-text-secondary)]"
+            >
+              {showSmtpPassword ? "Hide" : "Show"}
+            </button>
+          </div>
+          <Input
+            label="From Name"
+            placeholder="e.g. School Notifications"
+            value={config.smtpFromName}
+            onChange={(e) => updateConfig({ smtpFromName: e.target.value })}
+            error={errors.smtpFromName}
+            fullWidth
+          />
+          <Input
+            label="From Email"
+            placeholder="e.g. noreply@school.com"
+            value={config.smtpFromEmail}
+            onChange={(e) => updateConfig({ smtpFromEmail: e.target.value })}
+            error={errors.smtpFromEmail}
+            fullWidth
+          />
+          <div className="flex items-center gap-3 sm:col-span-2">
+            <label className="text-sm font-medium text-[var(--app-text-secondary)]">
+              Use Secure Connection (TLS)
+            </label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={config.smtpSecure}
+              onClick={() => updateConfig({ smtpSecure: !config.smtpSecure })}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20 ${
+                config.smtpSecure ? "bg-foreground" : "bg-zinc-300 dark:bg-zinc-600"
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                  config.smtpSecure ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+        </ConfigSection>
+
+        {showSuccess && <div className="mt-4 text-sm text-emerald-600">{showSuccess}</div>}
+        {showError && <div className="mt-4 text-sm text-red-600">{showError}</div>}
+
+        <div className="sticky bottom-0 z-20 mt-6 rounded-md bg-[var(--app-card-bg)] py-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={onSubmit} disabled={saving} fullWidth className="sm:w-auto">
+              {saving ? "Saving…" : isEditingConfig ? "Update Configuration" : "Save Configuration"}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}

@@ -1,0 +1,37 @@
+
+export const EXCEL_COLUMNS = {
+  NAME: 'NAME',
+  EMAIL: 'e-mail',
+  PHONE: 'Phone number',
+  ADMISSION: 'ADMISSION',
+  CLASS: 'Class',
+  SECTION: 'Section',
+  ROLL_NO: 'Roll No',
+  ACADEMIC_YEAR: 'Academic Year',
+  IMG_URL: 'imgUrl',
+  TERM_1: '1st Term Fee',
+  TERM_2: '2nd Term Fee',
+  TERM_3: '3rd Term Fee',
+  TERM_4: '4th Term Fee',
+} as const;
+
+export const REQUIRED_STUDENT_COLUMNS = [
+  EXCEL_COLUMNS.NAME,
+  EXCEL_COLUMNS.EMAIL,
+  EXCEL_COLUMNS.PHONE,
+  EXCEL_COLUMNS.ADMISSION,
+  EXCEL_COLUMNS.CLASS,
+  EXCEL_COLUMNS.SECTION,
+  EXCEL_COLUMNS.ROLL_NO,
+  EXCEL_COLUMNS.ACADEMIC_YEAR,
+] as const;
+
+export const TERM_COLUMNS = [
+  EXCEL_COLUMNS.TERM_1,
+  EXCEL_COLUMNS.TERM_2,
+  EXCEL_COLUMNS.TERM_3,
+  EXCEL_COLUMNS.TERM_4,
+] as const;
+
+export const MAX_UPLOAD_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
+export const MAX_UPLOAD_ROWS = 10_000;

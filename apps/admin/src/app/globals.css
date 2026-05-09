@@ -1,0 +1,508 @@
+@import "tailwindcss";
+
+/*
+  Global styles: imported in app/layout.tsx so they apply everywhere.
+  Use in any file:
+  - CSS variables: var(--auth-page-bg), var(--auth-input-focus), etc.
+  - Auth layout classes: .auth-page, .auth-card, .auth-card-media, .auth-card-form
+  - Form utility classes: .input-underline, .input-bordered, .btn-signin, .form-error
+  - Or use the reusable UI components: FormLabel, InputUnderline, PasswordInput, BackLink, Button variant="auth"
+*/
+
+/* ========== Base theme ========== */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --brand: #1d4ed8;
+  --brand-hover: #1e40af;
+}
+
+/* ========== App / Dashboard global theme ========== */
+/* Change colors below in one place – they apply to navbar, sidebar, cards, buttons, table, badges. */
+:root {
+  --app-sidebar-bg: #f4f4f5;
+  --app-sidebar-text: #3f3f46;
+  --app-sidebar-border: #e4e4e7;
+  --app-nav-active-bg: #fef3e2;
+  --app-nav-active-text: #9a4d1e;
+  --app-nav-hover-bg: #e4e4e7;
+  --app-nav-icon: #71717a;
+  --app-navbar-bg: #ffffff;
+  --app-navbar-border: #e4e4e7;
+  --app-search-bg: #fafafa;
+  --app-search-border: #e4e4e7;
+  --app-search-placeholder: #71717a;
+  --app-search-focus: #3b82f6;
+  --app-card-bg: #ffffff;
+  --app-card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 4px 12px -2px rgb(0 0 0 / 0.04);
+  --app-card-radius: 0.75rem;
+  --app-stat-icon-blue: #3b82f6;
+  --app-stat-icon-orange: #f97316;
+  --app-stat-icon-green: #22c55e;
+  --app-brand: #0b54ab;
+  --app-success: #22c55e;
+  --app-success-bg: #dcfce7;
+  --app-warning: #ea580c;
+  --app-warning-bg: #ffedd5;
+  --app-danger: #dc2626;
+  --app-danger-text: #dc2626;
+  --app-link: #ea580c;
+  --app-link-hover: #c2410c;
+  --app-text-primary: #18181b;
+  --app-text-secondary: #71717a;
+  --app-table-row-hover: #fafafa;
+  --app-divider: #e4e4e7;
+  /* Spacing – 8px base grid; change here to adjust gaps app-wide */
+  --app-space-xs: 0.5rem;   /* 8px */
+  --app-space-sm: 0.75rem;
+  --app-space-md: 1rem;
+  --app-space-lg: 1.5rem;
+  --app-space-xl: 2rem;
+  --app-space-2xl: 2.5rem;
+  --app-space-3xl: 3rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-sidebar-bg: #27272a;
+    --app-sidebar-text: #d4d4d8;
+    --app-sidebar-border: #3f3f46;
+    --app-nav-active-bg: #431407;
+    --app-nav-active-text: #fdba74;
+    --app-nav-hover-bg: #3f3f46;
+    --app-nav-icon: #a1a1aa;
+    --app-navbar-bg: #18181b;
+    --app-navbar-border: #3f3f46;
+    --app-search-bg: #27272a;
+    --app-search-border: #3f3f46;
+    --app-search-placeholder: #a1a1aa;
+    --app-card-bg: #27272a;
+    --app-card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3);
+    --app-success-bg: #14532d;
+    --app-warning-bg: #7c2d12;
+    --app-text-primary: #fafafa;
+    --app-text-secondary: #a1a1aa;
+    --app-table-row-hover: #27272a;
+    --app-divider: #3f3f46;
+  }
+}
+
+/* ========== Shimmer / skeleton loading ========== */
+@keyframes shimmer {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: -100% 50%; }
+}
+.animate-shimmer { animation: shimmer 1.8s ease-in-out infinite; }
+
+/* ========== Modal animation ========== */
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ========== Motion & interaction tokens ========== */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 220ms;
+  --duration-slow: 350ms;
+}
+
+/* ========== Auth / form design tokens (reusable across login, signup, etc.) ========== */
+:root {
+  --auth-page-bg: #f5f5f5;
+  --auth-card-bg: #ffffff;
+  --auth-card-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --auth-card-shadow-hover: 0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.06);
+  --auth-input-border: #d1d5db;
+  --auth-input-focus: #3b82f6;
+  --auth-label-accent: #3b82f6;
+  --auth-label-default: #18181b;
+  --auth-required-asterisk: #ef4444;
+  --auth-btn-signin-bg: #a1a1aa;
+  --auth-btn-signin-hover: #71717a;
+  --auth-btn-signin-active: #52525a;
+  --auth-placeholder: #a1a1aa;
+  --auth-error: #dc2626;
+  --auth-back-link: #52525b;
+  --auth-back-link-hover: #18181b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+  :root {
+    --auth-page-bg: #18181b;
+    --auth-card-bg: #27272a;
+    --auth-input-border: #52525b;
+    --auth-input-focus: #60a5fa;
+    --auth-label-accent: #60a5fa;
+    --auth-label-default: #fafafa;
+    --auth-btn-signin-bg: #52525b;
+    --auth-btn-signin-hover: #3f3f46;
+    --auth-btn-signin-active: #27272a;
+    --auth-placeholder: #a1a1aa;
+    --auth-back-link: #a1a1aa;
+    --auth-back-link-hover: #fafafa;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-auth-page-bg: var(--auth-page-bg);
+  --color-auth-card-bg: var(--auth-card-bg);
+  --color-auth-input-border: var(--auth-input-border);
+  --color-auth-input-focus: var(--auth-input-focus);
+  --color-auth-label-accent: var(--auth-label-accent);
+  --color-auth-label-default: var(--auth-label-default);
+  --color-auth-required: var(--auth-required-asterisk);
+  --color-auth-btn-signin: var(--auth-btn-signin-bg);
+  --color-auth-error: var(--auth-error);
+  --color-app-nav-active: var(--app-nav-active-bg);
+  --color-app-brand: var(--app-brand);
+  --color-app-success: var(--app-success);
+  --color-app-warning: var(--app-warning);
+  --color-app-danger: var(--app-danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Brand color utility – use .bg-app-brand when var(--app-brand) is not visible */
+.bg-app-brand {
+  background-color: #0b54ab;
+}
+
+/* ========== Reusable auth layout classes (use in any auth page) ========== */
+.auth-page {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--auth-page-bg);
+  padding: 3rem 1.5rem;
+}
+@media (min-width: 768px) {
+  .auth-page {
+    padding: 4rem 3rem;
+  }
+}
+@media (min-width: 1024px) {
+  .auth-page {
+    padding: 6rem 5rem;
+  }
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 920px;
+  overflow: hidden;
+  border-radius: 1rem;
+  background-color: var(--auth-card-bg);
+  box-shadow: var(--auth-card-shadow);
+  display: flex;
+  flex-direction: column;
+  animation: auth-card-in var(--duration-slow) var(--ease-out-expo) both;
+  transition: box-shadow var(--duration-normal) var(--ease-out);
+}
+.auth-card:hover {
+  box-shadow: var(--auth-card-shadow-hover);
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-card {
+    animation: none;
+  }
+}
+@media (min-width: 768px) {
+  .auth-card {
+    flex-direction: row;
+    min-height: 520px;
+  }
+}
+
+@keyframes auth-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-card-media {
+  display: none;
+  width: 50%;
+  flex-shrink: 0;
+  position: relative;
+}
+@media (min-width: 768px) {
+  .auth-card-media {
+    display: block;
+  }
+}
+
+.auth-card-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2rem;
+}
+.auth-card-form > * {
+  animation: auth-form-in var(--duration-normal) var(--ease-out) both;
+}
+.auth-card-form > *:nth-child(1) { animation-delay: 60ms; }
+.auth-card-form > *:nth-child(2) { animation-delay: 120ms; }
+.auth-card-form > *:nth-child(3) { animation-delay: 180ms; }
+.auth-card-form > *:nth-child(4) { animation-delay: 240ms; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-card-form > * {
+    animation: none;
+  }
+}
+@media (min-width: 768px) {
+  .auth-card-form {
+    width: 50%;
+    padding: 2.5rem;
+  }
+}
+
+@keyframes auth-form-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== Reusable form field styles (for use with utility classes or components) ========== */
+.input-underline {
+  width: 100%;
+  border: 0;
+  border-bottom-width: 2px;
+  border-bottom-style: solid;
+  border-bottom-color: var(--auth-input-border);
+  background: transparent;
+  padding-bottom: 0.5rem;
+  padding-top: 0.25rem;
+  font-size: 1rem;
+  color: var(--auth-label-default);
+  outline: none;
+  transition:
+    border-color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.input-underline::placeholder {
+  color: var(--auth-placeholder);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.input-underline:hover {
+  border-bottom-color: var(--auth-input-focus);
+}
+.input-underline:focus {
+  border-bottom-color: var(--auth-input-focus);
+  box-shadow: 0 2px 0 0 var(--auth-input-focus);
+}
+.input-underline[aria-invalid="true"] {
+  border-bottom-color: var(--auth-error);
+}
+.input-underline[aria-invalid="true"]:focus {
+  box-shadow: 0 2px 0 0 var(--auth-error);
+}
+
+.input-bordered {
+  height: 3rem;
+  width: 100%;
+  border: 1px solid var(--auth-input-border);
+  border-radius: 0.5rem;
+  background-color: var(--auth-card-bg);
+  padding: 0.5rem 1rem;
+  padding-right: 3rem;
+  font-size: 1rem;
+  color: var(--auth-label-default);
+  outline: none;
+  transition:
+    border-color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+.input-bordered::placeholder {
+  color: var(--auth-placeholder);
+}
+.input-bordered:hover {
+  border-color: var(--auth-input-focus);
+}
+.input-bordered:focus {
+  border-color: var(--auth-input-focus);
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.18);
+}
+.input-bordered[aria-invalid="true"] {
+  border-color: var(--auth-error);
+}
+.input-bordered[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px rgb(220 38 38 / 0.2);
+}
+
+/* Full bordered input (no icon slot) – same as .input-bordered with normal padding */
+.input-bordered-field {
+  height: 3rem;
+  width: 100%;
+  border: 1px solid var(--auth-input-border);
+  border-radius: 0.5rem;
+  background-color: var(--auth-card-bg);
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  color: var(--auth-label-default);
+  outline: none;
+  transition:
+    border-color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+.input-bordered-field::placeholder {
+  color: var(--auth-placeholder);
+}
+.input-bordered-field:hover {
+  border-color: var(--auth-input-focus);
+}
+.input-bordered-field:focus {
+  border-color: var(--auth-input-focus);
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.18);
+}
+.input-bordered-field[aria-invalid="true"] {
+  border-color: var(--auth-error);
+}
+.input-bordered-field[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px rgb(220 38 38 / 0.2);
+}
+
+.btn-signin {
+  height: 3rem;
+  width: 100%;
+  border-radius: 0.5rem;
+  background-color: var(--auth-btn-signin-bg);
+  color: white;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.btn-signin:hover:not(:disabled) {
+  background-color: var(--auth-btn-signin-hover);
+  transform: translateY(-1px);
+}
+.btn-signin:active:not(:disabled) {
+  transform: translateY(0);
+  background-color: var(--auth-btn-signin-active);
+}
+.btn-signin:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--auth-card-bg), 0 0 0 4px var(--auth-input-focus);
+}
+
+.form-error {
+  font-size: 0.875rem;
+  color: var(--auth-error);
+  animation: form-error-in var(--duration-fast) var(--ease-out) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .form-error {
+    animation: none;
+  }
+}
+
+@keyframes form-error-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Back link hover: arrow moves slightly */
+.auth-back-link {
+  transition: color var(--duration-normal) var(--ease-out);
+}
+.auth-back-link svg {
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+.auth-back-link:hover svg {
+  transform: translateX(-3px);
+}
+
+/* ========== Rich Text Editor (Quill) ========== */
+.rich-text-editor .ql-toolbar.ql-snow {
+  border: 1px solid var(--app-divider);
+  border-radius: 0.75rem 0.75rem 0 0;
+  background: var(--app-search-bg);
+  padding: 8px 10px;
+}
+.rich-text-editor .ql-container.ql-snow {
+  border: 1px solid var(--app-divider);
+  border-top: none;
+  border-radius: 0 0 0.75rem 0.75rem;
+  background: var(--app-search-bg);
+  font-size: 0.875rem;
+  color: var(--app-text-primary);
+  min-height: 160px;
+}
+.rich-text-editor .ql-editor {
+  min-height: 160px;
+  line-height: 1.6;
+}
+.rich-text-editor .ql-editor.ql-blank::before {
+  color: var(--app-text-secondary);
+  font-style: normal;
+  opacity: 0.6;
+}
+.rich-text-editor .ql-toolbar .ql-stroke {
+  stroke: var(--app-text-secondary);
+}
+.rich-text-editor .ql-toolbar .ql-fill {
+  fill: var(--app-text-secondary);
+}
+.rich-text-editor .ql-toolbar .ql-picker-label {
+  color: var(--app-text-secondary);
+}
+.rich-text-editor .ql-toolbar button:hover .ql-stroke,
+.rich-text-editor .ql-toolbar button.ql-active .ql-stroke {
+  stroke: var(--app-brand);
+}
+.rich-text-editor .ql-toolbar button:hover .ql-fill,
+.rich-text-editor .ql-toolbar button.ql-active .ql-fill {
+  fill: var(--app-brand);
+}
+.rich-text-editor .ql-toolbar .ql-picker-label:hover,
+.rich-text-editor .ql-toolbar .ql-picker-label.ql-active {
+  color: var(--app-brand);
+}
+.rich-text-editor .ql-toolbar .ql-picker-options {
+  background: var(--app-card-bg);
+  border: 1px solid var(--app-divider);
+  border-radius: 0.5rem;
+  box-shadow: var(--app-card-shadow);
+}

@@ -1,0 +1,962 @@
+"use client";
+
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Tenant } from "@/features/tenants/tenantData";
+import { getTenantById } from "@/features/tenants/services/tenants.service";
+import {
+  deleteTenantConfigByIdApi,
+  getTenantConfigRecordId,
+  getTenantConfigsByTenantIdApi,
+  saveTenantConfigApi,
+  type SaveTenantConfigPayload,
+} from "@/features/tenants/api/tenants.api";
+import { getApiErrorMessage } from "@/lib/api-client";
+import { Modal, SelectMenu, type SelectMenuOption } from "@/components/common";
+import TenantConfigurationTab from "./TenantConfigurationTab";
+import TenantDetailsTab from "./TenantDetailsTab";
+import TenantAdminsTab from "./TenantAdminsTab";
+import { saveAdmin } from "@/features/admins/services/admins.service";
+
+type NewConfig = {
+  envType: string;
+  configName: string;
+  logoUrl: string;
+  domainUrl: string;
+  backendUrl: string;
+  storageTab: "accessKeys" | "connectionString";
+  accessKey: string;
+  secretKey: string;
+  bucketName: string;
+  gatewayType: string;
+  paymentKey: string;
+  paymentSecret: string;
+  webhookUrl: string;
+  smtpHost: string;
+  smtpPort: string;
+  smtpUser: string;
+  smtpPassword: string;
+  smtpFromName: string;
+  smtpFromEmail: string;
+  smtpSecure: boolean;
+};
+
+const emptyConfig: NewConfig = {
+  envType: "",
+  configName: "",
+  logoUrl: "",
+  domainUrl: "",
+  backendUrl: "",
+  storageTab: "accessKeys",
+  accessKey: "",
+  secretKey: "",
+  bucketName: "",
+  gatewayType: "",
+  paymentKey: "",
+  paymentSecret: "",
+  webhookUrl: "",
+  smtpHost: "",
+  smtpPort: "",
+  smtpUser: "",
+  smtpPassword: "",
+  smtpFromName: "",
+  smtpFromEmail: "",
+  smtpSecure: true,
+};
+
+function getNewConfigRequiredKeys(cfg: NewConfig): (keyof NewConfig)[] {
+  const baseRequired: (keyof NewConfig)[] = [
+    "envType",
+    "configName",
+    "logoUrl",
+    "domainUrl",
+    "backendUrl",
+    "gatewayType",
+    "paymentKey",
+    "paymentSecret",
+    "webhookUrl",
+  ];
+  const storageRequired: (keyof NewConfig)[] =
+    cfg.storageTab === "connectionString"
+      ? ["accessKey"]
+      : ["accessKey", "secretKey", "bucketName"];
+  return [...baseRequired, ...storageRequired];
+}
+
+function validateNewConfigField(field: keyof NewConfig, value: string): string {
+  if (!value.trim()) return "This field is required";
+  if (["logoUrl", "domainUrl", "backendUrl", "webhookUrl"].includes(field)) {
+    if (!/^https?:\/\//.test(value.trim())) return "Enter a valid URL";
+  }
+  if (field === "smtpFromEmail" && value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
+    return "Enter a valid email address";
+  }
+  if (field === "smtpPort" && value.trim() && !/^\d+$/.test(value.trim())) {
+    return "Enter a valid port number";
+  }
+  return "";
+}
+
+function getNewConfigValidationErrors(cfg: NewConfig): Partial<Record<keyof NewConfig, string>> {
+  const errs: Partial<Record<keyof NewConfig, string>> = {};
+  getNewConfigRequiredKeys(cfg).forEach((key) => {
+    const err = validateNewConfigField(key, cfg[key] as string);
+    if (err) errs[key] = err;
+  });
+  return errs;
+}
+
+const ENV_TYPE_OPTIONS: SelectMenuOption[] = [
+  { value: "Production", label: "Production" },
+  { value: "QA", label: "QA" },
+  { value: "Development", label: "Development" },
+];
+
+const GATEWAY_TYPE_OPTIONS: SelectMenuOption[] = [{ value: "Razorpay", label: "Razorpay" }];
+
+const ADMIN_ROLE_OPTIONS: SelectMenuOption[] = [{ value: "admin", label: "admin" }];
+
+/** SelectMenu inside `<dialog>` must not portal to `body` (top layer stacking). */
+function ModalSelectMenu({
+  label,
+  value,
+  onChange,
+  options,
+  error,
+  placeholder,
+  required,
+  ariaLabel,
+}: {
+  label: ReactNode;
+  value: string;
+  onChange: (value: string) => void;
+  options: SelectMenuOption[];
+  error?: string;
+  placeholder: string;
+  required?: boolean;
+  ariaLabel: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        {label} {required && <span className="text-red-500">*</span>}
+      </span>
+      <SelectMenu
+        aria-label={ariaLabel}
+        value={value}
+        emptyValue=""
+        onChange={onChange}
+        placeholder={placeholder}
+        options={options}
+        usePortal={false}
+        className={
+          "w-full min-w-0 " +
+          (error ? "ring-2 ring-red-500/80 ring-offset-1 ring-offset-[var(--app-card-bg)]" : "")
+        }
+      />
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+function TenantDetailsPageContent() {
+  const { tenantId } = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<"details" | "configuration" | "admins">("details");
+
+  // Config modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [newConfig, setNewConfig] = useState<NewConfig>(emptyConfig);
+  const [newConfigErrors, setNewConfigErrors] = useState<Partial<Record<keyof NewConfig, string>>>({});
+  const [showSecret, setShowSecret] = useState(false);
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [modalSuccess, setModalSuccess] = useState("");
+  const [modalError, setModalError] = useState("");
+  const [modalSaving, setModalSaving] = useState(false);
+
+  const [tenantConfigs, setTenantConfigs] = useState<SaveTenantConfigPayload[]>([]);
+  const [configsLoading, setConfigsLoading] = useState(false);
+  const [configsError, setConfigsError] = useState<string | null>(null);
+  const [configDeleteBusy, setConfigDeleteBusy] = useState(false);
+
+  const loadTenantConfigs = useCallback(async () => {
+    if (!tenantId) return;
+    setConfigsLoading(true);
+    setConfigsError(null);
+    try {
+      const list = await getTenantConfigsByTenantIdApi(String(tenantId));
+      setTenantConfigs(list);
+    } catch (e) {
+      setConfigsError(getApiErrorMessage(e, "Could not load saved configurations."));
+    } finally {
+      setConfigsLoading(false);
+    }
+  }, [tenantId]);
+
+  const handleDeleteTenantConfig = useCallback(
+    async (c: SaveTenantConfigPayload) => {
+      if (configDeleteBusy) return;
+      const recordId = getTenantConfigRecordId(c);
+      if (!recordId) {
+        setConfigsError("Cannot delete: configuration id is missing.");
+        return;
+      }
+      setConfigDeleteBusy(true);
+      setConfigsError(null);
+      try {
+        await deleteTenantConfigByIdApi(recordId);
+        await loadTenantConfigs();
+      } catch (e) {
+        setConfigsError(getApiErrorMessage(e, "Could not delete configuration."));
+      } finally {
+        setConfigDeleteBusy(false);
+      }
+    },
+    [configDeleteBusy, loadTenantConfigs]
+  );
+
+  // Add Admin modal state
+  type NewAdmin = {
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+    branch: string;
+  };
+  const emptyAdmin: NewAdmin = { firstName: "", lastName: "", email: "", role: "", branch: "" };
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
+  const [newAdmin, setNewAdmin] = useState<NewAdmin>(emptyAdmin);
+  const [adminErrors, setAdminErrors] = useState<Partial<Record<keyof NewAdmin, string>>>({});
+  const [adminSuccess, setAdminSuccess] = useState("");
+  const [adminSaving, setAdminSaving] = useState(false);
+  const [adminSaveError, setAdminSaveError] = useState("");
+
+  const updateAdmin = (updates: Partial<NewAdmin>) =>
+    setNewAdmin((prev) => ({ ...prev, ...updates }));
+
+  const onAdminSubmit = async () => {
+    const errs: Partial<Record<keyof NewAdmin, string>> = {};
+    (Object.keys(emptyAdmin) as (keyof NewAdmin)[]).forEach((key) => {
+      if (!newAdmin[key].trim()) errs[key] = "This field is required";
+      if (key === "email" && newAdmin.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newAdmin.email))
+        errs.email = "Enter a valid email address";
+    });
+    setAdminErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    setAdminSaving(true);
+    setAdminSaveError("");
+    try {
+      await saveAdmin({
+        tenantId: String(tenantId),
+        firstName: newAdmin.firstName,
+        lastName: newAdmin.lastName,
+        email: newAdmin.email,
+        role: newAdmin.role,
+        branch: newAdmin.branch,
+      });
+      setAdminSuccess("Admin added successfully!");
+      window.setTimeout(() => {
+        setAdminSuccess("");
+        setAdminModalOpen(false);
+        setNewAdmin(emptyAdmin);
+        setAdminErrors({});
+      }, 1500);
+    } catch (err: unknown) {
+      setAdminSaveError(err instanceof Error ? err.message : "Failed to save admin. Please try again.");
+    } finally {
+      setAdminSaving(false);
+    }
+  };
+
+  const onAdminModalClose = () => {
+    setAdminModalOpen(false);
+    setNewAdmin(emptyAdmin);
+    setAdminErrors({});
+    setAdminSuccess("");
+  };
+
+  useEffect(() => {
+    if (!tenantId) return;
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    getTenantById(String(tenantId))
+      .then((data) => {
+        if (cancelled) return;
+        setTenant(data);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setError("Tenant not found");
+        setTenant(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [tenantId]);
+
+  useEffect(() => {
+    if (activeTab !== "configuration" || !tenantId) return;
+    void loadTenantConfigs();
+  }, [activeTab, tenantId, loadTenantConfigs]);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "configuration" || tab === "admins" || tab === "details") {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const visibleTenant = useMemo(() => tenant, [tenant]);
+
+  const updateNew = (updates: Partial<NewConfig>) =>
+    setNewConfig((prev) => ({ ...prev, ...updates }));
+
+  const canSaveConfiguration = useMemo(
+    () => Object.keys(getNewConfigValidationErrors(newConfig)).length === 0,
+    [newConfig]
+  );
+
+  const onModalSubmit = async () => {
+    const errs = getNewConfigValidationErrors(newConfig);
+    setNewConfigErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
+    setModalSaving(true);
+    setModalError("");
+    setModalSuccess("");
+
+    try {
+      await saveTenantConfigApi({
+        tenantId: String(tenantId ?? ""),
+        envType: newConfig.envType,
+        configName: newConfig.configName,
+        logoUrl: newConfig.logoUrl,
+        domainUrl: newConfig.domainUrl,
+        backendUrl: newConfig.backendUrl,
+        storageTab: newConfig.storageTab,
+        accessKey: newConfig.accessKey,
+        secretKey: newConfig.secretKey,
+        bucketName: newConfig.bucketName,
+        gatewayType: newConfig.gatewayType,
+        paymentKey: newConfig.paymentKey,
+        paymentSecret: newConfig.paymentSecret,
+        webhookUrl: newConfig.webhookUrl,
+        smtpHost: newConfig.smtpHost,
+        smtpPort: newConfig.smtpPort,
+        smtpUser: newConfig.smtpUser,
+        smtpPassword: newConfig.smtpPassword,
+        smtpFromName: newConfig.smtpFromName,
+        smtpFromEmail: newConfig.smtpFromEmail,
+        smtpSecure: newConfig.smtpSecure,
+      });
+
+      try {
+        const list = await getTenantConfigsByTenantIdApi(String(tenantId ?? ""));
+        setTenantConfigs(list);
+      } catch {
+        /* saved; list refresh is optional */
+      }
+
+      setModalSuccess("Configuration added successfully!");
+      window.setTimeout(() => {
+        setModalSuccess("");
+        setModalOpen(false);
+        setNewConfig(emptyConfig);
+        setNewConfigErrors({});
+      }, 1500);
+    } catch (err) {
+      setModalError(getApiErrorMessage(err, "Failed to save configuration. Please try again."));
+    } finally {
+      setModalSaving(false);
+    }
+  };
+
+  const onModalClose = () => {
+    setModalOpen(false);
+    setNewConfig(emptyConfig);
+    setNewConfigErrors({});
+    setModalSuccess("");
+    setModalError("");
+    setShowSecret(false);
+    setShowSmtpPassword(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 sm:p-6">
+        <div className="space-y-4">
+          <div className="h-8 w-1/3 animate-pulse rounded-md bg-zinc-200" />
+          <div className="h-6 w-1/2 animate-pulse rounded-md bg-zinc-200" />
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="h-32 animate-pulse rounded-xl bg-zinc-200" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !visibleTenant) {
+    return (
+      <div className="p-4 sm:p-6">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6">
+          <h2 className="text-xl font-semibold text-red-700">Tenant not found</h2>
+          <p className="mt-2 text-sm text-red-600">Please go back and select another tenant.</p>
+          <Button onClick={() => router.push("/tenants")} className="mt-4" variant="secondary">
+            Back to list
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 sm:p-6">
+      {/* Header row: back icon + school name on left, action button on right */}
+      <div className="mb-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/tenants")}
+            aria-label="Go back"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-300 bg-transparent text-[var(--app-text-secondary)] transition-colors hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-800"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--app-text-primary)]">
+              {visibleTenant.name}
+            </h1>
+            <p className="text-sm text-[var(--app-text-secondary)]">
+              {visibleTenant.tenantCode} • {visibleTenant.tenantName}
+            </p>
+          </div>
+        </div>
+
+        {activeTab === "configuration" && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setModalOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Configuration
+          </Button>
+        )}
+        {activeTab === "admins" && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setAdminModalOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Admin
+          </Button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-4 flex flex-nowrap gap-2 overflow-x-auto border-b border-zinc-200 pb-2">
+        {[
+          { id: "details", label: "Details" },
+          { id: "configuration", label: "Configuration" },
+          { id: "admins", label: "Admins" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as "details" | "configuration" | "admins")}
+            className={`rounded-t-lg px-4 py-2 text-sm font-medium ${
+              activeTab === tab.id
+                ? "bg-[var(--app-card-bg)] text-foreground"
+                : "text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)]"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-6">
+        {activeTab === "details" && <TenantDetailsTab tenant={visibleTenant} />}
+        {activeTab === "configuration" && (
+          <TenantConfigurationTab
+            configs={tenantConfigs}
+            loading={configsLoading}
+            loadError={configsError}
+            onRetry={loadTenantConfigs}
+            onDeleteConfig={handleDeleteTenantConfig}
+          />
+        )}
+       {activeTab === "admins" && <TenantAdminsTab tenantId={String(tenantId)} />}
+      </div>
+
+      {/* Add Configuration Modal */}
+      <Modal
+        open={modalOpen}
+        onClose={onModalClose}
+        title="Add Configuration"
+        size="2xl"
+        mobileFullscreen
+        footer={
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onModalClose}
+              disabled={modalSaving}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onModalSubmit}
+              disabled={modalSaving || !canSaveConfiguration}
+              isLoading={modalSaving}
+              className="w-full sm:w-auto"
+              title={!canSaveConfiguration && !modalSaving ? "Complete all required fields to save" : undefined}
+            >
+              Save Configuration
+            </Button>
+          </div>
+        }
+      >
+        <form
+          className="min-w-0 space-y-6"
+          autoComplete="off"
+          onSubmit={(e) => e.preventDefault()}
+        >
+          {/* General */}
+          <fieldset className="space-y-4">
+            <legend className="text-sm font-semibold uppercase tracking-wide text-[var(--app-text-secondary)]">
+              General
+            </legend>
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <ModalSelectMenu
+                label="Environment Type"
+                ariaLabel="Environment type"
+                value={newConfig.envType}
+                onChange={(v) => updateNew({ envType: v })}
+                options={ENV_TYPE_OPTIONS}
+                error={newConfigErrors.envType}
+                placeholder="Select environment"
+                required
+              />
+              <Input
+                label="Configuration Name *"
+                placeholder="e.g. Production Config"
+                value={newConfig.configName}
+                onChange={(e) => updateNew({ configName: e.target.value })}
+                error={newConfigErrors.configName}
+                fullWidth
+              />
+            </div>
+          </fieldset>
+
+          <div className="border-t border-[var(--app-divider)]" />
+
+          {/* Domain Settings */}
+          <fieldset className="space-y-4">
+            <legend className="text-sm font-semibold uppercase tracking-wide text-[var(--app-text-secondary)]">
+              Domain Settings
+            </legend>
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <Input
+                label="Logo URL *"
+                placeholder="https://example.com/logo.png"
+                value={newConfig.logoUrl}
+                onChange={(e) => updateNew({ logoUrl: e.target.value })}
+                error={newConfigErrors.logoUrl}
+                fullWidth
+              />
+              <Input
+                label="Domain URL *"
+                placeholder="https://app.example.com"
+                value={newConfig.domainUrl}
+                onChange={(e) => updateNew({ domainUrl: e.target.value })}
+                error={newConfigErrors.domainUrl}
+                fullWidth
+              />
+              <Input
+                label="Backend API URL *"
+                placeholder="https://api.example.com"
+                value={newConfig.backendUrl}
+                onChange={(e) => updateNew({ backendUrl: e.target.value })}
+                error={newConfigErrors.backendUrl}
+                fullWidth
+                className="sm:col-span-2"
+              />
+            </div>
+          </fieldset>
+
+          <div className="border-t border-[var(--app-divider)]" />
+
+          {/* File Storage */}
+          <fieldset className="space-y-4">
+            <legend className="text-sm font-semibold uppercase tracking-wide text-[var(--app-text-secondary)]">
+              File Storage
+            </legend>
+            <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-row">
+              {(["accessKeys", "connectionString"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => updateNew({ storageTab: tab })}
+                  className={`min-h-11 rounded-md px-3 py-2 text-center text-sm font-medium transition sm:min-h-0 ${
+                    newConfig.storageTab === tab
+                      ? "bg-foreground text-background"
+                      : "border border-zinc-300 bg-white dark:border-zinc-600 dark:bg-zinc-800"
+                  }`}
+                >
+                  {tab === "accessKeys" ? "Access Keys" : "Connection String"}
+                </button>
+              ))}
+            </div>
+
+            {newConfig.storageTab === "accessKeys" && (
+              <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                <Input
+                  label="Client ID / Access Key *"
+                  placeholder="Enter access key"
+                  value={newConfig.accessKey}
+                  onChange={(e) => updateNew({ accessKey: e.target.value })}
+                  error={newConfigErrors.accessKey}
+                  fullWidth
+                />
+                <div className="relative">
+                  <Input
+                    id="tenant-cfg-storage-secret"
+                    label="Secret Key *"
+                    type={showSecret ? "text" : "password"}
+                    placeholder="Enter secret key"
+                    value={newConfig.secretKey}
+                    onChange={(e) => updateNew({ secretKey: e.target.value })}
+                    error={newConfigErrors.secretKey}
+                    fullWidth
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSecret((s) => !s)}
+                    className="absolute right-2 top-8 text-sm text-[var(--app-text-secondary)]"
+                  >
+                    {showSecret ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <Input
+                  label="Bucket Name *"
+                  placeholder="e.g. my-storage-bucket"
+                  value={newConfig.bucketName}
+                  onChange={(e) => updateNew({ bucketName: e.target.value })}
+                  error={newConfigErrors.bucketName}
+                  fullWidth
+                />
+              </div>
+            )}
+
+            {newConfig.storageTab === "connectionString" && (
+              <Input
+                label="Connection String *"
+                placeholder="DefaultEndpointsProtocol=https;..."
+                value={newConfig.accessKey}
+                onChange={(e) => updateNew({ accessKey: e.target.value })}
+                error={newConfigErrors.accessKey}
+                fullWidth
+              />
+            )}
+          </fieldset>
+
+          <div className="border-t border-[var(--app-divider)]" />
+
+          {/* Payment Gateway */}
+          <fieldset className="space-y-4">
+            <legend className="text-sm font-semibold uppercase tracking-wide text-[var(--app-text-secondary)]">
+              Payment Gateway
+            </legend>
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <ModalSelectMenu
+                label="Gateway Type"
+                ariaLabel="Payment gateway type"
+                value={newConfig.gatewayType}
+                onChange={(v) => updateNew({ gatewayType: v })}
+                options={GATEWAY_TYPE_OPTIONS}
+                error={newConfigErrors.gatewayType}
+                placeholder="Select gateway"
+                required
+              />
+              <Input
+                label="Client ID / Key ID *"
+                placeholder="rzp_live_..."
+                value={newConfig.paymentKey}
+                onChange={(e) => updateNew({ paymentKey: e.target.value })}
+                error={newConfigErrors.paymentKey}
+                fullWidth
+              />
+              <div className="relative">
+                <Input
+                  id="tenant-cfg-payment-secret"
+                  label="Payment Secret Key *"
+                  type={showSecret ? "text" : "password"}
+                  placeholder="Enter payment secret"
+                  value={newConfig.paymentSecret}
+                  onChange={(e) => updateNew({ paymentSecret: e.target.value })}
+                  error={newConfigErrors.paymentSecret}
+                  fullWidth
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSecret((s) => !s)}
+                  className="absolute right-2 top-8 text-sm text-[var(--app-text-secondary)]"
+                >
+                  {showSecret ? "Hide" : "Show"}
+                </button>
+              </div>
+              <Input
+                label="Webhook URL *"
+                placeholder="https://api.example.com/webhooks/payment"
+                value={newConfig.webhookUrl}
+                onChange={(e) => updateNew({ webhookUrl: e.target.value })}
+                error={newConfigErrors.webhookUrl}
+                fullWidth
+              />
+            </div>
+          </fieldset>
+
+          <div className="border-t border-[var(--app-divider)]" />
+
+        
+          <fieldset className="space-y-4">
+            <legend className="text-sm font-semibold uppercase tracking-wide text-[var(--app-text-secondary)]">
+              Email / SMTP Settings
+            </legend>
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+              <Input
+                label="SMTP Host"
+                placeholder="e.g. smtp.gmail.com"
+                value={newConfig.smtpHost}
+                onChange={(e) => updateNew({ smtpHost: e.target.value })}
+                error={newConfigErrors.smtpHost}
+                fullWidth
+              />
+              <Input
+                label="SMTP Port"
+                placeholder="e.g. 587"
+                value={newConfig.smtpPort}
+                onChange={(e) => updateNew({ smtpPort: e.target.value })}
+                error={newConfigErrors.smtpPort}
+                fullWidth
+              />
+              <Input
+                id="tenant-cfg-smtp-user"
+                label="SMTP User"
+                placeholder="e.g. noreply@example.com"
+                value={newConfig.smtpUser}
+                onChange={(e) => updateNew({ smtpUser: e.target.value })}
+                error={newConfigErrors.smtpUser}
+                fullWidth
+                autoComplete="off"
+              />
+              <div className="relative">
+                <Input
+                  id="tenant-cfg-smtp-secret"
+                  label="SMTP Password"
+                  type={showSmtpPassword ? "text" : "password"}
+                  placeholder="Enter SMTP password"
+                  value={newConfig.smtpPassword}
+                  onChange={(e) => updateNew({ smtpPassword: e.target.value })}
+                  error={newConfigErrors.smtpPassword}
+                  fullWidth
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSmtpPassword((s) => !s)}
+                  className="absolute right-2 top-8 text-sm text-[var(--app-text-secondary)]"
+                >
+                  {showSmtpPassword ? "Hide" : "Show"}
+                </button>
+              </div>
+              <Input
+                label="From Name"
+                placeholder="e.g. School Notifications"
+                value={newConfig.smtpFromName}
+                onChange={(e) => updateNew({ smtpFromName: e.target.value })}
+                error={newConfigErrors.smtpFromName}
+                fullWidth
+              />
+              <Input
+                label="From Email"
+                placeholder="e.g. noreply@school.com"
+                value={newConfig.smtpFromEmail}
+                onChange={(e) => updateNew({ smtpFromEmail: e.target.value })}
+                error={newConfigErrors.smtpFromEmail}
+                fullWidth
+              />
+              <div className="flex items-center gap-3 sm:col-span-2">
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Use Secure Connection (TLS)
+                </label>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={newConfig.smtpSecure}
+                  onClick={() => updateNew({ smtpSecure: !newConfig.smtpSecure })}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20 ${
+                    newConfig.smtpSecure ? "bg-foreground" : "bg-zinc-300 dark:bg-zinc-600"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                      newConfig.smtpSecure ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </fieldset>
+
+          {modalSuccess && (
+            <p className="text-sm font-medium text-emerald-600">{modalSuccess}</p>
+          )}
+          {modalError && (
+            <p className="text-sm font-medium text-red-600">{modalError}</p>
+          )}
+        </form>
+      </Modal>
+
+      {/* Add Admin Modal */}
+      <Modal
+        open={adminModalOpen}
+        onClose={onAdminModalClose}
+        title="Add Admin"
+        size="lg"
+        mobileFullscreen
+        footer={
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onAdminModalClose}
+              disabled={adminSaving}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onAdminSubmit}
+              disabled={adminSaving}
+              className="w-full sm:w-auto"
+            >
+              {adminSaving ? "Saving..." : "Add Admin"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-5">
+          <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+            <Input
+              label="First Name *"
+              placeholder="e.g. Rajesh"
+              value={newAdmin.firstName}
+              onChange={(e) => updateAdmin({ firstName: e.target.value })}
+              error={adminErrors.firstName}
+              fullWidth
+            />
+            <Input
+              label="Last Name *"
+              placeholder="e.g. Kumar"
+              value={newAdmin.lastName}
+              onChange={(e) => updateAdmin({ lastName: e.target.value })}
+              error={adminErrors.lastName}
+              fullWidth
+            />
+            <Input
+              label="Email Address *"
+              type="email"
+              placeholder="admin@school.com"
+              value={newAdmin.email}
+              onChange={(e) => updateAdmin({ email: e.target.value })}
+              error={adminErrors.email}
+              fullWidth
+            />
+            <ModalSelectMenu
+              label="Role"
+              ariaLabel="Admin role"
+              value={newAdmin.role}
+              onChange={(v) => updateAdmin({ role: v })}
+              options={ADMIN_ROLE_OPTIONS}
+              error={adminErrors.role}
+              placeholder="Select role"
+              required
+            />
+            <Input
+              label="Branch *"
+              placeholder="e.g. Main Campus"
+              value={newAdmin.branch}
+              onChange={(e) => updateAdmin({ branch: e.target.value })}
+              error={adminErrors.branch}
+              fullWidth
+            />
+          </div>
+
+          {adminSuccess && (
+            <p className="text-sm font-medium text-emerald-600">{adminSuccess}</p>
+          )}
+          {adminSaveError && (
+            <p className="text-sm font-medium text-red-600">{adminSaveError}</p>
+          )}
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+export default function TenantDetailsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-4 sm:p-6">
+          <div className="space-y-4">
+            <div className="h-8 w-1/3 animate-pulse rounded-md bg-zinc-200" />
+            <div className="h-6 w-1/2 animate-pulse rounded-md bg-zinc-200" />
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <div key={idx} className="h-32 animate-pulse rounded-xl bg-zinc-200" />
+              ))}
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <TenantDetailsPageContent />
+    </Suspense>
+  );
+}
