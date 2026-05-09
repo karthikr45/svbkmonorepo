@@ -51,6 +51,11 @@ export async function logout(): Promise<void> {
     // ignore — we still clear locally
   } finally {
     clearAuth();
+    // Hard nav guarantees every component remounts with fresh state and
+    // bypasses any stale router/route-group caching.
+    if (typeof window !== "undefined") {
+      window.location.replace("/login");
+    }
   }
 }
 

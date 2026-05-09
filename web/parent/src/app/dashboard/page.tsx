@@ -86,9 +86,8 @@ export default function DashboardPage() {
   }, [selectedChildId]);
 
   const handleLogout = useCallback(async () => {
-    await logout();
-    router.replace("/login");
-  }, [router]);
+    await logout(); // logout itself does the hard nav to /login
+  }, []);
 
   const selectedChild: DashboardChild | undefined = useMemo(
     () => dashboard?.children.find((c) => c.student.id === selectedChildId),
