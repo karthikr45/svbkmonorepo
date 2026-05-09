@@ -168,6 +168,39 @@ export class FeesController {
     );
   }
 
+  @Get('by-admission')
+  @ApiOperation({
+    summary: 'Find a student + their fees by admission number',
+    description:
+      'Used by the admin Record-Payment fee picker. Returns the student row + every fee for the latest academic year (or pass academicYear).',
+  })
+  async findByAdmission(
+    @Req() req: Request,
+    @Query('admissionNumber') admissionNumber?: string,
+    @Query('academicYear') academicYear?: string,
+  ) {
+    const { tenantId } = ctx(req);
+    if (!admissionNumber) {
+      throw new BadRequestException('admissionNumber is required');
+    }
+    return this.feesService.findStudentWithFees(tenantId, admissionNumber, academicYear);
+  }
+
+  @Get(':id/payments')
+  @ApiOperation({
+    summary: 'List all payments recorded against a fee',
+    description:
+      'Returns every fee_payments row for this fee (online + offline), oldest first. Used for the admin payment-history view and parent receipts.',
+  })
+  @ApiParam({ name: 'id', description: 'Fee UUID' })
+  async listFeePayments(
+    @Param('id', buildUuidPipe('id')) feeId: string,
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    return this.feesService.listFeePayments(tenantId, feeId);
+  }
+
   @Get('payments/pending-clearance')
   @ApiOperation({
     summary: 'List cheque/DD payments awaiting clearance',

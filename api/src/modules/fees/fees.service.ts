@@ -650,6 +650,48 @@ async waivePenaltyForStudents(
   }
 
   /**
+   * Resolve a student by admission number (current/specified academic
+   * year) along with every fee for that year. Used by the admin
+   * Record-Payment fee picker.
+   */
+  async findStudentWithFees(
+    tenantId: string,
+    admissionNumber: string,
+    academicYear?: string,
+  ): Promise<{ student: Student | null; fees: Fee[] }> {
+    const studentRepo = this.dataSource.getRepository(Student);
+    const where: Record<string, unknown> = {
+      tenantId,
+      admissionNumber,
+    };
+    if (academicYear) where.academicYear = academicYear;
+    const students = await studentRepo.find({
+      where: where as any,
+      order: { academicYear: 'DESC', createdAt: 'DESC' },
+    });
+    const student = students[0] ?? null;
+    if (!student) return { student: null, fees: [] };
+    const fees = await this.feeRepo.find({
+      where: { tenantId, studentId: student.id },
+      order: { term: 'ASC' },
+    });
+    return { student, fees };
+  }
+
+  /**
+   * Every payment recorded against a fee, oldest first. Used for the
+   * admin payment-history view (under Payments → Fee detail).
+   */
+  async listFeePayments(tenantId: string, feeId: string): Promise<FeePayment[]> {
+    return this.dataSource
+      .getRepository(FeePayment)
+      .find({
+        where: { tenantId, feeId },
+        order: { paidAt: 'ASC' },
+      });
+  }
+
+  /**
    * Every cheque/DD that's still awaiting bank clearance for the
    * current tenant. Used by the admin "Pending cheques" view.
    */

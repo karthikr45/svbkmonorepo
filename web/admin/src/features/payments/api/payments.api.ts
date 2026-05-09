@@ -83,3 +83,62 @@ export async function updateClearanceApi(
 export function receiptUrl(paymentId: string): string {
   return `${getApiBaseUrl()}/fees/payments/${paymentId}/receipt`;
 }
+
+export interface FeeRow {
+  id: string;
+  branch: string;
+  academicYear: string;
+  term: string;
+  originalAmount: string;
+  totalDiscount: string;
+  netAmount: string;
+  paidAmount: string;
+  paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
+}
+
+export interface StudentRow {
+  id: string;
+  branch: string;
+  admissionNumber: string;
+  academicYear: string;
+  name: string;
+  class: string;
+  section: string;
+  rollNo: string;
+}
+
+export async function findStudentWithFeesApi(
+  admissionNumber: string,
+  academicYear?: string,
+): Promise<{ student: StudentRow | null; fees: FeeRow[] }> {
+  const params = new URLSearchParams({ admissionNumber });
+  if (academicYear) params.set("academicYear", academicYear);
+  return get<{ student: StudentRow | null; fees: FeeRow[] }>(
+    `/fees/by-admission?${params.toString()}`,
+  );
+}
+
+export interface FeePaymentRow {
+  id: string;
+  feeId: string;
+  amount: string;
+  paymentType: string;
+  receiptNumber: string | null;
+  clearanceStatus: "PENDING" | "CLEARED" | "BOUNCED" | "NA";
+  chequeNumber: string | null;
+  chequeDate: string | null;
+  ddNumber: string | null;
+  ddDate: string | null;
+  bankName: string | null;
+  bankBranch: string | null;
+  drawerName: string | null;
+  transactionId: string | null;
+  cardLast4: string | null;
+  notes: string | null;
+  paidAt: string;
+  createdAt: string;
+}
+
+export async function listFeePaymentsApi(feeId: string): Promise<FeePaymentRow[]> {
+  return get<FeePaymentRow[]>(`/fees/${feeId}/payments`);
+}

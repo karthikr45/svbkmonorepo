@@ -7,13 +7,18 @@ import { Button } from "@/components/ui";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { getStoredToken } from "@/features/auth/services";
 import {
+  findStudentWithFeesApi,
+  listFeePaymentsApi,
   listPendingClearanceApi,
   receiptUrl,
   recordOfflinePaymentApi,
   updateClearanceApi,
+  type FeePaymentRow,
+  type FeeRow,
   type OfflinePaymentType,
   type PendingClearancePayment,
   type RecordOfflinePaymentBody,
+  type StudentRow,
 } from "@/features/payments/api/payments.api";
 
 type TabId = "pending" | "record";
@@ -227,7 +232,67 @@ function PendingClearancePanel() {
 // ─── Record offline payment panel ──────────────────────────────────
 
 function RecordPaymentPanel() {
+  // Fee picker
+  const [admission, setAdmission] = useState("");
+  const [academicYear, setAcademicYear] = useState("");
+  const [picking, setPicking] = useState(false);
+  const [pickError, setPickError] = useState<string | null>(null);
+  const [student, setStudent] = useState<StudentRow | null>(null);
+  const [fees, setFees] = useState<FeeRow[]>([]);
   const [feeId, setFeeId] = useState("");
+  const [history, setHistory] = useState<FeePaymentRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  async function lookup() {
+    setPickError(null);
+    setStudent(null);
+    setFees([]);
+    setFeeId("");
+    setHistory([]);
+    if (!admission.trim()) {
+      setPickError("Enter an admission number");
+      return;
+    }
+    setPicking(true);
+    try {
+      const res = await findStudentWithFeesApi(
+        admission.trim(),
+        academicYear.trim() || undefined,
+      );
+      const inner: { student: StudentRow | null; fees: FeeRow[] } =
+        ((res as any)?.data ?? res) as { student: StudentRow | null; fees: FeeRow[] };
+      if (!inner?.student) {
+        setPickError(`No student found with admission "${admission}"`);
+        return;
+      }
+      setStudent(inner.student);
+      setFees(inner.fees ?? []);
+    } catch (err) {
+      setPickError(getApiErrorMessage(err, "Lookup failed"));
+    } finally {
+      setPicking(false);
+    }
+  }
+
+  async function loadHistory(id: string) {
+    setHistoryLoading(true);
+    setHistory([]);
+    try {
+      const res = await listFeePaymentsApi(id);
+      const list = Array.isArray(res) ? res : ((res as any)?.data ?? []);
+      setHistory(list);
+    } catch {
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  function pickFee(id: string) {
+    setFeeId(id);
+    if (id) loadHistory(id);
+  }
+
   const [type, setType] = useState<OfflinePaymentType>("CASH");
   const [amount, setAmount] = useState("");
   const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10));
@@ -300,6 +365,9 @@ function RecordPaymentPanel() {
         paymentId: inner?.id ?? "",
       });
       reset();
+      // Refresh the payment history + the fee picker so balances update.
+      if (feeId) loadHistory(feeId);
+      if (admission) lookup();
     } catch (err) {
       setError(getApiErrorMessage(err, "Could not record payment"));
     } finally {
@@ -308,15 +376,169 @@ function RecordPaymentPanel() {
   }
 
   return (
-    <Card padding="default">
+    <div className="space-y-4">
+      {/* Fee picker */}
+      <Card padding="default">
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+          <div className="sm:col-span-5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-[var(--app-text-secondary)] mb-1.5 block">
+              Admission number<span className="text-red-500"> *</span>
+            </label>
+            <input
+              value={admission}
+              onChange={(e) => setAdmission(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  lookup();
+                }
+              }}
+              placeholder="ADM-2024-001"
+              className="form-input"
+            />
+          </div>
+          <div className="sm:col-span-4">
+            <label className="text-xs font-semibold uppercase tracking-wider text-[var(--app-text-secondary)] mb-1.5 block">
+              Academic year (optional)
+            </label>
+            <input
+              value={academicYear}
+              onChange={(e) => setAcademicYear(e.target.value)}
+              placeholder="2025-2026"
+              className="form-input"
+            />
+          </div>
+          <div className="sm:col-span-3">
+            <Button onClick={lookup} variant="primary" isLoading={picking} fullWidth>
+              Find student
+            </Button>
+          </div>
+        </div>
+        {pickError && (
+          <div className="mt-3 p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
+            {pickError}
+          </div>
+        )}
+
+        {student && (
+          <div className="mt-5 p-4 rounded-xl border bg-slate-50/60" style={{ borderColor: "var(--app-card-border)" }}>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 mb-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-[var(--app-text-muted)]">Student</div>
+                <div className="text-sm font-bold text-[var(--app-text-primary)]">{student.name}</div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-[var(--app-text-muted)]">Adm / Class / Sec / Roll</div>
+                <div className="text-sm font-semibold text-[var(--app-text-secondary)] tabular-nums">
+                  {student.admissionNumber} · {student.class}-{student.section} · {student.rollNo}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-[var(--app-text-muted)]">Year</div>
+                <div className="text-sm font-semibold text-[var(--app-text-secondary)] tabular-nums">{student.academicYear}</div>
+              </div>
+            </div>
+
+            <div className="text-xs font-semibold uppercase tracking-wider text-[var(--app-text-muted)] mb-2">Pick a term</div>
+            {fees.length === 0 ? (
+              <p className="text-sm text-[var(--app-text-secondary)]">No fees found for this student. Add fees via Excel upload or the Add Student form.</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {fees.map((f) => {
+                  const balance = Math.max(0, Number(f.netAmount) - Number(f.paidAmount));
+                  const selected = feeId === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => pickFee(f.id)}
+                      disabled={f.paymentStatus === "PAID"}
+                      className="text-left flex flex-wrap items-center gap-3 p-3 rounded-lg transition-all border disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        borderColor: selected ? "var(--app-brand)" : "var(--app-card-border)",
+                        backgroundColor: selected ? "var(--app-brand-soft)" : "white",
+                      }}
+                    >
+                      <span className="font-semibold text-[var(--app-text-primary)] flex-1 min-w-[110px]">{f.term}</span>
+                      <StatusPill status={f.paymentStatus} />
+                      <span className="text-xs text-[var(--app-text-secondary)] tabular-nums">
+                        Net <strong>{inr(Number(f.netAmount))}</strong> ·
+                        Paid <strong>{inr(Number(f.paidAmount))}</strong> ·
+                        Balance <strong style={{ color: balance > 0 ? "#b91c1c" : "#15803d" }}>{inr(balance)}</strong>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
+      {/* Payment history (when a fee is picked) */}
+      {feeId && (
+        <Card padding="none" className="overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-[var(--app-text-primary)]">Payment history</h3>
+              <p className="text-xs text-[var(--app-text-secondary)]">Earlier payments recorded on this term</p>
+            </div>
+            {historyLoading && <span className="text-xs text-[var(--app-text-muted)]">Loading…</span>}
+          </div>
+          {history.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-[var(--app-text-secondary)] text-center">No payments recorded yet for this term.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50/60 border-b border-slate-100">
+                  <Th>Receipt</Th>
+                  <Th>Date</Th>
+                  <Th>Mode</Th>
+                  <Th>Status</Th>
+                  <Th align="right">Amount</Th>
+                  <Th align="right"></Th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h, i) => (
+                  <tr key={h.id} className={`hover:bg-slate-50 ${i !== history.length - 1 ? "border-b border-slate-50" : ""}`}>
+                    <td className="px-5 py-3 text-[var(--app-text-secondary)] tabular-nums">{h.receiptNumber ?? h.id.slice(0, 8)}</td>
+                    <td className="px-5 py-3 text-[var(--app-text-secondary)]">
+                      {new Date(h.paidAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                    </td>
+                    <td className="px-5 py-3 font-semibold text-[var(--app-text-primary)]">{h.paymentType}</td>
+                    <td className="px-5 py-3"><ClearancePill status={h.clearanceStatus} /></td>
+                    <td className="px-5 py-3 text-right font-bold text-[var(--app-text-primary)] tabular-nums">{inr(Number(h.amount))}</td>
+                    <td className="px-5 py-3 text-right">
+                      <button
+                        onClick={() => printReceipt(h.id)}
+                        className="text-xs font-semibold text-[var(--app-brand)] hover:underline"
+                      >
+                        Print →
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      )}
+
+      {/* Record form */}
+      <Card padding="default">
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
-          <Field label="Fee ID" required hint="Find this in the Students table → fee row → Edit">
+          <Field label="Selected fee" required hint={feeId ? "Pick another from the list above to switch" : "Pick a fee from the list above"}>
             <input
-              value={feeId}
-              onChange={(e) => setFeeId(e.target.value)}
-              placeholder="e.g. f47c2c25-…"
+              value={
+                feeId
+                  ? `${fees.find((f) => f.id === feeId)?.term ?? ""} — ${student?.name ?? ""}`
+                  : ""
+              }
+              placeholder="No fee selected"
               className="form-input"
+              readOnly
               required
             />
           </Field>
@@ -524,7 +746,44 @@ function RecordPaymentPanel() {
           }
         `}</style>
       </form>
-    </Card>
+      </Card>
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: "UNPAID" | "PARTIAL" | "PAID" }) {
+  const styles: Record<string, { bg: string; fg: string; label: string }> = {
+    PAID: { bg: "#dcfce7", fg: "#15803d", label: "Paid" },
+    PARTIAL: { bg: "#fef3c7", fg: "#92400e", label: "Partial" },
+    UNPAID: { bg: "#fee2e2", fg: "#b91c1c", label: "Unpaid" },
+  };
+  const s = styles[status] ?? styles.UNPAID;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap"
+      style={{ backgroundColor: s.bg, color: s.fg }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: s.fg }} />
+      {s.label}
+    </span>
+  );
+}
+
+function ClearancePill({ status }: { status: string }) {
+  const styles: Record<string, { bg: string; fg: string }> = {
+    PENDING: { bg: "#dbeafe", fg: "#1d4ed8" },
+    CLEARED: { bg: "#dcfce7", fg: "#15803d" },
+    BOUNCED: { bg: "#fee2e2", fg: "#b91c1c" },
+    NA: { bg: "#f1f5f9", fg: "#475569" },
+  };
+  const s = styles[status] ?? styles.NA;
+  return (
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold"
+      style={{ backgroundColor: s.bg, color: s.fg }}
+    >
+      {status === "NA" ? "—" : status}
+    </span>
   );
 }
 
