@@ -1,14 +1,17 @@
 import { ProtectedRoute } from "@/features/auth";
-import { DashboardMain, Sidebar } from "@/components/layout";
+import { DashboardMain, Navbar, Sidebar } from "@/components/layout";
 
 export default function DashboardLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <ProtectedRoute allowedRoles={["admin"]}>
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-screen bg-[var(--app-page-bg)]">
         <Sidebar />
-        <DashboardMain>{children}</DashboardMain>
+        <div className="flex flex-col flex-1 min-w-0">
+          <Navbar />
+          <DashboardMain>{children}</DashboardMain>
+        </div>
       </div>
     </ProtectedRoute>
   );

@@ -97,19 +97,20 @@ export function Sidebar() {
 
   return (
     <>
+      {/* Mobile-only backdrop. Hidden on md+ where the sidebar is always visible. */}
       <div
         role="presentation"
         aria-hidden={!sidebarOpen}
         onClick={closeSidebar}
-        className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`md:hidden fixed inset-0 z-40 bg-black/40 transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
 
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-full w-20 md:w-64 flex-col ${transitionClass} ${
+        className={`fixed left-0 top-0 z-50 flex h-full w-64 flex-col max-w-[85vw] ${transitionClass} ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } max-w-[85vw]`}
+        } md:sticky md:top-0 md:translate-x-0 md:h-screen md:z-30 md:max-w-none md:flex-shrink-0`}
         style={{
           backgroundColor: "var(--app-sidebar-bg)",
           borderRight: "1px solid var(--app-sidebar-border)",
@@ -117,17 +118,28 @@ export function Sidebar() {
         aria-label="Main navigation"
       >
         <div
-          className="flex min-w-0 items-center justify-center md:justify-start overflow-hidden border-b px-3 py-5"
+          className="flex min-w-0 items-center justify-between overflow-hidden border-b px-4 py-4"
           style={{ borderColor: "var(--app-sidebar-border)" }}
         >
           <div className="min-w-0 flex-1">
             <SidebarBrand />
           </div>
+          {/* Mobile close button */}
+          <button
+            type="button"
+            onClick={closeSidebar}
+            className="md:hidden h-8 w-8 flex items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+            aria-label="Close menu"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+              <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
 
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-4">
           <p
-            className="hidden md:block px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.08em]"
+            className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.08em]"
             style={{ color: "var(--app-sidebar-section)" }}
           >
             Workspace
@@ -139,7 +151,7 @@ export function Sidebar() {
                 key={href}
                 href={href}
                 onClick={closeSidebar}
-                className={`group relative flex items-center justify-center md:justify-start gap-3 rounded-lg px-0 md:px-3 py-2.5 text-sm font-medium ${transitionClass} ${
+                className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${transitionClass} ${
                   active ? "" : "hover:bg-[var(--app-nav-hover-bg)]"
                 }`}
                 style={
@@ -155,20 +167,20 @@ export function Sidebar() {
               >
                 {active && (
                   <span
-                    className="absolute left-0 top-1/2 hidden h-5 w-0.5 -translate-y-1/2 rounded-r md:block"
+                    className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r"
                     style={{ backgroundColor: "var(--app-brand)" }}
                   />
                 )}
                 <NavIcon name={icon} />
-                <span className="hidden md:inline">{label}</span>
+                <span>{label}</span>
               </Link>
             );
           })}
         </nav>
 
         <div className="border-t px-3 py-3" style={{ borderColor: "var(--app-sidebar-border)" }}>
-          {/* Profile + logout — premium pattern: avatar, name, email, action */}
-          <div className="mb-2 hidden md:flex items-center gap-3 rounded-lg px-2 py-2.5">
+          {/* Profile + logout — premium pattern: avatar, name, role, action */}
+          <div className="mb-2 flex items-center gap-3 rounded-lg px-2 py-2.5">
             <div
               className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm"
               style={{ backgroundColor: "var(--app-brand)" }}
@@ -190,18 +202,10 @@ export function Sidebar() {
               </p>
             </div>
           </div>
-          <div className="mb-2 flex items-center justify-center md:hidden">
-            <div
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-              style={{ backgroundColor: "var(--app-brand)" }}
-            >
-              A
-            </div>
-          </div>
           <button
             type="button"
             onClick={() => { closeSidebar(); logout(); }}
-            className={`flex w-full items-center justify-center md:justify-start gap-3 rounded-lg px-0 md:px-3 py-2.5 text-sm font-medium ${transitionClass}`}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${transitionClass}`}
             style={{ color: "var(--app-text-secondary)" }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = "var(--app-danger-bg)";
@@ -216,7 +220,7 @@ export function Sidebar() {
             <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            <span className="hidden md:inline">Sign out</span>
+            <span>Sign out</span>
           </button>
         </div>
       </aside>

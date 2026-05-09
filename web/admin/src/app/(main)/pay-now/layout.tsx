@@ -1,8 +1,7 @@
 "use client";
 
 import { useAuth } from "@/features/auth";
-import { Sidebar } from "@/components/layout";
-import { DashboardMain } from "@/components/layout";
+import { DashboardMain, Navbar, Sidebar } from "@/components/layout";
 
 export default function PayNowLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -12,11 +11,13 @@ export default function PayNowLayout({ children }: { children: React.ReactNode }
     return <>{children}</>;
   }
 
-  // Authenticated users see dashboard-style UI + sidebar
   return (
-    <div className="flex min-h-0 flex-1">
+    <div className="flex min-h-screen bg-[var(--app-page-bg)]">
       <Sidebar />
-      <DashboardMain>{children}</DashboardMain>
+      <div className="flex flex-col flex-1 min-w-0">
+        <Navbar />
+        <DashboardMain>{children}</DashboardMain>
+      </div>
     </div>
   );
 }
