@@ -16,7 +16,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ObjectLiteral, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 
@@ -86,7 +86,8 @@ const TERM_AMOUNTS: { term: TermType; amount: number }[] = [
 
 async function seed() {
   const app = await NestFactory.createApplicationContext(AppModule);
-  const get = <T>(entity: any) => app.get<Repository<T>>(getRepositoryToken(entity));
+  const get = <T extends ObjectLiteral>(entity: any) =>
+    app.get<Repository<T>>(getRepositoryToken(entity));
 
   const adminsRepo = get<Admin>(Admin);
   const tenantsRepo = get<Tenant>(Tenant);
