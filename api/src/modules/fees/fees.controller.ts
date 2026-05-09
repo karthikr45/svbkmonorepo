@@ -167,6 +167,35 @@ export class FeesController {
       dto.notes,
     );
   }
+
+  @Get('payments/pending-clearance')
+  @ApiOperation({
+    summary: 'List cheque/DD payments awaiting clearance',
+    description:
+      'Returns every fee_payments row with clearance_status=PENDING for the current tenant. Use to drive the admin "Pending cheques" view.',
+  })
+  async listPendingClearance(@Req() req: Request) {
+    const { tenantId } = ctx(req);
+    return this.feesService.listPendingClearance(tenantId);
+  }
+
+  @Get('payments/:paymentId/receipt')
+  @ApiOperation({
+    summary: 'Printable HTML receipt for a payment',
+    description:
+      'Returns a self-contained, print-ready HTML receipt for the given fee_payments row. Open and Cmd+P / Ctrl+P to print.',
+  })
+  @ApiParam({ name: 'paymentId', description: 'fee_payment UUID' })
+  async receipt(
+    @Param('paymentId', buildUuidPipe('paymentId')) paymentId: string,
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    const html = await this.feesService.renderReceipt(tenantId, paymentId);
+    const res = (req as any).res;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  }
 }
 
 // ─────────────── helpers ───────────────

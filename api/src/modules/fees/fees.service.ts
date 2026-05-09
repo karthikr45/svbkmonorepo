@@ -650,6 +650,211 @@ async waivePenaltyForStudents(
   }
 
   /**
+   * Every cheque/DD that's still awaiting bank clearance for the
+   * current tenant. Used by the admin "Pending cheques" view.
+   */
+  async listPendingClearance(tenantId: string): Promise<FeePayment[]> {
+    return this.dataSource
+      .getRepository(FeePayment)
+      .createQueryBuilder('fp')
+      .leftJoinAndMapOne('fp.fee', Fee, 'fee', 'fee.id = fp.feeId')
+      .leftJoinAndMapOne(
+        'fp.student',
+        'students',
+        'student',
+        'student.id = fee.student_id',
+      )
+      .where('fp.tenantId = :tenantId', { tenantId })
+      .andWhere('fp.clearanceStatus = :status', { status: ClearanceStatus.PENDING })
+      .orderBy('fp.paidAt', 'ASC')
+      .getMany();
+  }
+
+  /**
+   * Render a printable HTML receipt for one fee_payments row.
+   * Self-contained — inlined CSS, no external assets — so admins can
+   * print directly from the browser.
+   */
+  async renderReceipt(tenantId: string, paymentId: string): Promise<string> {
+    const fp = await this.dataSource
+      .getRepository(FeePayment)
+      .createQueryBuilder('fp')
+      .innerJoinAndMapOne('fp.fee', Fee, 'fee', 'fee.id = fp.feeId')
+      .where('fp.tenantId = :tenantId AND fp.id = :paymentId', {
+        tenantId,
+        paymentId,
+      })
+      .getOne();
+    if (!fp) throw new NotFoundException(`fee_payment ${paymentId} not found`);
+    const fee = (fp as any).fee as Fee;
+
+    const student = await this.dataSource
+      .getRepository('students')
+      .createQueryBuilder('s')
+      .where('s.id = :id', { id: fee.studentId })
+      .getRawOne();
+
+    const tenant = await this.dataSource
+      .getRepository('tenants')
+      .createQueryBuilder('t')
+      .where('t.id = :id', { id: tenantId })
+      .getRawOne();
+
+    const inr = (n: number) =>
+      new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 2,
+      }).format(n);
+
+    const amount = Number(fp.amount);
+    const words = numberToINRWords(amount);
+    const paidAt = new Date(fp.paidAt).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const detailRow = (label: string, value: string | null | undefined) =>
+      value
+        ? `<tr><td class="lbl">${label}</td><td class="val">${escapeHtml(value)}</td></tr>`
+        : '';
+
+    const typeDetails: string[] = [];
+    if (fp.paymentType === PaymentType.CHEQUE) {
+      typeDetails.push(detailRow('Cheque No.', fp.chequeNumber));
+      typeDetails.push(
+        detailRow(
+          'Cheque Date',
+          fp.chequeDate ? new Date(fp.chequeDate).toLocaleDateString('en-IN') : '',
+        ),
+      );
+      typeDetails.push(detailRow('Drawer', fp.drawerName));
+      typeDetails.push(detailRow('Bank', fp.bankName));
+      typeDetails.push(detailRow('Branch', fp.bankBranch));
+      typeDetails.push(detailRow('Status', fp.clearanceStatus));
+    } else if (fp.paymentType === PaymentType.DD) {
+      typeDetails.push(detailRow('DD No.', fp.ddNumber));
+      typeDetails.push(
+        detailRow(
+          'DD Date',
+          fp.ddDate ? new Date(fp.ddDate).toLocaleDateString('en-IN') : '',
+        ),
+      );
+      typeDetails.push(detailRow('Drawer', fp.drawerName));
+      typeDetails.push(detailRow('Bank', fp.bankName));
+      typeDetails.push(detailRow('Branch', fp.bankBranch));
+      typeDetails.push(detailRow('Status', fp.clearanceStatus));
+    } else if (fp.paymentType === PaymentType.POS) {
+      typeDetails.push(detailRow('Terminal Txn', fp.transactionId));
+      if (fp.cardLast4) typeDetails.push(detailRow('Card ending', `**** ${fp.cardLast4}`));
+    } else if (fp.paymentType === PaymentType.NEFT) {
+      typeDetails.push(detailRow('UTR / Txn', fp.transactionId));
+      typeDetails.push(detailRow('Bank', fp.bankName));
+    } else if (
+      fp.paymentType === PaymentType.RAZORPAY ||
+      fp.paymentType === PaymentType.CASHFREE ||
+      fp.paymentType === PaymentType.UPI ||
+      fp.paymentType === PaymentType.NETBANKING ||
+      fp.paymentType === PaymentType.CARD
+    ) {
+      typeDetails.push(detailRow('Order ID', fp.orderId));
+      typeDetails.push(detailRow('Transaction ID', fp.transactionId));
+    }
+
+    return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Receipt ${escapeHtml(fp.receiptNumber ?? fp.id)}</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f1f5f9;color:#0f172a;margin:0;padding:32px}
+  .receipt{max-width:760px;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(15,23,42,.08);overflow:hidden}
+  .head{padding:24px 32px;border-bottom:2px solid #0b54ab;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+  .head h1{margin:0;font-size:22px;color:#0b54ab;letter-spacing:-.01em}
+  .head h2{margin:0;font-size:14px;font-weight:600;color:#475569}
+  .badge{display:inline-block;padding:6px 12px;border-radius:6px;background:#eff6ff;color:#0b54ab;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+  .meta{padding:16px 32px;display:grid;grid-template-columns:1fr 1fr;gap:12px;border-bottom:1px solid #e2e8f0;font-size:13px}
+  .meta div span{display:block;color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+  .meta div strong{font-weight:700;color:#0f172a;font-size:14px}
+  .body{padding:24px 32px}
+  .body h3{margin:0 0 12px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#475569}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px}
+  td{padding:8px 0;vertical-align:top}
+  td.lbl{color:#64748b;width:36%}
+  td.val{color:#0f172a;font-weight:600}
+  .amount-box{margin-top:16px;padding:18px 20px;background:#0b54ab;color:#fff;border-radius:10px;display:flex;justify-content:space-between;align-items:center}
+  .amount-box .total-label{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;opacity:.85}
+  .amount-box .total-fig{font-size:26px;font-weight:800;letter-spacing:-.01em}
+  .words{margin-top:10px;font-size:13px;color:#334155;font-style:italic}
+  .footer{display:flex;justify-content:space-between;padding:24px 32px 32px;border-top:1px dashed #cbd5e1;font-size:12px;color:#475569}
+  .sig-line{border-top:1px solid #94a3b8;padding-top:6px;width:200px;text-align:center;font-weight:600;color:#475569;margin-top:36px}
+  .stamp{width:160px;height:80px;border:2px dashed #cbd5e1;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;margin-top:18px}
+  @media print{body{background:#fff;padding:0}.receipt{box-shadow:none;border-radius:0}}
+</style>
+</head>
+<body>
+  <div class="receipt">
+    <div class="head">
+      <div>
+        <h1>${escapeHtml(tenant?.tenantName ?? 'School Receipt')}</h1>
+        <h2>${escapeHtml(tenant?.address ?? '')} ${escapeHtml(tenant?.city ?? '')}</h2>
+      </div>
+      <div style="text-align:right">
+        <span class="badge">Fee Receipt</span>
+        <div style="margin-top:8px;font-size:12px;color:#64748b">${escapeHtml(fp.receiptNumber ?? fp.id)}</div>
+      </div>
+    </div>
+
+    <div class="meta">
+      <div><span>Receipt No.</span><strong>${escapeHtml(fp.receiptNumber ?? '—')}</strong></div>
+      <div><span>Date</span><strong>${paidAt}</strong></div>
+      <div><span>Branch</span><strong>${escapeHtml(fp.branch)}</strong></div>
+      <div><span>Academic Year</span><strong>${escapeHtml(fee.academicYear)}</strong></div>
+    </div>
+
+    <div class="body">
+      <h3>Student</h3>
+      <table>
+        <tr><td class="lbl">Name</td><td class="val">${escapeHtml(student?.name ?? '—')}</td></tr>
+        <tr><td class="lbl">Admission No.</td><td class="val">${escapeHtml(student?.admission_number ?? '—')}</td></tr>
+        <tr><td class="lbl">Class / Section</td><td class="val">${escapeHtml((student?.class ?? '') + ' — ' + (student?.section ?? ''))}</td></tr>
+        <tr><td class="lbl">Roll No.</td><td class="val">${escapeHtml(student?.roll_no ?? '—')}</td></tr>
+      </table>
+
+      <h3>Fee</h3>
+      <table>
+        <tr><td class="lbl">Term</td><td class="val">${escapeHtml(fee.term)}</td></tr>
+        <tr><td class="lbl">Original Amount</td><td class="val">${inr(Number(fee.originalAmount))}</td></tr>
+        <tr><td class="lbl">Discount</td><td class="val">${inr(Number(fee.totalDiscount))}</td></tr>
+        <tr><td class="lbl">Net Amount</td><td class="val">${inr(Number(fee.netAmount))}</td></tr>
+      </table>
+
+      <h3>Payment</h3>
+      <table>
+        <tr><td class="lbl">Mode</td><td class="val">${escapeHtml(humanType(fp.paymentType))}</td></tr>
+        ${typeDetails.join('\n        ')}
+        ${detailRow('Notes', fp.notes)}
+      </table>
+
+      <div class="amount-box">
+        <span class="total-label">Amount Received</span>
+        <span class="total-fig">${inr(amount)}</span>
+      </div>
+      <p class="words"><strong>In words:</strong> ${escapeHtml(words)}</p>
+    </div>
+
+    <div class="footer">
+      <div class="stamp">School Stamp</div>
+      <div class="sig-line">Authorised Signatory</div>
+    </div>
+  </div>
+</body>
+</html>`;
+  }
+
+  /**
    * Generate a unique receipt number for a payment. Format:
    *   RCP-{tenant short}-{YYYYMMDD}-{NNNN}
    * Where NNNN is a per-day per-tenant sequence. Uses a row-level
@@ -734,4 +939,87 @@ function buildStats(total: number, thisMonth: number, previousMonth: number) {
   }
 
   return { total, thisMonth, previousMonth, percentageChange, trend };
+}
+// ─────────────── Receipt helpers ───────────────
+
+function escapeHtml(s: string | null | undefined): string {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function humanType(t: string): string {
+  switch (t) {
+    case 'CASH': return 'Cash';
+    case 'CHEQUE': return 'Cheque';
+    case 'DD': return 'Demand Draft';
+    case 'POS': return 'POS (Card swipe)';
+    case 'NEFT': return 'NEFT / Bank Transfer';
+    case 'RAZORPAY': return 'Online — Razorpay';
+    case 'CASHFREE': return 'Online — Cashfree';
+    case 'UPI': return 'Online — UPI';
+    case 'CARD': return 'Online — Card';
+    case 'NETBANKING': return 'Online — Net Banking';
+    default: return t;
+  }
+}
+
+/**
+ * Convert an INR amount (rupees + paise) to Indian-numbering English
+ * words. Used for the receipt's "amount in words" line.
+ */
+function numberToINRWords(amount: number): string {
+  if (amount == null || isNaN(amount)) return '';
+  const rupees = Math.floor(amount);
+  const paise = Math.round((amount - rupees) * 100);
+  const r = rupees === 0 ? 'Zero' : indianNumberWords(rupees);
+  const p = paise > 0 ? ` and ${indianNumberWords(paise)} Paise` : '';
+  return `Rupees ${r}${p} only`;
+}
+
+function indianNumberWords(num: number): string {
+  if (num === 0) return 'Zero';
+  const ones = [
+    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen',
+  ];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  function under1000(n: number): string {
+    let str = '';
+    if (n >= 100) {
+      str += ones[Math.floor(n / 100)] + ' Hundred';
+      n %= 100;
+      if (n > 0) str += ' ';
+    }
+    if (n >= 20) {
+      str += tens[Math.floor(n / 10)];
+      if (n % 10 > 0) str += ' ' + ones[n % 10];
+    } else if (n > 0) {
+      str += ones[n];
+    }
+    return str;
+  }
+
+  let n = num;
+  let words = '';
+  if (n >= 10000000) {
+    words += under1000(Math.floor(n / 10000000)) + ' Crore ';
+    n %= 10000000;
+  }
+  if (n >= 100000) {
+    words += under1000(Math.floor(n / 100000)) + ' Lakh ';
+    n %= 100000;
+  }
+  if (n >= 1000) {
+    words += under1000(Math.floor(n / 1000)) + ' Thousand ';
+    n %= 1000;
+  }
+  if (n > 0) words += under1000(n);
+  return words.trim();
 }
