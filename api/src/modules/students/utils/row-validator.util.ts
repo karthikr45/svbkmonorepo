@@ -29,6 +29,7 @@ export interface NormalisedRow {
   imgUrl: string | null;
   term: TermType;
   amount: number;
+  discount: number;
 }
 
 export interface FieldError {
@@ -41,7 +42,7 @@ const PHONE_RE = /^\+?\d{7,15}$/;
 const ACADEMIC_YEAR_RE = /^(\d{4})-(\d{4})$/;
 
 export type ValidationResult =
-  | { ok: true; value: NormalisedRow }
+  | { ok: true; values: NormalisedRow[] }
   | { ok: false; errors: FieldError[] };
 
 export function validateAndNormalise(
@@ -110,40 +111,58 @@ export function validateAndNormalise(
 
   const imgUrl = asTrimmedString(raw[EXCEL_COLUMNS.IMG_URL]) || null;
 
+  // Multi-term support: a single Excel row can carry up to 5 terms.
+  // Each non-empty term produces one NormalisedRow downstream.
   const termHits = TERM_COLUMNS.filter((col) => {
     const v = raw[col];
     return v !== undefined && v !== null && v !== '';
   });
 
-  let term: TermType | null = null;
-  let amount = 0;
-
   if (termHits.length === 0) {
     errors.push({
       field: 'Term Fee',
-      reason: 'no term fee column has a value',
+      reason: 'at least one term fee column must be set',
     });
-  } else if (termHits.length > 1) {
-    errors.push({
-      field: 'Term Fee',
-      reason: `multiple term columns set (${termHits.join(', ')}); expected exactly one`,
-    });
-  } else {
-    const termCol = termHits[0];
-    term = TERM_COLUMN_TO_ENUM[termCol];
-    const parsed = toPositiveAmount(raw[termCol]);
-    if (parsed === null) {
-      errors.push({ field: termCol, reason: 'must be a positive number' });
-    } else {
-      amount = parsed;
-    }
   }
 
-  if (errors.length || !term) return { ok: false, errors };
+  const termValues: { term: TermType; amount: number; discount: number }[] = [];
+  for (const termCol of termHits) {
+    const term = TERM_COLUMN_TO_ENUM[termCol];
+    const amount = toPositiveAmount(raw[termCol]);
+    if (amount === null) {
+      errors.push({ field: termCol, reason: 'must be a positive number' });
+      continue;
+    }
+    const discountCol = TERM_TO_DISCOUNT_COL[termCol];
+    const discountRaw = discountCol ? raw[discountCol] : undefined;
+    const discount =
+      discountRaw === undefined || discountRaw === null || discountRaw === ''
+        ? 0
+        : toNonNegativeAmount(discountRaw);
+    if (discount === null) {
+      errors.push({
+        field: discountCol ?? `${termCol} Discount`,
+        reason: 'must be a non-negative number',
+      });
+      continue;
+    }
+    if (discount > amount) {
+      errors.push({
+        field: discountCol ?? `${termCol} Discount`,
+        reason: `discount (${discount}) exceeds fee (${amount})`,
+      });
+      continue;
+    }
+    termValues.push({ term, amount, discount });
+  }
+
+  if (errors.length || termValues.length === 0) {
+    return { ok: false, errors };
+  }
 
   return {
     ok: true,
-    value: {
+    values: termValues.map((t) => ({
       name,
       email,
       phoneNumber,
@@ -153,10 +172,18 @@ export function validateAndNormalise(
       rollNo,
       academicYear,
       imgUrl,
-      term,
-      amount,
-    },
+      term: t.term,
+      amount: t.amount,
+      discount: t.discount,
+    })),
   };
+}
+
+function toNonNegativeAmount(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return 0;
+  const n = typeof value === 'number' ? value : Number(String(value).trim());
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100) / 100;
 }
 
 function asTrimmedString(value: unknown): string {

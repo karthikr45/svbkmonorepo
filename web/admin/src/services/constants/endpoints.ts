@@ -1,32 +1,49 @@
 /**
- *  endpoints by feature. Add new features (auth, user, …) here.
+ * Admin web → API endpoint paths.
+ * Routes are relative to NEXT_PUBLIC_API_BASE_URL (which already
+ * includes the NestJS '/api' global prefix).
  */
-
-// import { notification } from "@/features/notifications/service/notification.service";
 
 export const API_ENDPOINTS = {
   auth: {
-    verifyLogin: "/verifyLogin",
-    logout: "/logout",
-    refreshToken: "/refresh",
+    /** POST: legacy alias kept for typed callers. Real path: /auth/signin */
+    verifyLogin: "/auth/signin",
+    signin: "/auth/signin",
+    logout: "/auth/logout",
+    refreshToken: "/auth/refresh",
+    me: "/auth/me",
   },
   user: {
-    profile: "/user/profile",
-    update: "/user/update",
+    profile: "/auth/me",
+    update: "/users",
   },
   studentsDetails: {
+    /** GET: list students with fees (paginated). */
     getStudentsDetailsByBranch: "/students",
-    getStudentById: "/students", // usage: /students/:id
-    updateStudentById: "/students", // usage: /students/:id
+    /** GET/PATCH/PUT usage: /students/:id */
+    getStudentById: "/students",
+    /** PATCH usage: /students/:id  (partial update) */
+    updateStudentById: "/students",
+    /** GET: list academic years for the current tenant. */
     getAcademicYears: "/academic-years",
-    getStudentByAdmission: "/studentsDetails/getStudentDetailsByAdmission",
-    addPenalty: "/fees/penalty/add",
-    waivePenalty: "/fees/penalty/waive",
-    createOrder: "/studentsDetails/create/order",
+    /** GET: /students/by-admission/with-fees?admissionNumber=...&academicYear=... */
+    getStudentByAdmission: "/students/by-admission/with-fees",
+    /** POST: apply a penalty to a fee/term. */
+    addPenalty: "/penalties",
+    /** POST: waive an existing penalty. */
+    waivePenalty: "/penalties/waive",
+    /** POST: parent-portal-style direct order creation (admin "Pay Now" flow). */
+    createOrder: "/payments/create-order",
+    /** POST: validate an Excel before commit. */
     checkTermDetails: "/students/upload/validate",
+    /** POST: confirm and persist the previously-validated Excel. */
     uploadStudentData: "/students/upload/confirm",
-    getAdminNotifications:"/studentsDetails/getAdminNotifications",
+    /** GET: latest 5 students added to the tenant. */
     getLatestStudents: "/students/latest",
+    /** GET: download the .xlsx upload template */
+    uploadTemplate: "/students/upload/template",
+    /** GET: notifications surfaced on the admin dashboard. */
+    getAdminNotifications: "/notifications",
   },
   templates: {
     getTemplates: "/templates",
@@ -35,13 +52,15 @@ export const API_ENDPOINTS = {
   tenants: {
     saveTenant: "/tenants/save",
     getTenants: "/tenants/get-tenant",
-    getTenantById: "/tenants/get-tenant",  // usage: /tenants/get-tenant/:id
+    /** GET usage: /tenants/get-tenant/:id */
+    getTenantById: "/tenants/get-tenant",
     saveTenantConfig: "/tenant-configs/upsert",
     /** GET usage: /tenant-configs/tenant/:tenantId */
     getTenantConfigsByTenantId: "/tenant-configs/tenant",
     /** GET/DELETE usage: /tenant-configs/:id */
     deleteTenantConfigById: "/tenant-configs",
-    updateTenant: "/tenants/update",       // usage: /tenants/update/:id
+    /** PATCH usage: /tenants/:id  (the API uses generic /:id, not /update/:id) */
+    updateTenant: "/tenants",
   },
   admins: {
     saveAdmin: "/admins/save",
@@ -52,6 +71,7 @@ export const API_ENDPOINTS = {
     verifyPayment: "/payments/verify-payment",
   },
   payNow: {
+    /** Admin-side "Pay Now" lookup. Same as parent's /by-admission/with-fees. */
     getStudentWithFees: "/students/by-admission/with-fees",
   },
   fees: {

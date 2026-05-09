@@ -40,6 +40,8 @@ export interface CreateFeeInput {
   studentId: string;
   term: TermType;
   originalAmount: number;
+  /** Optional concession (sibling/staff/EWS/scholarship). Defaults to 0. */
+  totalDiscount?: number;
 }
 
 /** Used internally by the upload validator. */

@@ -106,19 +106,29 @@ export class UploadService {
 
     try {
       return await this.dataSource.transaction(async (manager) => {
-        const studentInputs: UpsertStudentInput[] = rows.map((r) => ({
-          tenantId,
-          branch,
-          admissionNumber: r.admissionNumber,
-          academicYear: r.academicYear,
-          name: r.name,
-          email: r.email,
-          phoneNumber: r.phoneNumber,
-          class: r.class,
-          section: r.section,
-          rollNo: r.rollNo,
-          imgUrl: r.imgUrl,
-        }));
+        // Deduplicate students — one Excel row can produce multiple
+        // NormalisedRows (one per term) but the student only needs to
+        // be upserted once.
+        const studentByKey = new Map<string, UpsertStudentInput>();
+        for (const r of rows) {
+          const key = this.studentsService.key(r.admissionNumber, r.academicYear);
+          if (!studentByKey.has(key)) {
+            studentByKey.set(key, {
+              tenantId,
+              branch,
+              admissionNumber: r.admissionNumber,
+              academicYear: r.academicYear,
+              name: r.name,
+              email: r.email,
+              phoneNumber: r.phoneNumber,
+              class: r.class,
+              section: r.section,
+              rollNo: r.rollNo,
+              imgUrl: r.imgUrl,
+            });
+          }
+        }
+        const studentInputs: UpsertStudentInput[] = [...studentByKey.values()];
 
         const studentsResult = await this.studentsService.bulkUpsert(
           studentInputs,
@@ -141,6 +151,7 @@ export class UploadService {
             studentId,
             term: r.term,
             originalAmount: r.amount,
+            totalDiscount: r.discount,
           };
         });
 

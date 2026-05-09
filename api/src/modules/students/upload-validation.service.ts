@@ -39,28 +39,26 @@ export class UploadValidationService {
       result: validateAndNormalise(r.values),
     }));
 
-    // Stage 2: intra-file duplicate detection
+    // Stage 2: intra-file duplicate detection (across all expanded terms)
     const keyCount = new Map<string, number>();
     for (const s of stage1) {
       if (s.result.ok) {
-        const k = this.feeKey(
-          s.result.value.admissionNumber,
-          s.result.value.academicYear,
-          s.result.value.term,
-        );
-        keyCount.set(k, (keyCount.get(k) ?? 0) + 1);
+        for (const v of s.result.values) {
+          const k = this.feeKey(v.admissionNumber, v.academicYear, v.term);
+          keyCount.set(k, (keyCount.get(k) ?? 0) + 1);
+        }
       }
     }
 
     // Stage 3: single query to find any already-existing fees
-    const passingRows = stage1
+    const allValuesForExisting = stage1
       .filter((s) => s.result.ok)
-      .map((s) => (s.result as { ok: true; value: NormalisedRow }).value);
+      .flatMap((s) => (s.result as { ok: true; values: NormalisedRow[] }).values);
 
     const existing = await this.feesService.findExistingByKeys(
       tenantId,
       branch,
-      passingRows.map((r) => ({
+      allValuesForExisting.map((r) => ({
         admissionNumber: r.admissionNumber,
         academicYear: r.academicYear,
       })),
@@ -86,21 +84,22 @@ export class UploadValidationService {
         };
       }
 
-      const v = s.result.value;
       const errors: string[] = [];
-      const key = this.feeKey(v.admissionNumber, v.academicYear, v.term);
+      let anyTermExists = false;
 
-      if ((keyCount.get(key) ?? 0) > 1) {
-        errors.push(
-          `Duplicate within file: ${v.term} for admission ${v.admissionNumber} (${v.academicYear}) appears more than once`,
-        );
-      }
-
-      const isTermExists = existingSet.has(key);
-      if (isTermExists) {
-        errors.push(
-          `${v.term} already exists for admission ${v.admissionNumber} (${v.academicYear})`,
-        );
+      for (const v of s.result.values) {
+        const key = this.feeKey(v.admissionNumber, v.academicYear, v.term);
+        if ((keyCount.get(key) ?? 0) > 1) {
+          errors.push(
+            `Duplicate within file: ${v.term} for admission ${v.admissionNumber} (${v.academicYear})`,
+          );
+        }
+        if (existingSet.has(key)) {
+          anyTermExists = true;
+          errors.push(
+            `${v.term} already exists for admission ${v.admissionNumber} (${v.academicYear})`,
+          );
+        }
       }
 
       if (errors.length) {
@@ -108,7 +107,7 @@ export class UploadValidationService {
           rowNumber: s.rowNumber,
           status: RowStatus.ERROR,
           message: errors.join('; '),
-          isTermExists,
+          isTermExists: anyTermExists,
           data: s.raw,
         };
       }
@@ -133,7 +132,9 @@ export class UploadValidationService {
 
     const validRows = stage1
       .filter((s, idx) => s.result.ok && validated[idx].status === RowStatus.VALID)
-      .map((s) => (s.result as { ok: true; value: NormalisedRow }).value);
+      .flatMap(
+        (s) => (s.result as { ok: true; values: NormalisedRow[] }).values,
+      );
 
     return {
       response: {

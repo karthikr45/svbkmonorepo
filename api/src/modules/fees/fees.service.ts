@@ -183,8 +183,10 @@ export class FeesService {
     if (!inputs.length) return 0;
 
     const repo = manager.getRepository(Fee);
-    const rows = inputs.map((input) =>
-      repo.create({
+    const rows = inputs.map((input) => {
+      const discount = Math.max(0, input.totalDiscount ?? 0);
+      const net = Math.max(0, input.originalAmount - discount);
+      return repo.create({
         tenantId: input.tenantId,
         branch: input.branch,
         academicYear: input.academicYear,
@@ -192,12 +194,12 @@ export class FeesService {
         term: input.term,
         originalAmount: input.originalAmount.toFixed(2),
         totalPenalty: '0.00',
-        totalDiscount: '0.00',
-        netAmount: input.originalAmount.toFixed(2),
+        totalDiscount: discount.toFixed(2),
+        netAmount: net.toFixed(2),
         paidAmount: '0.00',
         paymentStatus: PaymentStatus.UNPAID,
-      }),
-    );
+      });
+    });
 
     let saved = 0;
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
