@@ -1,19 +1,23 @@
 {
-  "name": "svbk-parent-portal",
+  "name": "@svbk/parent-api",
   "version": "1.0.0",
-  "description": "SVBK Parent Portal – OTP-based fee management for parents",
+  "description": "SVBK Parent Portal – OTP-based fee management API for parents",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
+    "dev": "nest start --watch",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "seed": "ts-node src/seed.ts",
-    "lint": "eslint src --fix"
+    "lint": "eslint src --fix",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "echo \"no tests yet\" && exit 0",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.19",

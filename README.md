@@ -1,16 +1,17 @@
 # svbkmonorepo
 
-Monorepo containing the API and the two web portals.
+Monorepo for the SVBK school fee management platform.
 
 ## Layout
 
 ```
 .
 ├── apps/
-│   ├── api/      # backend API service
-│   ├── admin/    # admin portal (web)
-│   └── parent/   # parent portal (web)
-├── packages/     # shared libraries (types, ui, config, etc.)
+│   ├── api/          # @svbk/api        — NestJS, school admin API
+│   ├── parent-api/   # @svbk/parent-api — NestJS, parent OTP API
+│   ├── admin/        # @svbk/admin      — Next.js, admin web portal     (port 3001)
+│   └── parent/       # @svbk/parent     — Next.js, parent web portal    (port 3002)
+├── packages/         # shared libraries (types, ui, config) — empty for now
 ├── pnpm-workspace.yaml
 ├── turbo.json
 └── package.json
@@ -18,79 +19,51 @@ Monorepo containing the API and the two web portals.
 
 ## Tooling
 
-- **pnpm workspaces** for dependency management.
-- **Turborepo** for task orchestration and caching.
-- **Node 20** (see `.nvmrc`).
+- **pnpm workspaces** for dependency management
+- **Turborepo** for task orchestration and caching
+- **Node 20** (see `.nvmrc`)
 
 ## Getting started
 
 ```bash
-# install pnpm if you don't have it
-npm install -g pnpm
-
-# install all workspace deps
-pnpm install
-
-# run all dev servers
-pnpm dev
-
-# build everything
-pnpm build
+npm install -g pnpm     # if you don't have pnpm
+pnpm install            # install all workspace deps
+pnpm dev                # run all dev servers in parallel
+pnpm build              # build everything
 ```
 
-## Adding your existing projects
+### Run a single app
 
-Each app lives under `apps/<name>/` and must have its own `package.json`
-with a unique `name` field. To migrate an existing project into this repo:
+```bash
+pnpm --filter @svbk/api dev
+pnpm --filter @svbk/admin dev
+pnpm --filter @svbk/parent dev
+pnpm --filter @svbk/parent-api dev
+```
 
-1. Copy the project's source into the matching folder:
-   - API           → `apps/api/`
-   - Admin portal  → `apps/admin/`
-   - Parent portal → `apps/parent/`
+## Common scripts (root)
 
-   You can use:
-   ```bash
-   # from the project's current location
-   rsync -a --exclude node_modules --exclude .git ./ /path/to/svbkmonorepo/apps/<name>/
-   ```
+| Script | What it does |
+|---|---|
+| `pnpm dev` | Run `dev` in every workspace that has it |
+| `pnpm build` | Build all apps (NestJS → `dist/`, Next.js → `.next/`) |
+| `pnpm lint` | Lint all apps |
+| `pnpm test` | Test all apps |
+| `pnpm typecheck` | TypeScript check across all apps |
+| `pnpm clean` | Remove build outputs and root `node_modules` |
 
-   Or, to preserve git history, use `git subtree add` or
-   [`git filter-repo`](https://github.com/newren/git-filter-repo).
+## Environment files
 
-2. Make sure each app's `package.json` has a unique `name`, e.g.
-   `@svbk/api`, `@svbk/admin`, `@svbk/parent`.
-
-3. Add `build`, `dev`, `lint`, `test`, `typecheck` scripts to each app's
-   `package.json` so Turborepo can run them. Example:
-   ```json
-   {
-     "name": "@svbk/api",
-     "scripts": {
-       "dev": "your-dev-command",
-       "build": "your-build-command",
-       "lint": "your-lint-command",
-       "test": "your-test-command",
-       "typecheck": "tsc --noEmit"
-     }
-   }
-   ```
-
-4. From the repo root, run `pnpm install`. pnpm will hoist shared deps
-   into the root `node_modules` and link workspace packages together.
-
-5. Commit. Done.
+Each app keeps its own `.env`. Real `.env` files are gitignored — commit
+only `.env.example` files showing the required variables.
 
 ## Sharing code between apps
 
-Create a folder under `packages/` (e.g. `packages/types`) with its own
-`package.json` whose `name` is `@svbk/types`. Reference it from any app:
+Drop a folder under `packages/` (e.g. `packages/types`) with its own
+`package.json` named `@svbk/types`. Reference it from any app:
 
 ```json
-{
-  "dependencies": {
-    "@svbk/types": "workspace:*"
-  }
-}
+{ "dependencies": { "@svbk/types": "workspace:*" } }
 ```
 
-Then `pnpm install` and import as `@svbk/types`.
+Then run `pnpm install`.
