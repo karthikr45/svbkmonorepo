@@ -61,6 +61,41 @@ export class StudentsController {
 
   // ─────────────── Upload ───────────────
 
+  @Get('upload/template')
+  @ApiOperation({
+    summary: 'Download the bulk-upload Excel template',
+    description:
+      'Returns an .xlsx with the canonical column headers and one sample row. Open in Excel, fill rows, then upload via /students/upload/validate then /students/upload/confirm.',
+  })
+  async downloadTemplate(@Req() req: Request) {
+    const XLSX = await import('xlsx');
+    const { SAMPLE_ROW, REQUIRED_STUDENT_COLUMNS, EXCEL_COLUMNS, TERM_DEFINITIONS } =
+      await import('./constants/excel.constants');
+    const headers = [
+      ...REQUIRED_STUDENT_COLUMNS,
+      EXCEL_COLUMNS.IMG_URL,
+      ...TERM_DEFINITIONS.flatMap((t) => [t.feeCol, t.discountCol]),
+    ];
+    const ws = XLSX.utils.json_to_sheet([SAMPLE_ROW], { header: headers });
+    // Tighten column widths a little
+    (ws as any)['!cols'] = headers.map((h) => ({
+      wch: Math.max(14, h.length + 2),
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Students');
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+    const res = (req as any).res;
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="svbk-students-upload-template.xlsx"',
+    );
+    res.send(buf);
+  }
+
   @Post('upload/validate')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

@@ -17,6 +17,7 @@ export enum TermType {
   SECOND = '2nd Term Fee',
   THIRD = '3rd Term Fee',
   FOURTH = '4th Term Fee',
+  FIFTH = '5th Term Fee',
 }
 
 export enum PaymentStatus {
