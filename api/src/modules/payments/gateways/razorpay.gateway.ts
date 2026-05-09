@@ -13,15 +13,33 @@ import {
 @Injectable()
 export class RazorpayGateway implements IPaymentGateway {
   private readonly logger = new Logger(RazorpayGateway.name);
-  private readonly client: Razorpay;
+  private readonly keyId: string;
   private readonly keySecret: string;
+  private clientInstance: Razorpay | null = null;
 
   constructor(private readonly configService: ConfigService) {
+    this.keyId = this.configService.get<string>('razorpay.keyId') ?? '';
     this.keySecret = this.configService.get<string>('razorpay.keySecret') ?? '';
-    this.client = new Razorpay({
-      key_id: this.configService.get<string>('razorpay.keyId'),
-      key_secret: this.keySecret,
-    });
+  }
+
+  /**
+   * Lazy: only build the Razorpay client when an actual call needs it.
+   * Lets the API boot without RAZORPAY_KEY_ID configured (e.g. in dev
+   * when only Cashfree or offline payments are used).
+   */
+  private get client(): Razorpay {
+    if (!this.clientInstance) {
+      if (!this.keyId || !this.keySecret) {
+        throw new InternalServerErrorException(
+          'Razorpay is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.',
+        );
+      }
+      this.clientInstance = new Razorpay({
+        key_id: this.keyId,
+        key_secret: this.keySecret,
+      });
+    }
+    return this.clientInstance;
   }
 
   async createOrder(amount: number, currency: string, notes?: OrderNotes): Promise<GatewayOrderResult> {

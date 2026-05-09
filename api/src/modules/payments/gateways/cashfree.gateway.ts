@@ -12,18 +12,34 @@ import {
 @Injectable()
 export class CashfreeGateway implements IPaymentGateway {
   private readonly logger = new Logger(CashfreeGateway.name);
-  private readonly client: Cashfree;
+  private readonly appId: string;
+  private readonly secretKey: string;
+  private clientInstance: Cashfree | null = null;
 
   constructor(private readonly configService: ConfigService) {
-    const env = process.env.NODE_ENV === 'production'
-      ? CFEnvironment.PRODUCTION
-      : CFEnvironment.SANDBOX;
+    this.appId = this.configService.get<string>('cashfree.appId') ?? '';
+    this.secretKey = this.configService.get<string>('cashfree.secretKey') ?? '';
+  }
 
-    this.client = new Cashfree(
-      env,
-      this.configService.get<string>('cashfree.appId'),
-      this.configService.get<string>('cashfree.secretKey'),
-    );
+  /**
+   * Lazy: only build the SDK client when an actual call needs it. Lets
+   * the API boot without Cashfree creds in dev when only Razorpay or
+   * offline payments are used.
+   */
+  private get client(): Cashfree {
+    if (!this.clientInstance) {
+      if (!this.appId || !this.secretKey) {
+        throw new InternalServerErrorException(
+          'Cashfree is not configured. Set CASHFREE_APP_ID and CASHFREE_SECRET_KEY.',
+        );
+      }
+      const env =
+        process.env.NODE_ENV === 'production'
+          ? CFEnvironment.PRODUCTION
+          : CFEnvironment.SANDBOX;
+      this.clientInstance = new Cashfree(env, this.appId, this.secretKey);
+    }
+    return this.clientInstance;
   }
 
   async createOrder(amount: number, currency: string, notes?: OrderNotes): Promise<GatewayOrderResult> {
