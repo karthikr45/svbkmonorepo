@@ -8,13 +8,8 @@ export interface KeyValueFieldProps {
 }
 
 /**
- * KeyValueField - Display field showing label and value
- * Commonly used for read-only information display
- * 
- * Usage:
- * ```tsx
- * <KeyValueField label="School Name" value="Sunrise High School" />
- * ```
+ * KeyValueField - Premium read-only label/value display.
+ * Tiny uppercase caption + value, no border by default (use inside a Card).
  */
 export function KeyValueField({
   label,
@@ -29,22 +24,12 @@ export function KeyValueField({
   };
 
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-1 rounded-lg border border-zinc-200 bg-white p-4",
-        sizeStyles[size],
-        className
-      )}
-      style={{
-        borderColor: "var(--app-divider)",
-        backgroundColor: "var(--app-card-bg)",
-      }}
-    >
-      <span className="text-xs uppercase tracking-wide text-[var(--app-text-secondary)]">
+    <div className={cn("flex flex-col gap-1", className)}>
+      <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
         {label}
       </span>
-      <span className="font-medium text-[var(--app-text-primary)]">
-        {value || "-"}
+      <span className={cn("font-semibold text-[var(--app-text-primary)]", sizeStyles[size])}>
+        {value || <span className="font-normal text-[var(--app-text-muted)]">—</span>}
       </span>
     </div>
   );
