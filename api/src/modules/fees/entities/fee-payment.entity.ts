@@ -3,42 +3,61 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  UpdateDateColumn,
   ManyToOne,
   JoinColumn,
   Index,
   Check,
+  Unique,
 } from 'typeorm';
 import { Fee } from './fee.entity';
 
 export enum PaymentType {
-  // Online (inserted by the payments team's webhook handler)
+  // Online (gateway-inserted via webhook)
   RAZORPAY = 'RAZORPAY',
   CASHFREE = 'CASHFREE',
   UPI = 'UPI',
   NETBANKING = 'NETBANKING',
   CARD = 'CARD',
-  // Offline (inserted by admin staff)
+  // Offline (admin-inserted)
   CASH = 'CASH',
   CHEQUE = 'CHEQUE',
   DD = 'DD',
+  POS = 'POS',
   NEFT = 'NEFT',
+}
+
+export enum ClearanceStatus {
+  /** Default for cheque/DD until the bank clears or bounces it. */
+  PENDING = 'PENDING',
+  /** Bank confirmed the funds have settled. */
+  CLEARED = 'CLEARED',
+  /** Cheque bounced — payment is reversed. */
+  BOUNCED = 'BOUNCED',
+  /** Not applicable — cash, POS, online, NEFT etc. clear instantly. */
+  NA = 'NA',
 }
 
 /**
  * One row per payment installment. A fee with three part payments has
- * three rows here. For online payments, order_id + transaction_id come
- * from the gateway (Razorpay / Cashfree). For offline, those are null
- * and the relevant offline fields are populated.
+ * three rows here.
  *
- * This is NOT a full accounting ledger — no reversals, no idempotency
- * keys, no receipt numbers. Those will come later if needed. For the
- * MVP this captures enough for: (a) listing a student's payment history,
- * (b) the webhook team to record online payments, (c) admins to record
- * offline payments.
+ * Online payments come in via the gateway webhook (`order_id`,
+ * `transaction_id`, `payment_type ∈ {RAZORPAY|CASHFREE|UPI|...}`).
+ * Offline payments are recorded by admin staff via
+ * `POST /api/fees/:feeId/payments` — the relevant offline fields
+ * (`cheque_*`, `dd_*`, `pos_*`) are populated.
+ *
+ * Cheques and DDs use `clearance_status` to track bank settlement.
+ * BOUNCED reverses the payment (subtracted from the fee's paid_amount).
+ *
+ * Every row carries an auto-generated `receipt_number` for printing.
  */
 @Entity('fee_payments')
 @Index('idx_fp_fee', ['feeId'])
 @Index('idx_fp_tenant_paid_at', ['tenantId', 'paidAt'])
+@Index('idx_fp_clearance_pending', ['tenantId', 'clearanceStatus'])
+@Unique('uq_fp_receipt_number', ['receiptNumber'])
 @Check('chk_fp_amount_positive', '"amount" > 0')
 export class FeePayment {
   @PrimaryGeneratedColumn('uuid')
@@ -63,45 +82,72 @@ export class FeePayment {
   @Column({ name: 'payment_type', type: 'enum', enum: PaymentType })
   paymentType: PaymentType;
 
-  /** Gateway order id (Razorpay's order_id, Cashfree's order_id, etc.). */
+  /** Auto-generated receipt number (e.g. RCP-SVBK-20260510-0001). */
+  @Column({ name: 'receipt_number', type: 'varchar', length: 50, nullable: true })
+  receiptNumber: string | null;
+
+  /** Gateway order id (Razorpay/Cashfree). */
   @Column({ name: 'order_id', type: 'varchar', length: 100, nullable: true })
   orderId: string | null;
 
-  /** Gateway payment / transaction id. */
-  @Column({
-    name: 'transaction_id',
-    type: 'varchar',
-    length: 100,
-    nullable: true,
-  })
+  /** Gateway / POS / NEFT transaction id. */
+  @Column({ name: 'transaction_id', type: 'varchar', length: 100, nullable: true })
   transactionId: string | null;
 
-  /** Offline cheque details. */
+  // ── Cheque ──
   @Column({ name: 'cheque_number', type: 'varchar', length: 50, nullable: true })
   chequeNumber: string | null;
 
   @Column({ name: 'cheque_date', type: 'date', nullable: true })
   chequeDate: Date | null;
 
-  /** Offline DD details. */
+  // ── DD ──
   @Column({ name: 'dd_number', type: 'varchar', length: 50, nullable: true })
   ddNumber: string | null;
 
   @Column({ name: 'dd_date', type: 'date', nullable: true })
   ddDate: Date | null;
 
+  // ── Shared bank fields (cheque / DD / NEFT) ──
   @Column({ name: 'bank_name', type: 'varchar', length: 100, nullable: true })
   bankName: string | null;
 
-  /** When the money was actually received. For online this is when the
-   *  webhook confirmed; for offline it's when the admin recorded it. */
+  @Column({ name: 'bank_branch', type: 'varchar', length: 100, nullable: true })
+  bankBranch: string | null;
+
+  /** Name on the cheque / DD (drawer). Required for cheque/DD. */
+  @Column({ name: 'drawer_name', type: 'varchar', length: 150, nullable: true })
+  drawerName: string | null;
+
+  // ── POS (card swipe at school's terminal) ──
+  /** Last 4 digits of the card swiped at POS. */
+  @Column({ name: 'card_last4', type: 'varchar', length: 4, nullable: true })
+  cardLast4: string | null;
+
+  /** Cheques start as PENDING; cash/POS/online/NEFT default to NA. */
+  @Column({
+    name: 'clearance_status',
+    type: 'enum',
+    enum: ClearanceStatus,
+    default: ClearanceStatus.NA,
+  })
+  clearanceStatus: ClearanceStatus;
+
+  /** Free-text note from the admin. */
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
+
+  /** When the money was actually received. */
   @Column({ name: 'paid_at', type: 'timestamptz' })
   paidAt: Date;
 
-  /** User who recorded the payment. Null for webhook-inserted rows. */
+  /** Admin user who recorded the payment. Null for webhook-inserted rows. */
   @Column({ name: 'recorded_by', type: 'uuid', nullable: true })
   recordedBy: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updatedAt: Date;
 }

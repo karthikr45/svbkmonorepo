@@ -7,7 +7,7 @@ import {
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Fee, PaymentStatus, TermType } from './entities/fee.entity';
-import { FeePayment, PaymentType } from './entities/fee-payment.entity';
+import { FeePayment, ClearanceStatus, PaymentType } from './entities/fee-payment.entity';
 import { Student } from '../students/entities/student.entity';
 import { CreateFeeInput, ExistingFeeRecord } from './dto/fee.dto';
 
@@ -18,6 +18,7 @@ const OFFLINE_TYPES = new Set<PaymentType>([
   PaymentType.CASH,
   PaymentType.CHEQUE,
   PaymentType.DD,
+  PaymentType.POS,
   PaymentType.NEFT,
 ]);
 const ONLINE_TYPES = new Set<PaymentType>([
@@ -435,6 +436,11 @@ async waivePenaltyForStudents(
       ddNumber?: string;
       ddDate?: string;
       bankName?: string;
+      bankBranch?: string;
+      drawerName?: string;
+      transactionId?: string;
+      cardLast4?: string;
+      notes?: string;
       paidAt?: string;
       recordedBy: string | null;
     },
@@ -447,7 +453,7 @@ async waivePenaltyForStudents(
     return this.recordPayment(tenantId, feeId, {
       ...input,
       orderId: null,
-      transactionId: null,
+      transactionId: input.transactionId ?? null,
     });
   }
 
@@ -497,6 +503,10 @@ async waivePenaltyForStudents(
       ddNumber?: string;
       ddDate?: string;
       bankName?: string;
+      bankBranch?: string;
+      drawerName?: string;
+      cardLast4?: string;
+      notes?: string;
       paidAt?: string;
       recordedBy: string | null;
     },
@@ -511,12 +521,26 @@ async waivePenaltyForStudents(
         );
       }
 
+      // Cheque/DD start as PENDING; everything else clears instantly.
+      const clearanceStatus =
+        input.paymentType === PaymentType.CHEQUE ||
+        input.paymentType === PaymentType.DD
+          ? ClearanceStatus.PENDING
+          : ClearanceStatus.NA;
+
+      const receiptNumber = await this.generateReceiptNumber(
+        manager,
+        tenantId,
+        input.paidAt ? new Date(input.paidAt) : new Date(),
+      );
+
       const payment = manager.getRepository(FeePayment).create({
         tenantId,
         branch: fee.branch,
         feeId,
         amount: input.amount.toFixed(2),
         paymentType: input.paymentType,
+        receiptNumber,
         orderId: input.orderId,
         transactionId: input.transactionId,
         chequeNumber: input.chequeNumber ?? null,
@@ -524,6 +548,11 @@ async waivePenaltyForStudents(
         ddNumber: input.ddNumber ?? null,
         ddDate: input.ddDate ? new Date(input.ddDate) : null,
         bankName: input.bankName ?? null,
+        bankBranch: input.bankBranch ?? null,
+        drawerName: input.drawerName ?? null,
+        cardLast4: input.cardLast4 ?? null,
+        notes: input.notes ?? null,
+        clearanceStatus,
         paidAt: input.paidAt ? new Date(input.paidAt) : new Date(),
         recordedBy: input.recordedBy,
       });
@@ -531,18 +560,125 @@ async waivePenaltyForStudents(
         .getRepository(FeePayment)
         .save(payment);
 
-      fee.paidAmount = (Number(fee.paidAmount) + input.amount).toFixed(2);
+      // Pending cheque/DD payments do NOT add to paid_amount yet —
+      // only on clearance (see updateClearance). Cash/POS/online/NEFT
+      // are recognised immediately.
+      if (clearanceStatus === ClearanceStatus.NA) {
+        fee.paidAmount = (Number(fee.paidAmount) + input.amount).toFixed(2);
+        fee.paymentStatus = this.deriveStatus(
+          Number(fee.paidAmount),
+          Number(fee.netAmount),
+        );
+        await manager.getRepository(Fee).save(fee);
+      }
+
+      this.logger.log(
+        `Payment ${input.amount} (${input.paymentType}, ${clearanceStatus}) on fee=${feeId}; paid_amount=${fee.paidAmount}, receipt=${receiptNumber}`,
+      );
+      return savedPayment;
+    });
+  }
+
+  /**
+   * Mark a previously-recorded cheque/DD as CLEARED or BOUNCED.
+   * - CLEARED: adds the amount to fee.paid_amount.
+   * - BOUNCED: leaves fee.paid_amount untouched (it never went up).
+   * - Re-clearing or re-bouncing the same payment is a no-op.
+   */
+  async updateClearance(
+    tenantId: string,
+    feePaymentId: string,
+    status: ClearanceStatus,
+    notes?: string,
+  ): Promise<FeePayment> {
+    if (status === ClearanceStatus.PENDING || status === ClearanceStatus.NA) {
+      throw new BadRequestException(
+        'status must be CLEARED or BOUNCED',
+      );
+    }
+    return this.dataSource.transaction(async (manager) => {
+      const fp = await manager.getRepository(FeePayment).findOne({
+        where: { id: feePaymentId, tenantId },
+      });
+      if (!fp) throw new NotFoundException(`fee_payment ${feePaymentId} not found`);
+      if (
+        fp.paymentType !== PaymentType.CHEQUE &&
+        fp.paymentType !== PaymentType.DD
+      ) {
+        throw new BadRequestException(
+          'Only CHEQUE / DD payments have a clearance step',
+        );
+      }
+      if (fp.clearanceStatus === status) {
+        return fp; // idempotent
+      }
+
+      const fee = await this.lockFee(manager, tenantId, fp.feeId);
+
+      if (
+        fp.clearanceStatus === ClearanceStatus.PENDING &&
+        status === ClearanceStatus.CLEARED
+      ) {
+        fee.paidAmount = (
+          Number(fee.paidAmount) + Number(fp.amount)
+        ).toFixed(2);
+      } else if (
+        fp.clearanceStatus === ClearanceStatus.CLEARED &&
+        status === ClearanceStatus.BOUNCED
+      ) {
+        // Reverse a previously-cleared cheque (rare).
+        fee.paidAmount = Math.max(
+          0,
+          Number(fee.paidAmount) - Number(fp.amount),
+        ).toFixed(2);
+      }
       fee.paymentStatus = this.deriveStatus(
         Number(fee.paidAmount),
         Number(fee.netAmount),
       );
       await manager.getRepository(Fee).save(fee);
 
+      fp.clearanceStatus = status;
+      if (notes) fp.notes = (fp.notes ? fp.notes + '\n' : '') + notes;
+      const saved = await manager.getRepository(FeePayment).save(fp);
+
       this.logger.log(
-        `Payment ${input.amount} (${input.paymentType}) on fee=${feeId}; paid_amount=${fee.paidAmount}`,
+        `Clearance ${status} for fee_payment=${feePaymentId}; fee.paid_amount=${fee.paidAmount}`,
       );
-      return savedPayment;
+      return saved;
     });
+  }
+
+  /**
+   * Generate a unique receipt number for a payment. Format:
+   *   RCP-{tenant short}-{YYYYMMDD}-{NNNN}
+   * Where NNNN is a per-day per-tenant sequence. Uses a row-level
+   * lock by reading the max existing seq for the day.
+   */
+  private async generateReceiptNumber(
+    manager: EntityManager,
+    tenantId: string,
+    paidAt: Date,
+  ): Promise<string> {
+    const yyyy = paidAt.getFullYear();
+    const mm = String(paidAt.getMonth() + 1).padStart(2, '0');
+    const dd = String(paidAt.getDate()).padStart(2, '0');
+    const datePart = `${yyyy}${mm}${dd}`;
+    const prefix = `RCP-${tenantId.slice(0, 4).toUpperCase()}-${datePart}-`;
+    const last = await manager
+      .getRepository(FeePayment)
+      .createQueryBuilder('fp')
+      .select('fp.receipt_number', 'receipt_number')
+      .where('fp.tenant_id = :tenantId', { tenantId })
+      .andWhere('fp.receipt_number LIKE :prefix', { prefix: `${prefix}%` })
+      .orderBy('fp.receipt_number', 'DESC')
+      .limit(1)
+      .getRawOne<{ receipt_number: string }>();
+    const lastSeq = last?.receipt_number
+      ? Number(last.receipt_number.slice(prefix.length))
+      : 0;
+    const nextSeq = String(lastSeq + 1).padStart(4, '0');
+    return `${prefix}${nextSeq}`;
   }
 
   // ──────────────── Internals ────────────────

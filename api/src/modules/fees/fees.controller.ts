@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Req,
   UnauthorizedException,
@@ -20,8 +21,10 @@ import {
   AddDiscountDto,
   RecordOfflinePaymentDto,
   RecordOnlinePaymentDto,
+  UpdateClearanceDto,
   WaivePenaltyDto,
 } from './dto/fee.dto';
+import { ClearanceStatus } from './entities/fee-payment.entity';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -107,6 +110,11 @@ export class FeesController {
       ddNumber: dto.ddNumber,
       ddDate: dto.ddDate,
       bankName: dto.bankName,
+      bankBranch: dto.bankBranch,
+      drawerName: dto.drawerName,
+      transactionId: dto.transactionId,
+      cardLast4: dto.cardLast4,
+      notes: dto.notes,
       paidAt: dto.paidAt,
       recordedBy: userId,
     });
@@ -134,6 +142,30 @@ export class FeesController {
       paidAt: dto.paidAt,
       recordedBy: userId,
     });
+  }
+
+  // ─────────────── Clearance (cheque / DD) ───────────────
+
+  @Patch('payments/:paymentId/clearance')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mark a cheque / DD as CLEARED or BOUNCED',
+    description:
+      'Cheque and DD payments are recorded with clearance_status=PENDING and do not yet add to fee.paid_amount. Mark CLEARED to recognise the payment, or BOUNCED to reject it. CLEARED → BOUNCED reverses a previously-cleared cheque.',
+  })
+  @ApiParam({ name: 'paymentId', description: 'fee_payment UUID' })
+  async updateClearance(
+    @Param('paymentId', buildUuidPipe('paymentId')) paymentId: string,
+    @Body() dto: UpdateClearanceDto,
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    return this.feesService.updateClearance(
+      tenantId,
+      paymentId,
+      dto.status as unknown as ClearanceStatus,
+      dto.notes,
+    );
   }
 }
 

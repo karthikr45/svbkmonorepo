@@ -22,6 +22,7 @@ const OFFLINE_PAYMENT_TYPES: PaymentType[] = [
   PaymentType.CASH,
   PaymentType.CHEQUE,
   PaymentType.DD,
+  PaymentType.POS,
   PaymentType.NEFT,
 ];
 const ONLINE_PAYMENT_TYPES: PaymentType[] = [
@@ -230,11 +231,77 @@ export class RecordOfflinePaymentDto {
   @MaxLength(100, { message: 'bankName must be 100 characters or fewer' })
   bankName?: string;
 
+  // ── Bank branch (optional, all bank-backed types) ────────────────
+  @ApiPropertyOptional({ example: 'Hyderabad — Banjara Hills' })
+  @IsOptional()
+  @IsString({ message: 'bankBranch must be a string' })
+  @MaxLength(100)
+  bankBranch?: string;
+
+  // ── Drawer name — required for cheque / DD ───────────────────────
+  @ApiPropertyOptional({ example: 'Ramesh Kumar', description: 'Required for CHEQUE / DD' })
+  @ValidateIf(
+    (o) =>
+      o.paymentType === PaymentType.CHEQUE ||
+      o.paymentType === PaymentType.DD,
+  )
+  @IsString({ message: 'drawerName must be a string' })
+  @IsNotEmpty({ message: 'drawerName is required for CHEQUE / DD' })
+  @MaxLength(150)
+  drawerName?: string;
+
+  // ── POS / NEFT — transaction id from terminal slip / UTR ────────
+  @ApiPropertyOptional({
+    example: 'POS-TXN-99887766',
+    description: 'Required for POS (terminal txn id) and NEFT (UTR)',
+  })
+  @ValidateIf(
+    (o) =>
+      o.paymentType === PaymentType.POS ||
+      o.paymentType === PaymentType.NEFT,
+  )
+  @IsString({ message: 'transactionId must be a string' })
+  @IsNotEmpty({ message: 'transactionId is required for POS / NEFT' })
+  @MaxLength(100)
+  transactionId?: string;
+
+  // ── POS only — last 4 of card swiped ──────────────────────────────
+  @ApiPropertyOptional({ example: '4242', description: 'Last 4 digits of card (POS only)' })
+  @IsOptional()
+  @IsString({ message: 'cardLast4 must be a string' })
+  @MaxLength(4)
+  cardLast4?: string;
+
+  // ── Free-text note ───────────────────────────────────────────────
+  @ApiPropertyOptional({ example: 'Paid at front desk by parent' })
+  @IsOptional()
+  @IsString({ message: 'notes must be a string' })
+  @MaxLength(500)
+  notes?: string;
+
   /** Override the payment date. Defaults to now if omitted. */
   @ApiPropertyOptional({ example: '2026-04-23T10:15:30Z' })
   @IsOptional()
   @IsISO8601({}, { message: 'paidAt must be an ISO8601 date-time string' })
   paidAt?: string;
+}
+
+/**
+ * PATCH /fee-payments/:id/clearance
+ * Mark a recorded cheque or DD as CLEARED or BOUNCED.
+ */
+export class UpdateClearanceDto {
+  @ApiProperty({ enum: ['CLEARED', 'BOUNCED'], example: 'CLEARED' })
+  @IsEnum(['CLEARED', 'BOUNCED'] as readonly string[], {
+    message: 'status must be CLEARED or BOUNCED',
+  })
+  status: 'CLEARED' | 'BOUNCED';
+
+  @ApiPropertyOptional({ description: 'Bounce reason / clearance note' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
 }
 
 /**
