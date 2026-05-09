@@ -40,6 +40,38 @@ const TERMS = [
 
 const TERM_LABELS = ["1st", "2nd", "3rd", "4th", "5th"] as const;
 
+/**
+ * The API has a global TransformInterceptor that wraps responses in
+ * { success, data, ... }. Some api-client wrappers unwrap once to .data,
+ * others don't. List endpoints can return any of:
+ *
+ *   [item, …]                               // bare array
+ *   { results: [...] }                      // older shape
+ *   { items: [...], total }                 // paginated
+ *   { data: [...] }                         // wrapped once
+ *   { data: { items: [...], total } }       // wrapped paginated
+ *   { data: { results: [...] } }            // wrapped older shape
+ *
+ * Unwrap defensively so the table never crashes on shape drift.
+ */
+function unwrapList<T>(res: unknown): T[] {
+  if (Array.isArray(res)) return res as T[];
+  if (!res || typeof res !== "object") return [];
+  const obj = res as Record<string, unknown>;
+
+  if (Array.isArray(obj.results)) return obj.results as T[];
+  if (Array.isArray(obj.items)) return obj.items as T[];
+
+  if (obj.data && typeof obj.data === "object") {
+    const inner = obj.data as Record<string, unknown>;
+    if (Array.isArray(inner)) return inner as unknown as T[];
+    if (Array.isArray(inner.results)) return inner.results as T[];
+    if (Array.isArray(inner.items)) return inner.items as T[];
+  }
+  if (Array.isArray(obj.data)) return obj.data as T[];
+  return [];
+}
+
 interface Props {
   onUpload: () => void;
   onShowLegacy?: () => void;
@@ -59,9 +91,10 @@ export function StudentsTableV2({ onUpload, onShowLegacy }: Props) {
   // Load academic years on mount
   useEffect(() => {
     getAcademicYearsApi()
-      .then((data) => {
-        setYears(data);
-        const current = data.find((y) => y.isCurrentYear) ?? data[0];
+      .then((res) => {
+        const list = unwrapList<AcademicYearItem>(res);
+        setYears(list);
+        const current = list.find((y) => y.isCurrentYear) ?? list[0];
         if (current) setYear(current.academicYear);
       })
       .catch((err) =>
@@ -76,13 +109,7 @@ export function StudentsTableV2({ onUpload, onShowLegacy }: Props) {
     setError(null);
     getStudentsDetailsByBranchApi("", year, { page: 1, pageSize: 200 })
       .then((res) => {
-        const list = Array.isArray(res)
-          ? res
-          : "results" in (res as Record<string, unknown>)
-            ? ((res as { results: StudentFeeRow[] }).results ?? [])
-            : ((res as { data?: { items?: StudentFeeRow[] } }).data?.items ??
-              []);
-        setStudents(list);
+        setStudents(unwrapList<StudentFeeRow>(res));
       })
       .catch((err) =>
         setError(getApiErrorMessage(err, "Could not load students")),
