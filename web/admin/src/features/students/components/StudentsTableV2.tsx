@@ -108,7 +108,7 @@ export function StudentsTableV2({ onUpload, onShowLegacy }: Props) {
     if (!year) return;
     setLoading(true);
     setError(null);
-    getStudentsDetailsByBranchApi("", year, { page: 1, pageSize: 200 })
+    getStudentsDetailsByBranchApi("", year, { page: 1, pageSize: 100 })
       .then((res) => {
         setStudents(unwrapList<StudentFeeRow>(res));
       })
