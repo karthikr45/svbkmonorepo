@@ -250,6 +250,29 @@ export class FeesController {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   }
+
+  @Get('payments/receipts/batch')
+  @ApiOperation({
+    summary: 'Batch printable receipts',
+    description:
+      'Returns one HTML page with multiple receipts (page-break between each). Pass receipt numbers OR fee_payment UUIDs in `ids` (comma-separated). Use the browser print dialog to send the whole batch to a printer.',
+  })
+  async batchReceipts(@Req() req: Request, @Query('ids') ids?: string) {
+    const { tenantId } = ctx(req);
+    const list = (ids ?? '')
+      .split(/[,\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (list.length === 0) {
+      throw new BadRequestException(
+        'ids is required: comma-separated receipt numbers or payment UUIDs',
+      );
+    }
+    const html = await this.feesService.renderReceiptsBatch(tenantId, list);
+    const res = (req as any).res;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  }
 }
 
 // ─────────────── helpers ───────────────

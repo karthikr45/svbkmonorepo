@@ -84,6 +84,13 @@ export function receiptUrl(paymentId: string): string {
   return `${getApiBaseUrl()}/fees/payments/${paymentId}/receipt`;
 }
 
+/** Build a batch-receipts URL — accepts UUIDs OR receipt numbers, comma-separated. */
+export function batchReceiptsUrl(idsOrReceiptNumbers: string[]): string {
+  return `${getApiBaseUrl()}/fees/payments/receipts/batch?ids=${encodeURIComponent(
+    idsOrReceiptNumbers.join(","),
+  )}`;
+}
+
 export interface FeeRow {
   id: string;
   branch: string;

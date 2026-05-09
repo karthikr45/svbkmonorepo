@@ -7,6 +7,7 @@ import { Button } from "@/components/ui";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { getStoredToken } from "@/features/auth/services";
 import {
+  batchReceiptsUrl,
   findStudentWithFeesApi,
   listAllPaymentsApi,
   listFeePaymentsApi,
@@ -23,7 +24,7 @@ import {
   type StudentRow,
 } from "@/features/payments/api/payments.api";
 
-type TabId = "record" | "pending";
+type TabId = "record" | "pending" | "print";
 
 export function PaymentsPageContent() {
   // Most-used flow first.
@@ -45,6 +46,7 @@ export function PaymentsPageContent() {
         {[
           { id: "record" as const, label: "Record payment" },
           { id: "pending" as const, label: "Pending cheques" },
+          { id: "print" as const, label: "Print receipts" },
         ].map(({ id, label }) => {
           const active = tab === id;
           return (
@@ -63,8 +65,158 @@ export function PaymentsPageContent() {
         })}
       </div>
 
-      {tab === "pending" ? <PendingClearancePanel /> : <RecordPaymentPanel />}
+      {tab === "pending" && <PendingClearancePanel />}
+      {tab === "record" && <RecordPaymentPanel />}
+      {tab === "print" && <PrintReceiptsPanel />}
     </div>
+  );
+}
+
+// ─── Print receipts panel ──────────────────────────────────────────
+
+function PrintReceiptsPanel() {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // Accept comma, space, semicolon, or newline as separators.
+  const ids = text
+    .split(/[,\s;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  async function open() {
+    if (ids.length === 0) return;
+    setBusy(true);
+    try {
+      const url = batchReceiptsUrl(ids);
+      const token = getStoredToken();
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const html = await res.text();
+      const blob = new Blob([html], { type: "text/html" });
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (err) {
+      alert(getApiErrorMessage(err, "Could not open receipts"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card padding="default">
+        <h3 className="text-sm font-bold text-[var(--app-text-primary)] mb-1.5">
+          Batch print receipts
+        </h3>
+        <p className="text-xs text-[var(--app-text-secondary)] mb-4 leading-relaxed">
+          Paste one or many receipt numbers (or payment UUIDs). Separate with
+          commas, spaces, semicolons, or newlines. We'll open all receipts in a
+          single page with a "Print all" button — your browser handles the
+          page breaks for the printer.
+        </p>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={5}
+          placeholder={
+            "RCP-XXXX-20260510-0001\nRCP-XXXX-20260510-0002\n…or paste a comma-separated list"
+          }
+          className="form-input w-full p-3 font-mono text-sm leading-relaxed"
+          style={{ minHeight: 140 }}
+        />
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs text-[var(--app-text-secondary)] tabular-nums">
+            {ids.length} receipt{ids.length === 1 ? "" : "s"} parsed
+          </span>
+          <Button
+            onClick={open}
+            variant="primary"
+            size="md"
+            isLoading={busy}
+            disabled={ids.length === 0}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Open & Print
+          </Button>
+        </div>
+
+        <style jsx>{`
+          :global(.form-input) {
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            font-size: 14px;
+            color: #0f172a;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+          }
+          :global(.form-input:focus) {
+            border-color: var(--app-brand);
+            box-shadow: 0 0 0 3px rgb(11 84 171 / 0.15);
+          }
+        `}</style>
+      </Card>
+
+      <RecentReceiptsCard onAdd={(rcpt) =>
+        setText((prev) => (prev.trim() ? prev.trim() + "\n" + rcpt : rcpt))
+      } />
+    </div>
+  );
+}
+
+function RecentReceiptsCard({ onAdd }: { onAdd: (rcpt: string) => void }) {
+  const [recent, setRecent] = useState<PaymentLogRow[]>([]);
+  useEffect(() => {
+    listAllPaymentsApi({})
+      .then((res) => {
+        const list = unwrapList<PaymentLogRow>(res);
+        setRecent(list.slice(0, 25));
+      })
+      .catch(() => {});
+  }, []);
+  return (
+    <Card padding="none" className="overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100">
+        <h3 className="text-sm font-bold text-[var(--app-text-primary)]">Recent receipts</h3>
+        <p className="text-xs text-[var(--app-text-secondary)] mt-0.5">
+          Click a row to add its number to the batch above.
+        </p>
+      </div>
+      {recent.length === 0 ? (
+        <p className="px-5 py-6 text-sm text-[var(--app-text-secondary)] text-center">
+          No payments recorded yet.
+        </p>
+      ) : (
+        <ul>
+          {recent.map((p, i) => (
+            <li
+              key={p.id}
+              className={`flex items-center gap-3 px-5 py-2.5 hover:bg-slate-50 cursor-pointer ${i !== recent.length - 1 ? "border-b border-slate-50" : ""}`}
+              onClick={() => p.receiptNumber && onAdd(p.receiptNumber)}
+            >
+              <span className="text-xs font-bold text-[var(--app-text-secondary)] tabular-nums w-44 truncate">
+                {p.receiptNumber ?? p.id.slice(0, 8)}
+              </span>
+              <span className="text-sm text-[var(--app-text-primary)] flex-1 truncate">
+                {p.student?.name ?? "—"}
+              </span>
+              <span className="text-xs text-[var(--app-text-secondary)] tabular-nums whitespace-nowrap">
+                {new Date(p.paidAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+              </span>
+              <span className="text-xs font-bold text-[var(--app-text-primary)] tabular-nums whitespace-nowrap w-20 text-right">
+                {inr(Number(p.amount))}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 
@@ -758,6 +910,48 @@ function RecordPaymentPanel() {
         </Card>
       )}
 
+      {/* Selected fee summary — mirrors the legacy student-edit modal */}
+      {feeId && (() => {
+        const f = fees.find((fee) => fee.id === feeId);
+        if (!f) return null;
+        const orig = Number(f.originalAmount);
+        const disc = Number(f.totalDiscount);
+        const net = Number(f.netAmount);
+        const paid = Number(f.paidAmount);
+        const balance = Math.max(0, net - paid);
+        return (
+          <Card padding="tight" className="border-l-4" style={{ borderLeftColor: "var(--app-brand)" }}>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
+                  Selected fee
+                </div>
+                <div className="text-base font-bold text-[var(--app-text-primary)]">
+                  {f.term} · {student?.name}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAmount(String(balance));
+                }}
+                disabled={balance === 0}
+                className="text-xs font-semibold text-[var(--app-brand)] hover:underline disabled:opacity-40"
+              >
+                Pay full balance →
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+              <SumStat label="Original" value={inr(orig)} />
+              <SumStat label="Discount" value={inr(disc)} />
+              <SumStat label="Net" value={inr(net)} bold />
+              <SumStat label="Paid till now" value={inr(paid)} />
+              <SumStat label="Balance" value={inr(balance)} bold tone={balance > 0 ? "amber" : "green"} />
+            </div>
+          </Card>
+        );
+      })()}
+
       {/* Record form */}
       <Card padding="default">
       <form onSubmit={handleSubmit}>
@@ -980,6 +1174,37 @@ function RecordPaymentPanel() {
         `}</style>
       </form>
       </Card>
+    </div>
+  );
+}
+
+function SumStat({
+  label,
+  value,
+  bold,
+  tone = "slate",
+}: {
+  label: string;
+  value: string;
+  bold?: boolean;
+  tone?: "slate" | "green" | "amber";
+}) {
+  const palette = {
+    slate: "#0f172a",
+    green: "#15803d",
+    amber: "#b45309",
+  }[tone];
+  return (
+    <div className="flex flex-col">
+      <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
+        {label}
+      </span>
+      <span
+        className={`tabular-nums ${bold ? "font-bold text-base" : "font-semibold text-sm"}`}
+        style={{ color: palette }}
+      >
+        {value}
+      </span>
     </div>
   );
 }

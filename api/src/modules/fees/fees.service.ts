@@ -774,6 +774,91 @@ async waivePenaltyForStudents(
    * print directly from the browser.
    */
   async renderReceipt(tenantId: string, paymentId: string): Promise<string> {
+    return this.renderReceiptInner(tenantId, paymentId, /* asPage */ true);
+  }
+
+  /**
+   * Render multiple receipts as one print-friendly HTML page with a
+   * page break between each. Accepts either fee_payment UUIDs or
+   * receipt_number strings — auto-detected per item.
+   */
+  async renderReceiptsBatch(
+    tenantId: string,
+    idsOrReceiptNos: string[],
+  ): Promise<string> {
+    if (idsOrReceiptNos.length === 0) return '';
+
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    // Resolve each input to a payment UUID
+    const resolved: string[] = [];
+    const notFound: string[] = [];
+    for (const item of idsOrReceiptNos) {
+      let id: string | null = null;
+      if (uuidRe.test(item)) {
+        id = item;
+      } else {
+        const row = await this.dataSource
+          .getRepository(FeePayment)
+          .findOne({ where: { tenantId, receiptNumber: item } });
+        if (row) id = row.id;
+      }
+      if (id) resolved.push(id);
+      else notFound.push(item);
+    }
+
+    const fragments = await Promise.all(
+      resolved.map((id) => this.renderReceiptInner(tenantId, id, /* asPage */ false)),
+    );
+
+    const notFoundBanner = notFound.length
+      ? `<div style="padding:24px;margin-bottom:16px;background:#fee2e2;border:1px solid #fecaca;border-radius:12px;color:#b91c1c;font-family:sans-serif;max-width:760px;margin:0 auto 16px"><strong>${notFound.length} receipt(s) not found:</strong> ${escapeHtml(notFound.join(', '))}</div>`
+      : '';
+
+    const body = fragments
+      .map((f, i) => {
+        const breakRule =
+          i < fragments.length - 1
+            ? '<div style="page-break-after:always;height:0"></div>'
+            : '';
+        return `<div class="receipt-wrap">${f}</div>${breakRule}`;
+      })
+      .join('\n');
+
+    return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Receipts (${resolved.length})</title>
+<style>
+  body{margin:0;padding:24px 0;background:#f1f5f9}
+  .receipt-wrap{margin-bottom:24px}
+  @media print{
+    body{padding:0;background:#fff}
+    .receipt-wrap{margin:0}
+  }
+  .toolbar{position:sticky;top:0;z-index:10;background:#fff;padding:12px 16px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#0f172a;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .toolbar button{background:#0b54ab;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer}
+  .toolbar button:hover{background:#094a96}
+  @media print{.toolbar{display:none}}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span>${resolved.length} receipt${resolved.length === 1 ? '' : 's'} ready to print${notFound.length ? ` · ${notFound.length} not found` : ''}</span>
+  <button onclick="window.print()">Print all</button>
+</div>
+${notFoundBanner}
+${body}
+</body>
+</html>`;
+  }
+
+  private async renderReceiptInner(
+    tenantId: string,
+    paymentId: string,
+    asPage: boolean,
+  ): Promise<string> {
     const fp = await this.dataSource
       .getRepository(FeePayment)
       .createQueryBuilder('fp')
@@ -860,40 +945,7 @@ async waivePenaltyForStudents(
       typeDetails.push(detailRow('Transaction ID', fp.transactionId));
     }
 
-    return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>Receipt ${escapeHtml(fp.receiptNumber ?? fp.id)}</title>
-<style>
-  *,*::before,*::after{box-sizing:border-box}
-  body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f1f5f9;color:#0f172a;margin:0;padding:32px}
-  .receipt{max-width:760px;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(15,23,42,.08);overflow:hidden}
-  .head{padding:24px 32px;border-bottom:2px solid #0b54ab;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
-  .head h1{margin:0;font-size:22px;color:#0b54ab;letter-spacing:-.01em}
-  .head h2{margin:0;font-size:14px;font-weight:600;color:#475569}
-  .badge{display:inline-block;padding:6px 12px;border-radius:6px;background:#eff6ff;color:#0b54ab;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
-  .meta{padding:16px 32px;display:grid;grid-template-columns:1fr 1fr;gap:12px;border-bottom:1px solid #e2e8f0;font-size:13px}
-  .meta div span{display:block;color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
-  .meta div strong{font-weight:700;color:#0f172a;font-size:14px}
-  .body{padding:24px 32px}
-  .body h3{margin:0 0 12px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#475569}
-  table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px}
-  td{padding:8px 0;vertical-align:top}
-  td.lbl{color:#64748b;width:36%}
-  td.val{color:#0f172a;font-weight:600}
-  .amount-box{margin-top:16px;padding:18px 20px;background:#0b54ab;color:#fff;border-radius:10px;display:flex;justify-content:space-between;align-items:center}
-  .amount-box .total-label{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;opacity:.85}
-  .amount-box .total-fig{font-size:26px;font-weight:800;letter-spacing:-.01em}
-  .words{margin-top:10px;font-size:13px;color:#334155;font-style:italic}
-  .footer{display:flex;justify-content:space-between;padding:24px 32px 32px;border-top:1px dashed #cbd5e1;font-size:12px;color:#475569}
-  .sig-line{border-top:1px solid #94a3b8;padding-top:6px;width:200px;text-align:center;font-weight:600;color:#475569;margin-top:36px}
-  .stamp{width:160px;height:80px;border:2px dashed #cbd5e1;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;margin-top:18px}
-  @media print{body{background:#fff;padding:0}.receipt{box-shadow:none;border-radius:0}}
-</style>
-</head>
-<body>
-  <div class="receipt">
+    const receiptFragment = `  <div class="receipt">
     <div class="head">
       <div>
         <h1>${escapeHtml(tenant?.tenantName ?? 'School Receipt')}</h1>
@@ -947,7 +999,44 @@ async waivePenaltyForStudents(
       <div class="stamp">School Stamp</div>
       <div class="sig-line">Authorised Signatory</div>
     </div>
-  </div>
+  </div>`;
+
+    if (!asPage) return receiptFragment;
+
+    return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Receipt ${escapeHtml(fp.receiptNumber ?? fp.id)}</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f1f5f9;color:#0f172a;margin:0;padding:32px}
+  .receipt{max-width:760px;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(15,23,42,.08);overflow:hidden}
+  .head{padding:24px 32px;border-bottom:2px solid #0b54ab;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+  .head h1{margin:0;font-size:22px;color:#0b54ab;letter-spacing:-.01em}
+  .head h2{margin:0;font-size:14px;font-weight:600;color:#475569}
+  .badge{display:inline-block;padding:6px 12px;border-radius:6px;background:#eff6ff;color:#0b54ab;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+  .meta{padding:16px 32px;display:grid;grid-template-columns:1fr 1fr;gap:12px;border-bottom:1px solid #e2e8f0;font-size:13px}
+  .meta div span{display:block;color:#64748b;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+  .meta div strong{font-weight:700;color:#0f172a;font-size:14px}
+  .body{padding:24px 32px}
+  .body h3{margin:0 0 12px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#475569}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px}
+  td{padding:8px 0;vertical-align:top}
+  td.lbl{color:#64748b;width:36%}
+  td.val{color:#0f172a;font-weight:600}
+  .amount-box{margin-top:16px;padding:18px 20px;background:#0b54ab;color:#fff;border-radius:10px;display:flex;justify-content:space-between;align-items:center}
+  .amount-box .total-label{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;opacity:.85}
+  .amount-box .total-fig{font-size:26px;font-weight:800;letter-spacing:-.01em}
+  .words{margin-top:10px;font-size:13px;color:#334155;font-style:italic}
+  .footer{display:flex;justify-content:space-between;padding:24px 32px 32px;border-top:1px dashed #cbd5e1;font-size:12px;color:#475569}
+  .sig-line{border-top:1px solid #94a3b8;padding-top:6px;width:200px;text-align:center;font-weight:600;color:#475569;margin-top:36px}
+  .stamp{width:160px;height:80px;border:2px dashed #cbd5e1;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;margin-top:18px}
+  @media print{body{background:#fff;padding:0}.receipt{box-shadow:none;border-radius:0}}
+</style>
+</head>
+<body>
+${receiptFragment}
 </body>
 </html>`;
   }
