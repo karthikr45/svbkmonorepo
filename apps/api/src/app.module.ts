@@ -19,6 +19,9 @@ import { MediaModule } from './modules/media/media.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { ParentsModule } from './modules/parents/parents.module';
+import { ParentAuthModule } from './modules/parent-auth/parent-auth.module';
+import { ParentPortalModule } from './modules/parent-portal/parent-portal.module';
 
 @Module({
   imports: [
@@ -58,6 +61,10 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     NotificationsModule,
     ReportsModule,
     DashboardModule,
+    // Parent portal — OTP login + read endpoints scoped per parent
+    ParentsModule,
+    ParentAuthModule,
+    ParentPortalModule,
   ],
 })
 export class AppModule {}
