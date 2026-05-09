@@ -1,19 +1,23 @@
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/layout";
+import { ComingSoonCard } from "@/components/common/ComingSoonCard";
 
 export const metadata: Metadata = {
   title: "Penalties",
-  description: "Penalties",
+  description: "Manage late-fee penalties",
 };
 
 export default function PenaltiesPage() {
   return (
     <div>
-      <h1 className="text-2xl font-semibold" style={{ color: "var(--app-text-primary)" }}>
-        Penalties
-      </h1>
-      <p className="mt-2" style={{ color: "var(--app-text-secondary)" }}>
-        Penalties – add content as needed.
-      </p>
+      <PageHeader
+        title="Penalties"
+        subtitle="Define late-fee rules and waivers. Penalties roll into the student's term fee automatically."
+      />
+      <ComingSoonCard
+        title="Penalty management is on the way"
+        body="Configure auto-applied late fees by branch and term. Apply or waive individual penalties from a student's fee record."
+      />
     </div>
   );
 }

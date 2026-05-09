@@ -1,19 +1,23 @@
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/layout";
+import { ComingSoonCard } from "@/components/common/ComingSoonCard";
 
 export const metadata: Metadata = {
   title: "Student Records",
-  description: "Student records",
+  description: "Per-student academic and fee history",
 };
 
 export default function StudentRecordsPage() {
   return (
     <div>
-      <h1 className="text-2xl font-semibold" style={{ color: "var(--app-text-primary)" }}>
-        Student Records
-      </h1>
-      <p className="mt-2" style={{ color: "var(--app-text-secondary)" }}>
-        Student records – add content as needed.
-      </p>
+      <PageHeader
+        title="Student Records"
+        subtitle="Year-over-year academic, fee, and payment history per student."
+      />
+      <ComingSoonCard
+        title="Records view coming soon"
+        body="Search by admission number to see a unified timeline of fees, payments, penalties, and class progression."
+      />
     </div>
   );
 }

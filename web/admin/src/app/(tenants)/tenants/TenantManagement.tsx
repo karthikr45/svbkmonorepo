@@ -233,16 +233,23 @@ function TenantManagement() {
   const isEditMode = editingTenant !== null;
 
   return (
-    <div className="p-4 sm:p-6">
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="p-6 sm:p-8 max-w-[1400px] mx-auto">
+      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--app-text-primary)]">Tenant Management</h1>
-          <p className="mt-1 text-sm text-[var(--app-text-secondary)]">Manage and switch between tenants</p>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--app-text-primary)]">
+            Tenants
+          </h1>
+          <p className="mt-1.5 text-sm text-[var(--app-text-secondary)] max-w-2xl leading-relaxed">
+            Manage every school tenant on the SVBK platform. Click a tenant to view its configuration, admins, and academic data.
+          </p>
         </div>
-        <Button onClick={onOpenDrawer} size="md" variant="primary" className="min-w-[150px]">
-          + Add Tenant
+        <Button onClick={onOpenDrawer} size="md" variant="primary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          Add tenant
         </Button>
-      </div>
+      </header>
 
       <Card className="mb-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">

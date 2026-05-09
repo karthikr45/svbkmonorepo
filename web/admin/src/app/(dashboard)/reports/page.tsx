@@ -1,19 +1,23 @@
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/layout";
+import { ComingSoonCard } from "@/components/common/ComingSoonCard";
 
 export const metadata: Metadata = {
   title: "Reports",
-  description: "Reports",
+  description: "Reports and analytics",
 };
 
 export default function ReportsPage() {
   return (
     <div>
-      <h1 className="text-2xl font-semibold" style={{ color: "var(--app-text-primary)" }}>
-        Reports
-      </h1>
-      <p className="mt-2" style={{ color: "var(--app-text-secondary)" }}>
-        Reports – add content as needed.
-      </p>
+      <PageHeader
+        title="Reports"
+        subtitle="Fee collection, defaulters, and tenant-wide analytics."
+      />
+      <ComingSoonCard
+        title="Reports coming soon"
+        body="Filter, export, and schedule reports across collections, outstanding balances, and tenant comparisons."
+      />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+export { ComingSoonCard } from "./ComingSoonCard";
 export { IconActions } from "./IconActions";
 export type { ActionItem } from "./IconActions";
 export { Modal } from "./Modal";

@@ -1,19 +1,23 @@
 import type { Metadata } from "next";
+import { PageHeader } from "@/components/layout";
+import { ComingSoonCard } from "@/components/common/ComingSoonCard";
 
 export const metadata: Metadata = {
   title: "Settings",
-  description: "Settings",
+  description: "Tenant settings",
 };
 
 export default function SettingsPage() {
   return (
     <div>
-      <h1 className="text-2xl font-semibold" style={{ color: "var(--app-text-primary)" }}>
-        Settings
-      </h1>
-      <p className="mt-2" style={{ color: "var(--app-text-secondary)" }}>
-        Settings – add content as needed.
-      </p>
+      <PageHeader
+        title="Settings"
+        subtitle="Tenant configuration, branding, and integrations."
+      />
+      <ComingSoonCard
+        title="Settings panel under construction"
+        body="Manage academic-year defaults, payment gateway credentials, SMTP, branding, and notification preferences."
+      />
     </div>
   );
 }
