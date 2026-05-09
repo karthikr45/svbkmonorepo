@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
-import { DashboardStats, RecentStudentsTable } from "@/components/dashboard";
-import { PageHeader } from "@/components/layout";
+import {
+  DashboardStats,
+  RecentStudentsTable,
+  WelcomeCard,
+} from "@/components/dashboard";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -10,10 +13,7 @@ export const metadata: Metadata = {
 export default function DashboardPage() {
   return (
     <div>
-      <PageHeader
-        title="Dashboard"
-        subtitle="Overview of students, fees, and recent activity."
-      />
+      <WelcomeCard />
       <div className="space-y-6">
         <DashboardStats />
         <RecentStudentsTable />

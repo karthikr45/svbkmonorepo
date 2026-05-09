@@ -3,22 +3,12 @@ import { cn } from "@/lib/utils";
 import type { TenantCardProps } from "./types";
 
 /**
- * TenantCard - Composable card component for tenants
- * 
- * Usage:
- * ```tsx
- * <TenantCard isSelected={true} onClick={handleSelect}>
- *   <TenantCardHeader title="School Name" subtitle="Campus" showCheckmark />
- *   <TenantCardContent>
- *     <TenantCardField label="Code" value="TNT001" />
- *   </TenantCardContent>
- * </TenantCard>
- * ```
+ * TenantCard - Composable card for tenants. Premium look: clean border,
+ * subtle hover lift, brand-blue selection ring + soft surface.
  */
 export function TenantCard({
   isSelected = false,
   onClick,
-  onEdit,
   className,
   children,
 }: TenantCardProps) {
@@ -38,18 +28,24 @@ export function TenantCard({
       onClick={onClick}
       onKeyDown={interactive ? onKeyDown : undefined}
       className={cn(
-        "group rounded-xl border p-4 text-left transition-all duration-200",
-        interactive && "cursor-pointer hover:-translate-y-0.5 hover:shadow-lg",
-        interactive && "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60",
+        "group relative rounded-[var(--app-card-radius)] border bg-white p-5 text-left transition-all duration-200",
+        interactive &&
+          "cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--app-card-shadow-hover)]",
+        interactive &&
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-brand)]/40",
         isSelected
-          ? "border-foreground bg-[var(--app-card-bg)] shadow-lg"
-          : "border-zinc-200 bg-white",
-        className
+          ? "border-[var(--app-brand)] bg-[var(--app-brand-soft)] shadow-[var(--app-card-shadow)]"
+          : "border-[var(--app-card-border)] shadow-[var(--app-card-shadow)]",
+        className,
       )}
-      style={{
-        boxShadow: isSelected ? "0 0 0 2px var(--app-brand)" : undefined,
-      }}
     >
+      {isSelected && (
+        <span
+          className="absolute -top-px left-5 right-5 h-0.5 rounded-b"
+          style={{ backgroundColor: "var(--app-brand)" }}
+          aria-hidden
+        />
+      )}
       {children}
     </div>
   );

@@ -8,12 +8,8 @@ const sizeStyles = {
 };
 
 /**
- * TenantCardField - Individual field in TenantCard with label and value
- * 
- * Usage:
- * ```tsx
- * <TenantCardField label="School Code" value="SHS001" size="sm" />
- * ```
+ * TenantCardField - label + value row in a tenant card.
+ * Premium: tiny uppercase caption + value below.
  */
 export function TenantCardField({
   label,
@@ -22,8 +18,13 @@ export function TenantCardField({
   className,
 }: TenantCardFieldProps) {
   return (
-    <p className={cn("text-[var(--app-text-secondary)]", sizeStyles[size], className)}>
-      <span className="font-medium text-[var(--app-text-primary)]">{label}:</span> {value}
-    </p>
+    <div className={cn("flex flex-col gap-0.5", className)}>
+      <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
+        {label}
+      </span>
+      <span className={cn("font-medium text-[var(--app-text-primary)]", sizeStyles[size])}>
+        {value}
+      </span>
+    </div>
   );
 }

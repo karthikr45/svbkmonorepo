@@ -420,84 +420,95 @@ function TenantDetailsPageContent() {
   }
 
   return (
-    <div className="p-4 sm:p-6">
-      {/* Header row: back icon + school name on left, action button on right */}
-      <div className="mb-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.push("/tenants")}
-            aria-label="Go back"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-300 bg-transparent text-[var(--app-text-secondary)] transition-colors hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-800"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
+    <div className="p-6 sm:p-8 max-w-[1400px] mx-auto">
+      {/* Breadcrumb */}
+      <nav aria-label="Breadcrumb" className="mb-3">
+        <ol className="flex flex-wrap items-center gap-1.5 text-xs">
+          <li>
+            <button
+              onClick={() => router.push("/tenants")}
+              className="font-medium text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] transition-colors"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              Tenants
+            </button>
+          </li>
+          <li>
+            <svg className="h-3 w-3 text-[var(--app-text-muted)]" viewBox="0 0 16 16" fill="none">
+              <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--app-text-primary)]">
+          </li>
+          <li className="font-semibold text-[var(--app-text-primary)] truncate max-w-[280px]">
+            {visibleTenant.name}
+          </li>
+        </ol>
+      </nav>
+
+      {/* Title row */}
+      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-4 min-w-0">
+          <div
+            className="h-14 w-14 flex-shrink-0 rounded-2xl flex items-center justify-center text-lg font-bold text-white shadow-sm"
+            style={{ background: "linear-gradient(135deg, #0b54ab 0%, #1e3a8a 100%)" }}
+          >
+            {(visibleTenant.name || "?").split(" ").map((w) => w[0]).filter(Boolean).join("").slice(0, 2).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight text-[var(--app-text-primary)]">
               {visibleTenant.name}
             </h1>
-            <p className="text-sm text-[var(--app-text-secondary)]">
-              {visibleTenant.tenantCode} • {visibleTenant.tenantName}
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--app-text-secondary)]">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold tabular-nums">
+                {visibleTenant.tenantCode}
+              </span>
+              <span className="text-slate-300">·</span>
+              <span>{visibleTenant.tenantName}</span>
+            </div>
           </div>
         </div>
 
         {activeTab === "configuration" && (
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          <Button variant="primary" size="md" onClick={() => setModalOpen(true)}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
-            Add Configuration
+            Add configuration
           </Button>
         )}
         {activeTab === "admins" && (
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setAdminModalOpen(true)}
-            className="flex items-center gap-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          <Button variant="primary" size="md" onClick={() => setAdminModalOpen(true)}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
-            Add Admin
+            Add admin
           </Button>
         )}
-      </div>
+      </header>
 
-      {/* Tabs */}
-      <div className="mb-4 flex flex-nowrap gap-2 overflow-x-auto border-b border-zinc-200 pb-2">
+      {/* Premium tabs */}
+      <div
+        className="mb-6 flex gap-1 p-1 rounded-xl border bg-white"
+        style={{ borderColor: "var(--app-card-border)" }}
+      >
         {[
-          { id: "details", label: "Details" },
-          { id: "configuration", label: "Configuration" },
-          { id: "admins", label: "Admins" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as "details" | "configuration" | "admins")}
-            className={`rounded-t-lg px-4 py-2 text-sm font-medium ${
-              activeTab === tab.id
-                ? "bg-[var(--app-card-bg)] text-foreground"
-                : "text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)]"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+          { id: "details", label: "Details", icon: "info" },
+          { id: "configuration", label: "Configuration", icon: "settings" },
+          { id: "admins", label: "Admins", icon: "users" },
+        ].map((tab) => {
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as "details" | "configuration" | "admins")}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+              style={{
+                backgroundColor: active ? "var(--app-brand-soft)" : "transparent",
+                color: active ? "var(--app-brand)" : "var(--app-text-secondary)",
+              }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="space-y-6">
