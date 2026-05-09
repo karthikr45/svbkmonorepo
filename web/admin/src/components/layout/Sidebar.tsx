@@ -20,8 +20,7 @@ type NavItem =
 const navItems: NavItem[] = [
   { type: "item", href: "/dashboard", label: "Dashboard", icon: "grid" },
   { type: "item", href: "/students", label: "Students", icon: "students" },
-  { type: "item", href: "/parents", label: "Parents", icon: "students" },
-  { type: "item", href: "/payments", label: "Payments", icon: "payment" },
+  { type: "item", href: "/payments", label: "Update Payment", icon: "payment" },
   { type: "item", href: "/pay-now", label: "Pay Now", icon: "payment" },
   {
     type: "group",

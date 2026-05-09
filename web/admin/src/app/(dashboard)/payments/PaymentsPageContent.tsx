@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/layout";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui";
@@ -8,6 +8,7 @@ import { getApiErrorMessage } from "@/lib/api-client";
 import { getStoredToken } from "@/features/auth/services";
 import {
   findStudentWithFeesApi,
+  listAllPaymentsApi,
   listFeePaymentsApi,
   listPendingClearanceApi,
   receiptUrl,
@@ -16,30 +17,34 @@ import {
   type FeePaymentRow,
   type FeeRow,
   type OfflinePaymentType,
+  type PaymentLogRow,
   type PendingClearancePayment,
   type RecordOfflinePaymentBody,
   type StudentRow,
 } from "@/features/payments/api/payments.api";
 
-type TabId = "pending" | "record";
+type TabId = "record" | "pending";
 
 export function PaymentsPageContent() {
-  const [tab, setTab] = useState<TabId>("pending");
+  // Most-used flow first.
+  const [tab, setTab] = useState<TabId>("record");
 
   return (
     <div>
       <PageHeader
-        title="Payments"
-        subtitle="Record offline payments (Cash · Cheque · DD · POS · NEFT) and clear pending bank submissions."
+        title="Update Payment"
+        subtitle="Record cash · cheque · DD · POS · NEFT payments at the front desk, and clear pending bank submissions when they settle."
       />
+
+      <PaymentsHeaderStats onJumpToPending={() => setTab("pending")} />
 
       <div
         className="mb-6 inline-flex items-center gap-1 rounded-xl border p-1 bg-white"
         style={{ borderColor: "var(--app-card-border)" }}
       >
         {[
-          { id: "pending" as const, label: "Pending cheques" },
           { id: "record" as const, label: "Record payment" },
+          { id: "pending" as const, label: "Pending cheques" },
         ].map(({ id, label }) => {
           const active = tab === id;
           return (
@@ -61,6 +66,186 @@ export function PaymentsPageContent() {
       {tab === "pending" ? <PendingClearancePanel /> : <RecordPaymentPanel />}
     </div>
   );
+}
+
+// ─── Header stats (today's collections, pending, recent) ───────────
+
+function PaymentsHeaderStats({ onJumpToPending }: { onJumpToPending: () => void }) {
+  const [stats, setStats] = useState<{
+    todayTotal: number;
+    todayCount: number;
+    monthTotal: number;
+    pendingCount: number;
+    pendingAmount: number;
+    recent: PaymentLogRow[];
+  } | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const monthStart = new Date(
+          todayStart.getFullYear(),
+          todayStart.getMonth(),
+          1,
+        );
+        const [recent, todayList, monthList, pending] = await Promise.all([
+          listAllPaymentsApi({}),
+          listAllPaymentsApi({ from: todayStart.toISOString() }),
+          listAllPaymentsApi({ from: monthStart.toISOString() }),
+          listPendingClearanceApi(),
+        ]);
+        const recentArr = unwrapList<PaymentLogRow>(recent);
+        const todayArr = unwrapList<PaymentLogRow>(todayList);
+        const monthArr = unwrapList<PaymentLogRow>(monthList);
+        const pendingArr = unwrapList<PendingClearancePayment>(pending);
+        const sum = (xs: { amount: string }[]) =>
+          xs.reduce((a, b) => a + Number(b.amount), 0);
+        setStats({
+          todayTotal: sum(todayArr),
+          todayCount: todayArr.length,
+          monthTotal: sum(monthArr),
+          pendingCount: pendingArr.length,
+          pendingAmount: sum(pendingArr),
+          recent: recentArr.slice(0, 5),
+        });
+      } catch {
+        // silent — header is enhancement, page still works
+      }
+    }
+    load();
+  }, []);
+
+  return (
+    <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <StatTile
+        label="Today's collections"
+        value={stats ? inr(stats.todayTotal) : "—"}
+        sub={stats ? `${stats.todayCount} payment${stats.todayCount === 1 ? "" : "s"}` : ""}
+        tone="green"
+      />
+      <StatTile
+        label="This month"
+        value={stats ? inr(stats.monthTotal) : "—"}
+        sub="cleared + instant"
+        tone="blue"
+      />
+      <button
+        onClick={onJumpToPending}
+        className="text-left rounded-[var(--app-card-radius)] border bg-white p-4 transition-shadow hover:shadow-[var(--app-card-shadow-hover)]"
+        style={{ borderColor: "var(--app-card-border)", boxShadow: "var(--app-card-shadow)" }}
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
+              Awaiting bank clearance
+            </p>
+            <p
+              className="mt-1.5 text-xl font-bold tracking-tight tabular-nums"
+              style={{ color: stats?.pendingCount ? "#92400e" : "#15803d" }}
+            >
+              {stats ? `${stats.pendingCount} cheque${stats.pendingCount === 1 ? "" : "s"}` : "—"}
+            </p>
+            <p className="text-xs text-[var(--app-text-secondary)] mt-0.5">
+              {stats ? inr(stats.pendingAmount) : ""}
+              {stats?.pendingCount ? " · click to review" : ""}
+            </p>
+          </div>
+          <div
+            className="h-9 w-9 rounded-xl flex items-center justify-center"
+            style={{
+              backgroundColor: stats?.pendingCount ? "rgb(245 158 11 / 0.12)" : "rgb(16 185 129 / 0.12)",
+              color: stats?.pendingCount ? "var(--app-warning)" : "var(--app-success)",
+            }}
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </div>
+      </button>
+
+      <Card padding="tight" className="!p-3">
+        <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
+          Recent receipts
+        </p>
+        {stats?.recent.length ? (
+          <ul className="mt-2 flex flex-col gap-1 text-[12.5px]">
+            {stats.recent.slice(0, 3).map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-2 truncate">
+                <span className="truncate text-[var(--app-text-secondary)]">
+                  {p.student?.name ?? "—"} · {p.paymentType}
+                </span>
+                <button
+                  onClick={() => printReceipt(p.id)}
+                  className="text-[var(--app-brand)] font-semibold hover:underline tabular-nums whitespace-nowrap"
+                >
+                  {inr(Number(p.amount))} →
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-xs text-[var(--app-text-muted)]">No payments yet</p>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone: "green" | "blue" | "amber";
+}) {
+  const palette = {
+    green: { bg: "rgb(16 185 129 / 0.12)", fg: "var(--app-success)" },
+    blue: { bg: "rgb(11 84 171 / 0.10)", fg: "var(--app-brand)" },
+    amber: { bg: "rgb(245 158 11 / 0.12)", fg: "var(--app-warning)" },
+  }[tone];
+  return (
+    <div
+      className="rounded-[var(--app-card-radius)] border bg-white p-4"
+      style={{ borderColor: "var(--app-card-border)", boxShadow: "var(--app-card-shadow)" }}
+    >
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
+            {label}
+          </p>
+          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[var(--app-text-primary)] tabular-nums">
+            {value}
+          </p>
+          {sub && (
+            <p className="text-xs text-[var(--app-text-secondary)] mt-0.5">{sub}</p>
+          )}
+        </div>
+        <div
+          className="h-9 w-9 rounded-xl flex items-center justify-center"
+          style={{ backgroundColor: palette.bg, color: palette.fg }}
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+            <path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function unwrapList<T>(res: unknown): T[] {
+  if (Array.isArray(res)) return res as T[];
+  if (!res || typeof res !== "object") return [];
+  const obj = res as any;
+  return obj.results ?? obj.items ?? obj.data?.results ?? obj.data?.items ?? obj.data ?? [];
 }
 
 // ─── Pending cheques panel ─────────────────────────────────────────
@@ -233,6 +418,10 @@ function PendingClearancePanel() {
 
 function RecordPaymentPanel() {
   // Fee picker
+  const admissionRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    admissionRef.current?.focus();
+  }, []);
   const [admission, setAdmission] = useState("");
   const [academicYear, setAcademicYear] = useState("");
   const [picking, setPicking] = useState(false);
@@ -375,8 +564,50 @@ function RecordPaymentPanel() {
     }
   }
 
+  const step = !student ? 1 : !feeId ? 2 : 3;
+
   return (
     <div className="space-y-4">
+      {/* Step indicator */}
+      <div className="flex items-center gap-2 mb-1 text-xs">
+        {[
+          { n: 1, label: "Find student" },
+          { n: 2, label: "Pick term" },
+          { n: 3, label: "Enter payment" },
+        ].map((s, i, arr) => {
+          const active = step === s.n;
+          const done = step > s.n;
+          return (
+            <div key={s.n} className="flex items-center gap-2">
+              <span
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold transition-colors"
+                style={{
+                  backgroundColor: done
+                    ? "var(--app-success)"
+                    : active
+                    ? "var(--app-brand)"
+                    : "#e2e8f0",
+                  color: done || active ? "#fff" : "#64748b",
+                }}
+              >
+                {done ? "✓" : s.n}
+              </span>
+              <span
+                className="font-semibold tracking-tight"
+                style={{
+                  color: done || active ? "var(--app-text-primary)" : "var(--app-text-muted)",
+                }}
+              >
+                {s.label}
+              </span>
+              {i < arr.length - 1 && (
+                <span className="mx-1 h-px w-6 bg-slate-200 hidden sm:inline-block" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
       {/* Fee picker */}
       <Card padding="default">
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
@@ -385,6 +616,7 @@ function RecordPaymentPanel() {
               Admission number<span className="text-red-500"> *</span>
             </label>
             <input
+              ref={admissionRef}
               value={admission}
               onChange={(e) => setAdmission(e.target.value)}
               onKeyDown={(e) => {
@@ -395,6 +627,7 @@ function RecordPaymentPanel() {
               }}
               placeholder="ADM-2024-001"
               className="form-input"
+              autoComplete="off"
             />
           </div>
           <div className="sm:col-span-4">
