@@ -202,6 +202,26 @@ export class FeesController {
     return this.feesService.listFeePayments(tenantId, feeId);
   }
 
+  @Get('payments')
+  @ApiOperation({
+    summary: 'List all fee payments (online + offline) for the tenant',
+    description:
+      'Tenant-wide payment log. Optional filters: type=online|offline, status=PAID|PARTIAL|UNPAID-style clearance, search (admission/receipt), from/to (paid_at range).',
+  })
+  async listAllPayments(
+    @Req() req: Request,
+    @Query('type') type?: 'online' | 'offline',
+    @Query('clearance') clearance?: 'PENDING' | 'CLEARED' | 'BOUNCED' | 'NA',
+    @Query('search') search?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const { tenantId } = ctx(req);
+    return this.feesService.listAllPayments(tenantId, {
+      type, clearance, search, from, to,
+    });
+  }
+
   @Get('payments/pending-clearance')
   @ApiOperation({
     summary: 'List cheque/DD payments awaiting clearance',

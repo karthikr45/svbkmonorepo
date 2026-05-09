@@ -142,3 +142,37 @@ export interface FeePaymentRow {
 export async function listFeePaymentsApi(feeId: string): Promise<FeePaymentRow[]> {
   return get<FeePaymentRow[]>(`/fees/${feeId}/payments`);
 }
+
+export interface PaymentLogFilters {
+  type?: "online" | "offline";
+  clearance?: "PENDING" | "CLEARED" | "BOUNCED" | "NA";
+  search?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface PaymentLogRow extends FeePaymentRow {
+  branch: string;
+  fee?: { id: string; term: string; academicYear: string };
+  student?: {
+    id: string;
+    name: string;
+    admissionNumber: string;
+    class: string;
+    section: string;
+    rollNo: string;
+  };
+}
+
+export async function listAllPaymentsApi(
+  filters: PaymentLogFilters = {},
+): Promise<PaymentLogRow[]> {
+  const params = new URLSearchParams();
+  if (filters.type) params.set("type", filters.type);
+  if (filters.clearance) params.set("clearance", filters.clearance);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+  const qs = params.toString();
+  return get<PaymentLogRow[]>(`/fees/payments${qs ? `?${qs}` : ""}`);
+}

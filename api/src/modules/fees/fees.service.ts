@@ -692,6 +692,62 @@ async waivePenaltyForStudents(
   }
 
   /**
+   * Tenant-wide payment log with optional filters.
+   * Drives /reports/payment-logs.
+   */
+  async listAllPayments(
+    tenantId: string,
+    filters: {
+      type?: 'online' | 'offline';
+      clearance?: 'PENDING' | 'CLEARED' | 'BOUNCED' | 'NA';
+      search?: string;
+      from?: string;
+      to?: string;
+    } = {},
+  ): Promise<FeePayment[]> {
+    const qb = this.dataSource
+      .getRepository(FeePayment)
+      .createQueryBuilder('fp')
+      .leftJoinAndMapOne('fp.fee', Fee, 'fee', 'fee.id = fp.feeId')
+      .leftJoinAndMapOne(
+        'fp.student',
+        'students',
+        'student',
+        'student.id = fee.student_id',
+      )
+      .where('fp.tenantId = :tenantId', { tenantId })
+      .orderBy('fp.paidAt', 'DESC')
+      .limit(500);
+
+    if (filters.type === 'online') {
+      qb.andWhere('fp.paymentType IN (:...online)', {
+        online: ['RAZORPAY', 'CASHFREE', 'UPI', 'NETBANKING', 'CARD'],
+      });
+    } else if (filters.type === 'offline') {
+      qb.andWhere('fp.paymentType IN (:...offline)', {
+        offline: ['CASH', 'CHEQUE', 'DD', 'POS', 'NEFT'],
+      });
+    }
+    if (filters.clearance) {
+      qb.andWhere('fp.clearanceStatus = :cs', { cs: filters.clearance });
+    }
+    if (filters.search) {
+      const s = `%${filters.search.toLowerCase()}%`;
+      qb.andWhere(
+        '(LOWER(fp.receipt_number) LIKE :s OR LOWER(student.admission_number) LIKE :s OR LOWER(student.name) LIKE :s)',
+        { s },
+      );
+    }
+    if (filters.from) {
+      qb.andWhere('fp.paidAt >= :from', { from: new Date(filters.from) });
+    }
+    if (filters.to) {
+      qb.andWhere('fp.paidAt <= :to', { to: new Date(filters.to) });
+    }
+    return qb.getMany();
+  }
+
+  /**
    * Every cheque/DD that's still awaiting bank clearance for the
    * current tenant. Used by the admin "Pending cheques" view.
    */

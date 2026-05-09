@@ -2,21 +2,49 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { useUi } from "@/context/ui-context";
 import { useAuth } from "@/features/auth";
 import { SidebarBrand } from "./SidebarBrand";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: "grid" },
-  { href: "/templates", label: "Templates", icon: "document" },
-  { href: "/save-media", label: "Save Media", icon: "save" },
-  { href: "/media", label: "View Media", icon: "media" },
-  { href: "/announcements", label: "Announcements", icon: "megaphone" },
-  { href: "/students", label: "Students", icon: "students" },
-  { href: "/parents", label: "Parents", icon: "students" },
-  { href: "/payments", label: "Payments", icon: "payment" },
-  { href: "/pay-now", label: "Pay Now", icon: "payment" },
-] as const;
+type NavItem =
+  | { type: "item"; href: string; label: string; icon: string }
+  | {
+      type: "group";
+      key: string;
+      label: string;
+      icon: string;
+      children: { href: string; label: string }[];
+    };
+
+const navItems: NavItem[] = [
+  { type: "item", href: "/dashboard", label: "Dashboard", icon: "grid" },
+  { type: "item", href: "/students", label: "Students", icon: "students" },
+  { type: "item", href: "/parents", label: "Parents", icon: "students" },
+  { type: "item", href: "/payments", label: "Payments", icon: "payment" },
+  { type: "item", href: "/pay-now", label: "Pay Now", icon: "payment" },
+  {
+    type: "group",
+    key: "communications",
+    label: "Communications",
+    icon: "megaphone",
+    children: [
+      { href: "/announcements", label: "Announcements" },
+      { href: "/templates", label: "Templates" },
+      { href: "/media", label: "View Media" },
+      { href: "/save-media", label: "Save Media" },
+    ],
+  },
+  {
+    type: "group",
+    key: "reports",
+    label: "Reports",
+    icon: "document",
+    children: [
+      { href: "/reports/payment-logs", label: "Payment Logs" },
+    ],
+  },
+];
 
 const transitionClass = "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]";
 
@@ -96,6 +124,38 @@ export function Sidebar() {
 
   const closeSidebar = () => setSidebarOpen(false);
 
+  // Auto-expand a group when one of its children is active.
+  const initialOpenGroups = useMemo(() => {
+    const open: Record<string, boolean> = {};
+    for (const item of navItems) {
+      if (item.type === "group") {
+        open[item.key] = item.children.some((c) => isActive(c.href));
+      }
+    }
+    return open;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(initialOpenGroups);
+
+  // Sync open state when route changes (so navigating into a group's child
+  // also opens that group, even if the user collapsed it earlier).
+  useEffect(() => {
+    setOpenGroups((prev) => {
+      const next = { ...prev };
+      for (const item of navItems) {
+        if (item.type === "group" && item.children.some((c) => isActive(c.href))) {
+          next[item.key] = true;
+        }
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  const toggleGroup = (key: string) =>
+    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+
   return (
     <>
       {/* Mobile-only backdrop. Hidden on md+ where the sidebar is always visible. */}
@@ -145,36 +205,113 @@ export function Sidebar() {
           >
             Workspace
           </p>
-          {navItems.map(({ href, label, icon }) => {
-            const active = isActive(href);
+          {navItems.map((item) => {
+            if (item.type === "item") {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={closeSidebar}
+                  className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${transitionClass} ${
+                    active ? "" : "hover:bg-[var(--app-nav-hover-bg)]"
+                  }`}
+                  style={
+                    active
+                      ? {
+                          backgroundColor: "var(--app-nav-active-bg)",
+                          color: "var(--app-nav-active-text)",
+                          fontWeight: 600,
+                        }
+                      : { color: "var(--app-sidebar-text)" }
+                  }
+                  title={item.label}
+                >
+                  {active && (
+                    <span
+                      className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r"
+                      style={{ backgroundColor: "var(--app-brand)" }}
+                    />
+                  )}
+                  <NavIcon name={item.icon} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            }
+
+            // Group
+            const open = openGroups[item.key];
+            const anyChildActive = item.children.some((c) => isActive(c.href));
             return (
-              <Link
-                key={href}
-                href={href}
-                onClick={closeSidebar}
-                className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${transitionClass} ${
-                  active ? "" : "hover:bg-[var(--app-nav-hover-bg)]"
-                }`}
-                style={
-                  active
-                    ? {
-                        backgroundColor: "var(--app-nav-active-bg)",
-                        color: "var(--app-nav-active-text)",
-                        fontWeight: 600,
-                      }
-                    : { color: "var(--app-sidebar-text)" }
-                }
-                title={label}
-              >
-                {active && (
-                  <span
-                    className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r"
-                    style={{ backgroundColor: "var(--app-brand)" }}
-                  />
+              <div key={item.key} className="flex flex-col">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(item.key)}
+                  className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium w-full ${transitionClass} ${
+                    anyChildActive ? "" : "hover:bg-[var(--app-nav-hover-bg)]"
+                  }`}
+                  style={{
+                    color: anyChildActive
+                      ? "var(--app-nav-active-text)"
+                      : "var(--app-sidebar-text)",
+                    fontWeight: anyChildActive ? 600 : 500,
+                  }}
+                >
+                  <NavIcon name={item.icon} />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <svg
+                    className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+                    viewBox="0 0 16 16"
+                    fill="none"
+                  >
+                    <path
+                      d="M6 4l4 4-4 4"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+                {open && (
+                  <div className="ml-7 mt-0.5 flex flex-col gap-0.5 border-l border-[var(--app-sidebar-border)] pl-3">
+                    {item.children.map((child) => {
+                      const active = isActive(child.href);
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          onClick={closeSidebar}
+                          className="rounded-lg px-3 py-2 text-[13px] font-medium transition-colors"
+                          style={{
+                            backgroundColor: active
+                              ? "var(--app-nav-active-bg)"
+                              : "transparent",
+                            color: active
+                              ? "var(--app-nav-active-text)"
+                              : "var(--app-sidebar-text)",
+                            fontWeight: active ? 600 : 500,
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!active) {
+                              e.currentTarget.style.backgroundColor =
+                                "var(--app-nav-hover-bg)";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!active) {
+                              e.currentTarget.style.backgroundColor =
+                                "transparent";
+                            }
+                          }}
+                        >
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 )}
-                <NavIcon name={icon} />
-                <span>{label}</span>
-              </Link>
+              </div>
             );
           })}
         </nav>
