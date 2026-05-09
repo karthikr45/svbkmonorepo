@@ -2,41 +2,45 @@ import Image from "next/image";
 import Link from "next/link";
 
 const SCHOOL_LOGO_SRC = "/svbk_logo.webp";
-const schoolName = "Sri Venkateswara Bala Kuteer";
-const subtitle = "";
+
+// Use a short brand label in the sidebar (school full name lives in the
+// header / page contexts). This keeps the rail clean and consistent with
+// premium SaaS patterns (Linear/Vercel: short product name in the rail).
+const brandShort = "SVBK";
+const brandSub = "School Console";
 
 export function SidebarBrand() {
   return (
     <Link
       href="/dashboard"
-      className="flex min-w-0 items-center gap-3 overflow-hidden rounded-xl px-2 py-2.5 transition-[background-color,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[var(--app-nav-hover-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-search-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-sidebar-bg)]"
+      className="flex min-w-0 items-center gap-3 overflow-hidden rounded-lg px-1.5 py-1 transition-colors duration-200 hover:bg-[var(--app-nav-hover-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-brand)]/40"
     >
       <span
-        className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-sm ring-1 ring-black/5"
+        className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-black/5 shadow-sm"
         style={{ backgroundColor: "var(--app-card-bg)" }}
       >
         <Image
           src={SCHOOL_LOGO_SRC}
           alt=""
-          width={40}
-          height={40}
-          className="object-contain p-1"
-          sizes="40px"
+          width={36}
+          height={36}
+          className="object-contain p-0.5"
+          sizes="36px"
           priority
         />
       </span>
-      <span className="min-w-0 flex-1">
+      <span className="min-w-0 flex-1 leading-tight">
         <span
-          className="block truncate text-[15px] font-semibold leading-tight tracking-tight"
+          className="block truncate text-[15px] font-bold tracking-tight"
           style={{ color: "var(--app-text-primary)" }}
         >
-          {schoolName}
+          {brandShort}
         </span>
         <span
-          className="mt-0.5 block truncate text-xs font-medium"
+          className="block truncate text-[11px] font-medium"
           style={{ color: "var(--app-text-secondary)" }}
         >
-          {subtitle}
+          {brandSub}
         </span>
       </span>
     </Link>

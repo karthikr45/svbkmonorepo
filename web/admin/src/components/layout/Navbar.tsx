@@ -118,26 +118,6 @@ export function Navbar() {
           </svg>
         </button>
 
-        {/* User pill */}
-        <div
-          className="ml-2 hidden md:flex items-center gap-2.5 pl-3 border-l"
-          style={{ borderColor: "var(--app-divider)" }}
-        >
-          <div className="flex flex-col leading-tight text-right">
-            <span className="text-[13px] font-semibold" style={{ color: "var(--app-text-primary)" }}>
-              Admin
-            </span>
-            <span className="text-[11px]" style={{ color: "var(--app-text-secondary)" }}>
-              Tenant admin
-            </span>
-          </div>
-          <div
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm"
-            style={{ backgroundColor: "var(--app-brand, #0b54ab)" }}
-          >
-            A
-          </div>
-        </div>
       </nav>
     </header>
   );
