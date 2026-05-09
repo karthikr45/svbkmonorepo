@@ -10,7 +10,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { Admin } from './modules/admins/entities/admin.entity';
 import { Role } from './common/enums/roles.enum';
