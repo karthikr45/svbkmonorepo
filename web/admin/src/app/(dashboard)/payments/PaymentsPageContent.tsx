@@ -8,6 +8,7 @@ import { getApiErrorMessage } from "@/lib/api-client";
 import { getStoredToken } from "@/features/auth/services";
 import {
   batchReceiptsUrl,
+  findPaymentDetailsApi,
   findStudentWithFeesApi,
   listAllPaymentsApi,
   listFeePaymentsApi,
@@ -17,7 +18,9 @@ import {
   updateClearanceApi,
   type FeePaymentRow,
   type FeeRow,
+  type FeeWithPayments,
   type OfflinePaymentType,
+  type PaymentDetailsGroup,
   type PaymentLogRow,
   type PendingClearancePayment,
   type RecordOfflinePaymentBody,
@@ -33,8 +36,8 @@ export function PaymentsPageContent() {
   return (
     <div>
       <PageHeader
-        title="Update Payment"
-        subtitle="Record cash · cheque · DD · POS · NEFT payments at the front desk, and clear pending bank submissions when they settle."
+        title="Payment Details"
+        subtitle="Look up a student by admission number and see their complete fee history across School, Hostel and Transport tenants — record new payments, clear pending cheques, and print receipts."
       />
 
       <PaymentsHeaderStats onJumpToPending={() => setTab("pending")} />
@@ -579,7 +582,9 @@ function RecordPaymentPanel() {
   const [picking, setPicking] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
   const [student, setStudent] = useState<StudentRow | null>(null);
-  const [fees, setFees] = useState<FeeRow[]>([]);
+  const [groups, setGroups] = useState<PaymentDetailsGroup[]>([]);
+  // Flat list of fees for the picker (across all groups).
+  const fees = useMemo(() => groups.flatMap((g) => g.fees), [groups]);
   const [feeId, setFeeId] = useState("");
   const [history, setHistory] = useState<FeePaymentRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -587,7 +592,7 @@ function RecordPaymentPanel() {
   async function lookup() {
     setPickError(null);
     setStudent(null);
-    setFees([]);
+    setGroups([]);
     setFeeId("");
     setHistory([]);
     if (!admission.trim()) {
@@ -596,18 +601,21 @@ function RecordPaymentPanel() {
     }
     setPicking(true);
     try {
-      const res = await findStudentWithFeesApi(
+      const res = await findPaymentDetailsApi(
         admission.trim(),
         academicYear.trim() || undefined,
       );
-      const inner: { student: StudentRow | null; fees: FeeRow[] } =
-        ((res as any)?.data ?? res) as { student: StudentRow | null; fees: FeeRow[] };
+      const inner: { student: StudentRow | null; groups: PaymentDetailsGroup[] } =
+        ((res as any)?.data ?? res) as {
+          student: StudentRow | null;
+          groups: PaymentDetailsGroup[];
+        };
       if (!inner?.student) {
         setPickError(`No student found with admission "${admission}"`);
         return;
       }
       setStudent(inner.student);
-      setFees(inner.fees ?? []);
+      setGroups(inner.groups ?? []);
     } catch (err) {
       setPickError(getApiErrorMessage(err, "Lookup failed"));
     } finally {
@@ -824,36 +832,20 @@ function RecordPaymentPanel() {
               </div>
             </div>
 
-            <div className="text-xs font-semibold uppercase tracking-wider text-[var(--app-text-muted)] mb-2">Pick a term</div>
-            {fees.length === 0 ? (
-              <p className="text-sm text-[var(--app-text-secondary)]">No fees found for this student. Add fees via Excel upload or the Add Student form.</p>
+            {groups.length === 0 || groups.every((g) => g.fees.length === 0) ? (
+              <p className="text-sm text-[var(--app-text-secondary)]">
+                No fees found for this student in any tenant.
+              </p>
             ) : (
-              <div className="flex flex-col gap-1.5">
-                {fees.map((f) => {
-                  const balance = Math.max(0, Number(f.netAmount) - Number(f.paidAmount));
-                  const selected = feeId === f.id;
-                  return (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => pickFee(f.id)}
-                      disabled={f.paymentStatus === "PAID"}
-                      className="text-left flex flex-wrap items-center gap-3 p-3 rounded-lg transition-all border disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{
-                        borderColor: selected ? "var(--app-brand)" : "var(--app-card-border)",
-                        backgroundColor: selected ? "var(--app-brand-soft)" : "white",
-                      }}
-                    >
-                      <span className="font-semibold text-[var(--app-text-primary)] flex-1 min-w-[110px]">{f.term}</span>
-                      <StatusPill status={f.paymentStatus} />
-                      <span className="text-xs text-[var(--app-text-secondary)] tabular-nums">
-                        Net <strong>{inr(Number(f.netAmount))}</strong> ·
-                        Paid <strong>{inr(Number(f.paidAmount))}</strong> ·
-                        Balance <strong style={{ color: balance > 0 ? "#b91c1c" : "#15803d" }}>{inr(balance)}</strong>
-                      </span>
-                    </button>
-                  );
-                })}
+              <div className="flex flex-col gap-4">
+                {groups.map((g) => (
+                  <FeeGroupSection
+                    key={g.tenantId}
+                    group={g}
+                    selectedFeeId={feeId}
+                    onPick={pickFee}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -1205,6 +1197,100 @@ function SumStat({
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+function FeeGroupSection({
+  group,
+  selectedFeeId,
+  onPick,
+}: {
+  group: PaymentDetailsGroup;
+  selectedFeeId: string;
+  onPick: (id: string) => void;
+}) {
+  const totals = group.fees.reduce(
+    (acc, f) => {
+      const net = Number(f.netAmount);
+      const paid = Number(f.paidAmount);
+      acc.net += net;
+      acc.paid += paid;
+      acc.balance += Math.max(0, net - paid);
+      return acc;
+    },
+    { net: 0, paid: 0, balance: 0 },
+  );
+  const palette = {
+    School: { bg: "rgb(11 84 171 / 0.10)", fg: "var(--app-brand)", label: "School" },
+    Hostel: { bg: "rgb(139 92 246 / 0.12)", fg: "#7c3aed", label: "Hostel" },
+    Transport: { bg: "rgb(245 158 11 / 0.12)", fg: "var(--app-warning)", label: "Transport" },
+  }[group.type];
+
+  return (
+    <div
+      className="rounded-xl border bg-white"
+      style={{ borderColor: "var(--app-card-border)" }}
+    >
+      <div className="flex items-center justify-between gap-3 px-3 py-2.5 border-b border-slate-100">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-[0.06em]"
+            style={{ backgroundColor: palette.bg, color: palette.fg }}
+          >
+            {palette.label}
+          </span>
+          <span className="text-sm font-bold text-[var(--app-text-primary)] truncate">
+            {group.tenantName}
+          </span>
+        </div>
+        <span className="text-xs text-[var(--app-text-secondary)] tabular-nums whitespace-nowrap">
+          {group.fees.length} fee · Bal{" "}
+          <strong style={{ color: totals.balance > 0 ? "#b91c1c" : "#15803d" }}>
+            {inr(totals.balance)}
+          </strong>
+        </span>
+      </div>
+      {group.fees.length === 0 ? (
+        <p className="px-3 py-3 text-xs text-[var(--app-text-muted)]">
+          No fees on file in this tenant.
+        </p>
+      ) : (
+        <div className="flex flex-col">
+          {group.fees.map((f, i) => {
+            const balance = Math.max(0, Number(f.netAmount) - Number(f.paidAmount));
+            const selected = selectedFeeId === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => onPick(f.id)}
+                disabled={f.paymentStatus === "PAID"}
+                className={`text-left flex flex-wrap items-center gap-3 px-3 py-2.5 border-l-4 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${i !== group.fees.length - 1 ? "border-b border-slate-50" : ""}`}
+                style={{
+                  borderLeftColor: selected ? "var(--app-brand)" : "transparent",
+                  backgroundColor: selected ? "var(--app-brand-soft)" : "transparent",
+                }}
+              >
+                <span className="font-semibold text-[var(--app-text-primary)] flex-1 min-w-[110px]">
+                  {f.term}
+                </span>
+                <StatusPill status={f.paymentStatus} />
+                <span className="text-xs text-[var(--app-text-secondary)] tabular-nums">
+                  Net <strong>{inr(Number(f.netAmount))}</strong> ·
+                  Paid <strong>{inr(Number(f.paidAmount))}</strong> ·
+                  Balance <strong style={{ color: balance > 0 ? "#b91c1c" : "#15803d" }}>{inr(balance)}</strong>
+                </span>
+                {f.payments && f.payments.length > 0 && (
+                  <span className="text-[10px] text-[var(--app-text-muted)] font-bold">
+                    {f.payments.length} pmt
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

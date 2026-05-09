@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Fee, PaymentStatus, TermType } from './entities/fee.entity';
 import { FeePayment, ClearanceStatus, PaymentType } from './entities/fee-payment.entity';
 import { Student } from '../students/entities/student.entity';
@@ -676,6 +676,142 @@ async waivePenaltyForStudents(
       order: { term: 'ASC' },
     });
     return { student, fees };
+  }
+
+  /**
+   * Cross-tenant payment details. Finds the student in the current
+   * tenant, plus the matching student (by admissionNumber + name) in
+   * sibling tenants of type 'Hostel' / 'Transport'. Returns the fees
+   * (and their payment history) grouped per tenant.
+   *
+   * Multi-tenant safety: only sibling tenants whose `type` is in
+   * { Hostel, Transport } are considered, and the match requires
+   * BOTH admissionNumber and name to align — this stops cross-school
+   * collisions from leaking data.
+   */
+  async findPaymentDetails(
+    callerTenantId: string,
+    admissionNumber: string,
+    academicYear?: string,
+  ): Promise<{
+    student: Student | null;
+    groups: {
+      tenantId: string;
+      tenantName: string;
+      type: 'School' | 'Hostel' | 'Transport';
+      fees: (Fee & { payments?: FeePayment[] })[];
+    }[];
+  }> {
+    const studentRepo = this.dataSource.getRepository(Student);
+    const tenantsRepo = this.dataSource.getRepository('tenants');
+
+    // 1. Caller's own student
+    const own = (
+      await studentRepo.find({
+        where: {
+          tenantId: callerTenantId,
+          admissionNumber,
+          ...(academicYear ? { academicYear } : {}),
+        } as any,
+        order: { academicYear: 'DESC', createdAt: 'DESC' },
+      })
+    )[0];
+    if (!own) return { student: null, groups: [] };
+
+    // 2. School tenant info
+    const callerTenant: any = await tenantsRepo
+      .createQueryBuilder('t')
+      .where('t.id = :id', { id: callerTenantId })
+      .getRawOne();
+
+    const groups: {
+      tenantId: string;
+      tenantName: string;
+      type: 'School' | 'Hostel' | 'Transport';
+      fees: (Fee & { payments?: FeePayment[] })[];
+    }[] = [];
+
+    // 3. Caller fees + payments
+    const ownFees = await this.feeRepo.find({
+      where: { tenantId: callerTenantId, studentId: own.id },
+      order: { term: 'ASC' },
+    });
+    const ownFeesWithPayments = await this.attachPayments(callerTenantId, ownFees);
+    groups.push({
+      tenantId: callerTenantId,
+      tenantName:
+        (callerTenant?.t_tenant_name ??
+          callerTenant?.t_name ??
+          callerTenant?.tenantName ??
+          'School') as string,
+      type: 'School',
+      fees: ownFeesWithPayments,
+    });
+
+    // 4. Sibling Hostel + Transport tenants
+    const siblings: any[] = await tenantsRepo
+      .createQueryBuilder('t')
+      .where("t.type IN (:...types)", { types: ['Hostel', 'Transport'] })
+      .andWhere('t.id != :id', { id: callerTenantId })
+      .getRawMany();
+
+    for (const t of siblings) {
+      const tId = (t.t_id ?? t.id) as string;
+      const tType = ((t.t_type ?? t.type) as string) as
+        | 'Hostel'
+        | 'Transport'
+        | string;
+      const tName = (t.t_tenant_name ??
+        t.t_name ??
+        t.tenantName ??
+        tType) as string;
+      // Match: same admission number AND same name (case-insensitive)
+      const candidate = await studentRepo
+        .createQueryBuilder('s')
+        .where('s.tenant_id = :tid', { tid: tId })
+        .andWhere('s.admission_number = :adm', { adm: admissionNumber })
+        .andWhere('LOWER(s.name) = LOWER(:nm)', { nm: own.name })
+        .andWhere(
+          academicYear ? 's.academic_year = :ay' : '1=1',
+          academicYear ? { ay: academicYear } : {},
+        )
+        .orderBy('s.academic_year', 'DESC')
+        .limit(1)
+        .getOne();
+      if (!candidate) continue;
+      const fees = await this.feeRepo.find({
+        where: { tenantId: tId, studentId: candidate.id },
+        order: { term: 'ASC' },
+      });
+      const feesWithPayments = await this.attachPayments(tId, fees);
+      groups.push({
+        tenantId: tId,
+        tenantName: tName,
+        type: tType === 'Hostel' || tType === 'Transport' ? tType : 'School',
+        fees: feesWithPayments,
+      });
+    }
+
+    return { student: own, groups };
+  }
+
+  private async attachPayments(
+    tenantId: string,
+    fees: Fee[],
+  ): Promise<(Fee & { payments?: FeePayment[] })[]> {
+    if (!fees.length) return [];
+    const payments = await this.dataSource
+      .getRepository(FeePayment)
+      .find({
+        where: { tenantId, feeId: In(fees.map((f) => f.id)) },
+        order: { paidAt: 'ASC' },
+      });
+    const byFee = new Map<string, FeePayment[]>();
+    for (const p of payments) {
+      if (!byFee.has(p.feeId)) byFee.set(p.feeId, []);
+      byFee.get(p.feeId)!.push(p);
+    }
+    return fees.map((f) => Object.assign(f, { payments: byFee.get(f.id) ?? [] }));
   }
 
   /**

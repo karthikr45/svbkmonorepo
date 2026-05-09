@@ -169,6 +169,28 @@ export class FeesController {
     );
   }
 
+  @Get('payment-details')
+  @ApiOperation({
+    summary: 'Cross-tenant payment details for a student',
+    description:
+      'Looks up the student in the caller tenant, plus matching students (by admissionNumber + name) in sibling tenants of type Hostel / Transport, and returns the fees + payment history grouped per tenant.',
+  })
+  async paymentDetails(
+    @Req() req: Request,
+    @Query('admissionNumber') admissionNumber?: string,
+    @Query('academicYear') academicYear?: string,
+  ) {
+    const { tenantId } = ctx(req);
+    if (!admissionNumber) {
+      throw new BadRequestException('admissionNumber is required');
+    }
+    return this.feesService.findPaymentDetails(
+      tenantId,
+      admissionNumber.trim(),
+      academicYear?.trim() || undefined,
+    );
+  }
+
   @Get('by-admission')
   @ApiOperation({
     summary: 'Find a student + their fees by admission number',

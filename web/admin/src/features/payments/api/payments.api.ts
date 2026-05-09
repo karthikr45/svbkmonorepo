@@ -125,6 +125,33 @@ export async function findStudentWithFeesApi(
   );
 }
 
+export interface FeeWithPayments extends FeeRow {
+  payments?: FeePaymentRow[];
+}
+
+export interface PaymentDetailsGroup {
+  tenantId: string;
+  tenantName: string;
+  type: "School" | "Hostel" | "Transport";
+  fees: FeeWithPayments[];
+}
+
+export interface PaymentDetailsResponse {
+  student: StudentRow | null;
+  groups: PaymentDetailsGroup[];
+}
+
+export async function findPaymentDetailsApi(
+  admissionNumber: string,
+  academicYear?: string,
+): Promise<PaymentDetailsResponse> {
+  const params = new URLSearchParams({ admissionNumber });
+  if (academicYear) params.set("academicYear", academicYear);
+  return get<PaymentDetailsResponse>(
+    `/fees/payment-details?${params.toString()}`,
+  );
+}
+
 export interface FeePaymentRow {
   id: string;
   feeId: string;
