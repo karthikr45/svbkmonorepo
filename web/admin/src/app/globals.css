@@ -161,22 +161,22 @@
 
 /* ========== Auth / form design tokens (reusable across login, signup, etc.) ========== */
 :root {
-  --auth-page-bg: #f5f5f5;
+  --auth-page-bg: #f1f5f9;          /* slate-100 */
   --auth-card-bg: #ffffff;
-  --auth-card-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --auth-card-shadow-hover: 0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.06);
-  --auth-input-border: #d1d5db;
-  --auth-input-focus: #3b82f6;
-  --auth-label-accent: #3b82f6;
-  --auth-label-default: #18181b;
+  --auth-card-shadow: 0 20px 60px -10px rgb(15 23 42 / 0.15), 0 8px 24px -8px rgb(15 23 42 / 0.08);
+  --auth-card-shadow-hover: 0 28px 70px -12px rgb(15 23 42 / 0.2), 0 12px 30px -10px rgb(15 23 42 / 0.1);
+  --auth-input-border: #cbd5e1;
+  --auth-input-focus: #0b54ab;       /* brand */
+  --auth-label-accent: #0b54ab;
+  --auth-label-default: #0f172a;
   --auth-required-asterisk: #ef4444;
-  --auth-btn-signin-bg: #a1a1aa;
-  --auth-btn-signin-hover: #71717a;
-  --auth-btn-signin-active: #52525a;
-  --auth-placeholder: #a1a1aa;
+  --auth-btn-signin-bg: #0b54ab;     /* brand instead of dull gray */
+  --auth-btn-signin-hover: #094a96;
+  --auth-btn-signin-active: #073f80;
+  --auth-placeholder: #94a3b8;
   --auth-error: #dc2626;
-  --auth-back-link: #52525b;
-  --auth-back-link-hover: #18181b;
+  --auth-back-link: #64748b;
+  --auth-back-link-hover: #0f172a;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -270,7 +270,10 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--auth-page-bg);
+  background:
+    radial-gradient(60% 50% at 0% 0%, rgb(11 84 171 / 0.08), transparent 60%),
+    radial-gradient(60% 50% at 100% 100%, rgb(139 92 246 / 0.07), transparent 60%),
+    var(--auth-page-bg);
   padding: 3rem 1.5rem;
 }
 @media (min-width: 768px) {
@@ -286,15 +289,16 @@ h1, h2, h3, h4, h5, h6 {
 
 .auth-card {
   width: 100%;
-  max-width: 920px;
+  max-width: 960px;
   overflow: hidden;
-  border-radius: 1rem;
+  border-radius: 1.5rem;
   background-color: var(--auth-card-bg);
   box-shadow: var(--auth-card-shadow);
   display: flex;
   flex-direction: column;
   animation: auth-card-in var(--duration-slow) var(--ease-out-expo) both;
   transition: box-shadow var(--duration-normal) var(--ease-out);
+  border: 1px solid rgb(15 23 42 / 0.05);
 }
 .auth-card:hover {
   box-shadow: var(--auth-card-shadow-hover);
@@ -324,13 +328,39 @@ h1, h2, h3, h4, h5, h6 {
 
 .auth-card-media {
   display: none;
-  width: 50%;
+  width: 45%;
   flex-shrink: 0;
   position: relative;
+  overflow: hidden;
+  background: linear-gradient(145deg, #0b54ab 0%, #1e3a8a 100%);
+  display: none;
+}
+.auth-card-media::before,
+.auth-card-media::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.08;
+  background: #ffffff;
+  pointer-events: none;
+}
+.auth-card-media::before {
+  top: -64px;
+  left: -64px;
+  width: 256px;
+  height: 256px;
+}
+.auth-card-media::after {
+  bottom: -80px;
+  right: -48px;
+  width: 320px;
+  height: 320px;
 }
 @media (min-width: 768px) {
   .auth-card-media {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
@@ -339,7 +369,7 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 2rem;
+  padding: 2.5rem;
 }
 .auth-card-form > * {
   animation: auth-form-in var(--duration-normal) var(--ease-out) both;
@@ -355,8 +385,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 @media (min-width: 768px) {
   .auth-card-form {
-    width: 50%;
-    padding: 2.5rem;
+    width: 55%;
+    padding: 3rem;
   }
 }
 

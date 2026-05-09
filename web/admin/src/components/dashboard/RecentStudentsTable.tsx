@@ -14,9 +14,10 @@ function Avatar({ name, imgUrl }: { name: string; imgUrl: string | null }) {
       />
     );
   }
+  const initials = name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
   return (
-    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[var(--app-brand,#0b54ab)] text-sm font-medium text-white">
-      {name.split(" ").map((n) => n[0]).join("")}
+    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[var(--app-brand,#0b54ab)] text-xs font-bold text-white shadow-sm">
+      {initials}
     </div>
   );
 }
@@ -46,12 +47,23 @@ export function RecentStudentsTable() {
   }, []);
 
   return (
-    <div className="rounded-[var(--app-card-radius)] border border-[var(--app-sidebar-border)] bg-[var(--app-card-bg)] shadow-[var(--app-card-shadow)] overflow-hidden">
+    <div className="rounded-[var(--app-card-radius)] border border-[var(--app-card-border)] bg-[var(--app-card-bg)] shadow-[var(--app-card-shadow)] overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col gap-3 border-b border-[var(--app-divider)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
-        <h2 className="text-lg sm:text-xl font-semibold text-[var(--app-text-primary)]">
-          Recent Students
-        </h2>
+      <div className="flex flex-col gap-3 border-b border-[var(--app-divider)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-[var(--app-text-primary)]">
+            Recent Students
+          </h2>
+          <p className="text-xs text-[var(--app-text-secondary)] mt-0.5">
+            Latest 5 students added to your tenant
+          </p>
+        </div>
+        <a
+          href="/students"
+          className="text-xs font-semibold text-[var(--app-brand)] hover:underline self-start sm:self-auto"
+        >
+          View all →
+        </a>
         {/* <div className="flex items-center gap-3">
           <button
             type="button"
@@ -113,11 +125,11 @@ export function RecentStudentsTable() {
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-[var(--app-divider)] bg-[var(--app-search-bg)]">
+                <tr className="bg-slate-50/60 border-b border-slate-100">
                   {HEADERS.map(({ label }) => (
                     <th
                       key={label}
-                      className="whitespace-nowrap px-6 py-4 font-semibold uppercase tracking-wider text-[var(--app-text-secondary)]"
+                      className="whitespace-nowrap px-5 py-3 text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]"
                     >
                       {label}
                     </th>
@@ -125,25 +137,25 @@ export function RecentStudentsTable() {
                 </tr>
               </thead>
               <tbody>
-                {students.map((student) => (
+                {students.map((student, i) => (
                   <tr
                     key={student.id}
-                    className="border-b border-[var(--app-divider)] transition-colors hover:bg-[var(--app-table-row-hover)] last:border-b-0"
+                    className={`hover:bg-slate-50 transition-colors ${i !== students.length - 1 ? "border-b border-slate-50" : ""}`}
                   >
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         <Avatar name={student.name} imgUrl={student.imgUrl} />
-                        <span className="font-medium text-[var(--app-text-primary)]">{student.name}</span>
+                        <span className="font-semibold text-[var(--app-text-primary)]">{student.name}</span>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-[var(--app-text-secondary)]">{student.branch}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-[var(--app-text-secondary)]">{student.admissionNumber}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-[var(--app-text-secondary)]">{student.academicYear}</td>
-                    <td className="px-6 py-4 text-[var(--app-text-secondary)]">{student.email}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-[var(--app-text-secondary)]">{student.phoneNumber}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-[var(--app-text-secondary)]">{student.class}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-[var(--app-text-secondary)]">{student.section}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-[var(--app-text-secondary)]">{student.rollNo}</td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-[var(--app-text-secondary)]">{student.branch}</td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-[var(--app-text-secondary)] tabular-nums">{student.admissionNumber}</td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-[var(--app-text-secondary)] tabular-nums">{student.academicYear}</td>
+                    <td className="px-5 py-3.5 text-[var(--app-text-secondary)]">{student.email}</td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-[var(--app-text-secondary)] tabular-nums">{student.phoneNumber}</td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-[var(--app-text-secondary)]">{student.class}</td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-[var(--app-text-secondary)]">{student.section}</td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-[var(--app-text-secondary)] tabular-nums">{student.rollNo}</td>
                   </tr>
                 ))}
               </tbody>

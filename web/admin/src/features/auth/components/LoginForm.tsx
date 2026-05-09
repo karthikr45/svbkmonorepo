@@ -56,8 +56,11 @@ export function LoginForm({ showBackLink = true }: { showBackLink?: boolean }) {
       <h1 className="text-2xl font-bold tracking-tight text-[var(--auth-label-default)] sm:text-3xl">
         Welcome back
       </h1>
+      <p className="mt-1.5 text-sm text-slate-500">
+        Sign in to your admin console
+      </p>
 
-      <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-6" noValidate>
+      <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-5" noValidate>
         <div className="flex flex-col gap-2">
           <FormLabel htmlFor="login-email" accent required>
             Username / Email / Mobile
@@ -104,6 +107,10 @@ export function LoginForm({ showBackLink = true }: { showBackLink?: boolean }) {
         >
           Sign in
         </Button>
+
+        <p className="text-center text-xs text-slate-400">
+          By signing in you agree to the SVBK terms of service.
+        </p>
       </form>
     </div>
   );
