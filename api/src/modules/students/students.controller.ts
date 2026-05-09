@@ -38,7 +38,14 @@ import {
 } from './dto/upload.dto';
 import { ListStudentsQueryDto } from './dto/list.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
-import { MAX_UPLOAD_SIZE_BYTES } from './constants/excel.constants';
+import {
+  EXCEL_COLUMNS,
+  MAX_UPLOAD_SIZE_BYTES,
+  REQUIRED_STUDENT_COLUMNS,
+  SAMPLE_ROW,
+  TERM_DEFINITIONS,
+} from './constants/excel.constants';
+import * as XLSX from 'xlsx';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes, ApiBody, ApiParam } from '@nestjs/swagger';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -76,7 +83,7 @@ export class StudentsController {
         'branch is required (either in the body or on your JWT)',
       );
     }
-    return this.uploadService.createOne(tenantId, branch, { ...dto, branch });
+    return this.uploadService.createOne(tenantId, branch, dto);
   }
 
   // ─────────────── Upload ───────────────
@@ -88,9 +95,6 @@ export class StudentsController {
       'Returns an .xlsx with the canonical column headers and one sample row. Open in Excel, fill rows, then upload via /students/upload/validate then /students/upload/confirm.',
   })
   async downloadTemplate(@Req() req: Request) {
-    const XLSX = await import('xlsx');
-    const { SAMPLE_ROW, REQUIRED_STUDENT_COLUMNS, EXCEL_COLUMNS, TERM_DEFINITIONS } =
-      await import('./constants/excel.constants');
     const headers = [
       ...REQUIRED_STUDENT_COLUMNS,
       EXCEL_COLUMNS.IMG_URL,
