@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { sendOtp, verifyOtp } from "@/lib/parent-portal";
+import { apiErrorMessage } from "@/lib/api";
 
 interface OtpModalProps {
   email: string;
@@ -90,18 +92,27 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
     }
     setIsVerifying(true);
     setError(null);
-    // Simulate API call – any 6-digit code is accepted in this demo
-    await new Promise((r) => setTimeout(r, 1200));
-    setIsVerifying(false);
-    onVerified();
+    try {
+      await verifyOtp(email, code);
+      onVerified();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Could not verify OTP. Try again."));
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     setOtp(Array(OTP_LENGTH).fill(""));
     setError(null);
-    setTimer(RESEND_SECONDS);
-    setCanResend(false);
-    inputRefs.current[0]?.focus();
+    try {
+      await sendOtp(email);
+      setTimer(RESEND_SECONDS);
+      setCanResend(false);
+      inputRefs.current[0]?.focus();
+    } catch (err) {
+      setError(apiErrorMessage(err, "Could not resend OTP."));
+    }
   };
 
   const isFilled = otp.join("").length === OTP_LENGTH;
@@ -201,7 +212,7 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
           </button>
 
           <p className="mt-4 text-center text-xs text-slate-400">
-            Enter any 6-digit code for demo access
+            Enter the 6-digit code sent to your email. With <code>DEMO_MODE=true</code> on the API, any 6 digits will be accepted.
           </p>
         </div>
       </div>

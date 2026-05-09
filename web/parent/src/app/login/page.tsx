@@ -3,20 +3,22 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { getAuth, setAuth } from "@/lib/auth";
+import { isAuthenticated } from "@/lib/auth";
+import { sendOtp } from "@/lib/parent-portal";
+import { apiErrorMessage } from "@/lib/api";
 import { OtpModal } from "@/components/OtpModal";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const auth = getAuth();
-    if (auth?.verified) {
+    if (isAuthenticated()) {
       router.replace("/dashboard");
     }
   }, [router]);
@@ -24,7 +26,7 @@ export default function LoginPage() {
   const validateEmail = (val: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
       setEmailError("Email address is required.");
@@ -35,11 +37,18 @@ export default function LoginPage() {
       return;
     }
     setEmailError(null);
-    setShowOtp(true);
+    setSubmitting(true);
+    try {
+      await sendOtp(email.trim());
+      setShowOtp(true);
+    } catch (err) {
+      setEmailError(apiErrorMessage(err, "Could not send OTP. Try again."));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleVerified = () => {
-    setAuth({ email: email.trim(), verified: true });
     router.push("/dashboard");
   };
 
@@ -185,13 +194,16 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  className="h-12 w-full rounded-xl text-white font-bold text-sm tracking-wide transition-all hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2"
+                  disabled={submitting}
+                  className="h-12 w-full rounded-xl text-white font-bold text-sm tracking-wide transition-all hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{ backgroundColor: "#0b54ab" }}
                 >
-                  Send OTP
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
+                  {submitting ? "Sending OTP…" : "Send OTP"}
+                  {!submitting && (
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                  )}
                 </button>
               </form>
 
