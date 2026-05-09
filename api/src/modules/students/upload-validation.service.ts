@@ -32,19 +32,44 @@ export class UploadValidationService {
     tenantId: string,
     branch: string,
   ): Promise<ValidationOutput> {
+    const jwtBranch = (branch ?? '').trim();
     // Stage 1: field-level validation
-    const stage1 = parsedRows.map((r) => ({
-      rowNumber: r.rowNumber,
-      raw: r.values,
-      result: validateAndNormalise(r.values),
-    }));
+    const stage1 = parsedRows.map((r) => {
+      const result = validateAndNormalise(r.values);
+      // Stage 1b: branch authorisation. If the caller has a branch on
+      // their JWT, every row's Branch column must equal it. Tenant
+      // admins can only upload for their own branch — mixing branches
+      // in one Excel is rejected at row level so the admin sees which
+      // rows are wrong rather than getting a single global error.
+      if (result.ok && jwtBranch) {
+        const offending = result.values.find(
+          (v) => v.branch.toLowerCase() !== jwtBranch.toLowerCase(),
+        );
+        if (offending) {
+          return {
+            rowNumber: r.rowNumber,
+            raw: r.values,
+            result: {
+              ok: false as const,
+              errors: [
+                {
+                  field: 'Branch',
+                  reason: `branch "${offending.branch}" not allowed; you can only upload for "${jwtBranch}"`,
+                },
+              ],
+            },
+          };
+        }
+      }
+      return { rowNumber: r.rowNumber, raw: r.values, result };
+    });
 
     // Stage 2: intra-file duplicate detection (across all expanded terms)
     const keyCount = new Map<string, number>();
     for (const s of stage1) {
       if (s.result.ok) {
         for (const v of s.result.values) {
-          const k = this.feeKey(v.admissionNumber, v.academicYear, v.term);
+          const k = this.feeKey(v.branch, v.admissionNumber, v.academicYear, v.term);
           keyCount.set(k, (keyCount.get(k) ?? 0) + 1);
         }
       }
@@ -64,9 +89,12 @@ export class UploadValidationService {
       })),
     );
 
+    // findExistingByKeys is scoped to the JWT branch, so every existing
+    // row is for that branch. Tag them with jwtBranch (or the row's own
+    // branch when JWT branch is unset for super-admin uploads).
     const existingSet = new Set(
       existing.map((e) =>
-        this.feeKey(e.admissionNumber, e.academicYear, e.term),
+        this.feeKey(jwtBranch, e.admissionNumber, e.academicYear, e.term),
       ),
     );
 
@@ -88,16 +116,16 @@ export class UploadValidationService {
       let anyTermExists = false;
 
       for (const v of s.result.values) {
-        const key = this.feeKey(v.admissionNumber, v.academicYear, v.term);
+        const key = this.feeKey(v.branch, v.admissionNumber, v.academicYear, v.term);
         if ((keyCount.get(key) ?? 0) > 1) {
           errors.push(
-            `Duplicate within file: ${v.term} for admission ${v.admissionNumber} (${v.academicYear})`,
+            `Duplicate within file: ${v.term} for admission ${v.admissionNumber} (${v.academicYear}) appears more than once — keep only one row per term`,
           );
         }
         if (existingSet.has(key)) {
           anyTermExists = true;
           errors.push(
-            `${v.term} already exists for admission ${v.admissionNumber} (${v.academicYear})`,
+            `${v.term} already exists for admission ${v.admissionNumber} (${v.academicYear}). Excel is insert-only — to change an existing fee, edit it from the Students table.`,
           );
         }
       }
@@ -147,7 +175,12 @@ export class UploadValidationService {
     };
   }
 
-  private feeKey(admission: string, year: string, term: TermType): string {
-    return `${admission}::${year}::${term}`;
+  private feeKey(
+    branch: string,
+    admission: string,
+    year: string,
+    term: TermType,
+  ): string {
+    return `${branch.toLowerCase()}::${admission}::${year}::${term}`;
   }
 }

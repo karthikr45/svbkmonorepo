@@ -111,11 +111,14 @@ export class UploadService {
         // be upserted once.
         const studentByKey = new Map<string, UpsertStudentInput>();
         for (const r of rows) {
-          const key = this.studentsService.key(r.admissionNumber, r.academicYear);
+          // Per-row branch (the validator already enforced it equals
+          // the JWT branch when one is set).
+          const rowBranch = r.branch || branch;
+          const key = `${rowBranch}::${r.admissionNumber}::${r.academicYear}`;
           if (!studentByKey.has(key)) {
             studentByKey.set(key, {
               tenantId,
-              branch,
+              branch: rowBranch,
               admissionNumber: r.admissionNumber,
               academicYear: r.academicYear,
               name: r.name,
@@ -136,6 +139,7 @@ export class UploadService {
         );
 
         const feeInputs: CreateFeeInput[] = rows.map((r) => {
+          const rowBranch = r.branch || branch;
           const studentId = studentsResult.idByKey.get(
             this.studentsService.key(r.admissionNumber, r.academicYear),
           );
@@ -146,7 +150,7 @@ export class UploadService {
           }
           return {
             tenantId,
-            branch,
+            branch: rowBranch,
             academicYear: r.academicYear,
             studentId,
             term: r.term,

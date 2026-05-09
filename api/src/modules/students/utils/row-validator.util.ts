@@ -18,6 +18,7 @@ const TERM_TO_DISCOUNT_COL: Record<string, string> = {
 };
 
 export interface NormalisedRow {
+  branch: string;
   name: string;
   email: string;
   phoneNumber: string;
@@ -49,6 +50,9 @@ export function validateAndNormalise(
   raw: Record<string, unknown>,
 ): ValidationResult {
   const errors: FieldError[] = [];
+
+  const branch = asTrimmedString(raw[EXCEL_COLUMNS.BRANCH]);
+  if (!branch) errors.push({ field: EXCEL_COLUMNS.BRANCH, reason: 'required' });
 
   const name = asTrimmedString(raw[EXCEL_COLUMNS.NAME]);
   if (!name) errors.push({ field: EXCEL_COLUMNS.NAME, reason: 'required' });
@@ -163,6 +167,7 @@ export function validateAndNormalise(
   return {
     ok: true,
     values: termValues.map((t) => ({
+      branch,
       name,
       email,
       phoneNumber,
