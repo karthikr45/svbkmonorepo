@@ -4,10 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { Student } from '../students/entities/student.entity';
 import { Fee } from '../fees/entities/fee.entity';
+import {
+  ClearanceStatus,
+  FeePayment,
+} from '../fees/entities/fee-payment.entity';
 import {
   Payment,
   PaymentGateway,
@@ -32,6 +36,7 @@ export class ParentPortalService {
     private readonly parentsService: ParentsService,
     private readonly paymentsService: PaymentsService,
     private readonly academicYearsService: AcademicYearsService,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   async me(tenantId: string, parentId: string) {
@@ -155,7 +160,12 @@ export class ParentPortalService {
     if (!children.length) {
       return {
         children: [],
-        summary: { totalDue: 0, totalPaid: 0, totalPenalty: 0 },
+        summary: {
+          totalDue: 0,
+          totalPaid: 0,
+          totalPenalty: 0,
+          totalPendingClearance: 0,
+        },
       };
     }
 
@@ -163,12 +173,28 @@ export class ParentPortalService {
       where: { tenantId, studentId: In(children.map((c) => c.id)) },
     });
 
+    // Pending cheques/DDs — payments that don't yet count as paid
+    // but are with the school awaiting bank clearance.
+    const pendingClearance = await this.dataSource
+      .getRepository(FeePayment)
+      .createQueryBuilder('fp')
+      .select('COALESCE(SUM(fp.amount), 0)', 'total')
+      .where('fp.tenantId = :tenantId', { tenantId })
+      .andWhere('fp.feeId IN (:...feeIds)', {
+        feeIds: fees.length ? fees.map((f) => f.id) : [''],
+      })
+      .andWhere('fp.clearanceStatus = :status', {
+        status: ClearanceStatus.PENDING,
+      })
+      .getRawOne<{ total: string }>();
+
     const sum = (key: 'netAmount' | 'paidAmount' | 'totalPenalty') =>
       fees.reduce((acc, f) => acc + Number(f[key] ?? 0), 0);
 
     const totalNet = sum('netAmount');
     const totalPaid = sum('paidAmount');
     const totalPenalty = sum('totalPenalty');
+    const totalPendingClearance = Number(pendingClearance?.total ?? 0);
 
     const perChild = children.map((c) => {
       const childFees = fees.filter((f) => f.studentId === c.id);
@@ -198,6 +224,7 @@ export class ParentPortalService {
         totalDue: Math.max(0, totalNet - totalPaid),
         totalPaid,
         totalPenalty,
+        totalPendingClearance,
       },
     };
   }

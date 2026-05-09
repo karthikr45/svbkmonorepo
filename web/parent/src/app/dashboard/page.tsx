@@ -238,11 +238,26 @@ export default function DashboardPage() {
           )}
 
           {dashboard && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-              <StatCard label="Total Paid" value={inr(dashboard.summary.totalPaid)} tone="green" />
-              <StatCard label="Total Due" value={inr(dashboard.summary.totalDue)} tone="amber" />
-              <StatCard label="Penalty" value={inr(dashboard.summary.totalPenalty)} tone="slate" />
-            </div>
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                <StatCard label="Total Paid" value={inr(dashboard.summary.totalPaid)} tone="green" />
+                <StatCard label="Total Due" value={inr(dashboard.summary.totalDue)} tone="amber" />
+                <StatCard label="Penalty" value={inr(dashboard.summary.totalPenalty)} tone="slate" />
+                <StatCard
+                  label="Pending Clearance"
+                  value={inr(dashboard.summary.totalPendingClearance ?? 0)}
+                  tone="blue"
+                />
+              </div>
+              {dashboard.summary.totalPendingClearance > 0 && (
+                <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
+                  You have <strong>{inr(dashboard.summary.totalPendingClearance)}</strong>{" "}
+                  in cheque/DD payments awaiting bank clearance — they're with the
+                  school but not yet recognised. Once cleared they'll move to
+                  Total Paid.
+                </div>
+              )}
+            </>
           )}
 
           {!selectedChild && dashboard?.children.length === 0 && (
@@ -290,12 +305,13 @@ function StatCard({
 }: {
   label: string;
   value: string;
-  tone: "green" | "amber" | "slate";
+  tone: "green" | "amber" | "slate" | "blue";
 }) {
   const palette = {
     green: { bg: "#dcfce7", text: "#15803d" },
     amber: { bg: "#fef3c7", text: "#92400e" },
     slate: { bg: "#f1f5f9", text: "#334155" },
+    blue: { bg: "#dbeafe", text: "#1d4ed8" },
   }[tone];
   return (
     <div

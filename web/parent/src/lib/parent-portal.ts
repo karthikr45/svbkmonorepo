@@ -132,6 +132,7 @@ export interface DashboardResponse {
     totalDue: number;
     totalPaid: number;
     totalPenalty: number;
+    totalPendingClearance: number;
   };
 }
 
