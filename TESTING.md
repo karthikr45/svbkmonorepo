@@ -79,7 +79,32 @@ If you run on a real device, change `apiBaseUrl` in `mobile/parent/app.json`
 from `http://localhost:3001/api` to your machine's LAN IP (e.g.
 `http://192.168.1.5:3001/api`) so the device can reach your local API.
 
-## 4. Seed required data (one-time)
+## 4. Seed the demo dataset (one command)
+
+```bash
+pnpm --filter @svbk/api seed
+```
+
+This creates the full chain in one shot — idempotent, safe to re-run:
+
+| # | Entity | Value |
+|---|---|---|
+| 1 | Super-admin | `superadmin@svbk.com` / `Admin@123` |
+| 2 | Tenant | `SVBK_HYD` (Sri Venkateswara Bala Kuteer) |
+| 3 | Tenant admin | `admin@svbk.com` / `Admin@123` |
+| 4 | Academic year | `2025-2026` (set as current) |
+| 5 | Sample student | `Arjun Kumar` — admission `ADM-2024-001`, class 7-A |
+| 6 | Term fees | 4 unpaid fees of ₹25,000 each |
+| 7 | Parent | `parent@svbk.com` linked to that admission |
+
+After this you can immediately:
+- Log in to admin web with `superadmin@svbk.com` or `admin@svbk.com`
+- Log in to parent web with `parent@svbk.com` (DEMO_MODE accepts any 6-digit OTP)
+
+The old per-step manual setup is kept below for reference if you want
+to bypass the seed.
+
+## 4b. Manual data creation (alternative to the seed)
 
 You need at least:
 
