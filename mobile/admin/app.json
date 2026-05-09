@@ -7,6 +7,9 @@
     "scheme": "svbkadmin",
     "ios": { "supportsTablet": true, "bundleIdentifier": "in.edu.svbk.admin" },
     "android": { "package": "in.edu.svbk.admin" },
-    "plugins": ["expo-router"]
+    "plugins": ["expo-router"],
+    "extra": {
+      "apiBaseUrl": "http://localhost:3001/api"
+    }
   }
 }

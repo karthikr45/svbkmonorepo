@@ -19,10 +19,17 @@ async function bootstrap() {
   // Global prefix
   app.setGlobalPrefix('api');
 
-  // CORS
+  // CORS — comma-separated list in CORS_ORIGINS, or "*" to allow all (dev only)
+  const corsOriginsRaw =
+    configService.get<string>('CORS_ORIGINS') ?? process.env.CORS_ORIGINS ?? '';
+  const corsOrigins = corsOriginsRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   app.enableCors({
-    // origin: configService.get<string>('CLIENT_URL') || 'http://localhost:3001',
-    origin: true, // allow all origins for now (adjust in production)
+    origin: corsOrigins.includes('*') || corsOrigins.length === 0
+      ? true
+      : corsOrigins,
     credentials: true,
   });
 

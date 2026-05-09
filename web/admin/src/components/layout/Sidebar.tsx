@@ -13,6 +13,7 @@ const navItems = [
   { href: "/media", label: "View Media", icon: "media" },
   { href: "/announcements", label: "Announcements", icon: "megaphone" },
   { href: "/students", label: "Students", icon: "students" },
+  { href: "/parents", label: "Parents", icon: "students" },
   { href: "/pay-now", label: "Pay Now", icon: "payment" },
 ] as const;
 

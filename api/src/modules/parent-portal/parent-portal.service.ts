@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,9 +8,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Student } from '../students/entities/student.entity';
 import { Fee } from '../fees/entities/fee.entity';
-import { Payment } from '../payments/entities/payment.entity';
+import {
+  Payment,
+  PaymentGateway,
+  PaymentType,
+} from '../payments/entities/payment.entity';
 import { ParentStudent } from '../parents/entities/parent-student.entity';
 import { ParentsService } from '../parents/parents.service';
+import { PaymentsService } from '../payments/payments.service';
 import { AcademicYearsService } from '../academic-years/academic-years.service';
 
 @Injectable()
@@ -24,6 +30,7 @@ export class ParentPortalService {
     @InjectRepository(ParentStudent)
     private readonly linkRepo: Repository<ParentStudent>,
     private readonly parentsService: ParentsService,
+    private readonly paymentsService: PaymentsService,
     private readonly academicYearsService: AcademicYearsService,
   ) {}
 
@@ -193,5 +200,52 @@ export class ParentPortalService {
         totalPenalty,
       },
     };
+  }
+
+  /**
+   * Initiate an online payment for a fee against the parent's child.
+   * Validates the fee belongs to a child this parent is linked to, then
+   * delegates to the existing PaymentsService.createOrder.
+   */
+  async initiatePayment(
+    tenantId: string,
+    parentId: string,
+    feeId: string,
+    gateway: PaymentGateway,
+  ) {
+    const fee = await this.feeRepo.findOne({ where: { id: feeId, tenantId } });
+    if (!fee) {
+      throw new NotFoundException(`Fee ${feeId} not found`);
+    }
+    if (fee.paymentStatus === 'PAID') {
+      throw new BadRequestException('This fee is already fully paid');
+    }
+    const balance = Number(fee.netAmount) - Number(fee.paidAmount);
+    if (balance <= 0) {
+      throw new BadRequestException('Nothing left to pay on this fee');
+    }
+
+    const student = await this.ensureChildBelongsToParent(
+      tenantId,
+      parentId,
+      fee.studentId,
+    );
+
+    return this.paymentsService.createOrder(tenantId, {
+      tenantId,
+      feeId: fee.id,
+      paymentType: PaymentType.ONLINE,
+      gateway,
+      amount: Math.round(balance * 100), // paise
+      currency: 'INR',
+      ADMISSION: student.admissionNumber,
+      academicYear: student.academicYear,
+      term: fee.term,
+      studentName: student.name,
+      class: student.class,
+      section: student.section,
+      rollNo: student.rollNo,
+      email: student.email,
+    });
   }
 }

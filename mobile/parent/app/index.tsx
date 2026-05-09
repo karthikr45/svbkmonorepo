@@ -1,10 +1,18 @@
-import { Text, View } from 'react-native';
+import { useEffect } from "react";
+import { useRouter } from "expo-router";
+import { ActivityIndicator, View } from "react-native";
+import { isAuthenticated } from "../src/lib/auth";
 
-export default function Home() {
+export default function Index() {
+  const router = useRouter();
+  useEffect(() => {
+    isAuthenticated().then((ok) => {
+      router.replace(ok ? "/dashboard" : "/login");
+    });
+  }, [router]);
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ fontSize: 22, fontWeight: '700' }}>SVBK Parent</Text>
-      <Text style={{ marginTop: 8, color: '#666' }}>Mobile placeholder</Text>
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+      <ActivityIndicator />
     </View>
   );
 }

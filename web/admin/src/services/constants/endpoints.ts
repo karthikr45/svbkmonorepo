@@ -57,6 +57,20 @@ export const API_ENDPOINTS = {
   fees: {
     getDashboardStats: "/fees/dashboard/stats",
   },
+  parents: {
+    list: "/parents",
+    create: "/parents",
+    /** Usage: /parents/:id */
+    detail: "/parents",
+    /** Usage: /parents/:id */
+    update: "/parents",
+    /** Usage: /parents/:id */
+    remove: "/parents",
+    /** Usage: /parents/:id/students */
+    addStudent: "/parents",
+    /** Usage: /parents/:id/students/:linkId */
+    removeStudent: "/parents",
+  },
 } as const;
 
 export type ApiEndpoints = typeof API_ENDPOINTS;

@@ -67,6 +67,18 @@ pnpm --filter @svbk/parent dev
 On first API boot, TypeORM will create all tables, including the new
 `parents`, `parent_students`, and `parent_otps` tables.
 
+### Mobile parent (Expo)
+
+```bash
+cd mobile/parent
+pnpm install         # already done by root install
+pnpm dev             # Expo dev server; press i for iOS sim or scan QR with Expo Go
+```
+
+If you run on a real device, change `apiBaseUrl` in `mobile/parent/app.json`
+from `http://localhost:3001/api` to your machine's LAN IP (e.g.
+`http://192.168.1.5:3001/api`) so the device can reach your local API.
+
 ## 4. Seed required data (one-time)
 
 You need at least:
@@ -132,6 +144,23 @@ curl -X POST http://localhost:3001/api/parents \
 
 If a parent has no fees yet, the dashboard says "No fees yet" — create
 fees as the admin (`POST /api/fees` or via the Excel upload) and reload.
+
+### Pay a fee (online)
+
+On the dashboard, every unpaid fee card has **Pay via Razorpay** /
+**Pay via Cashfree** buttons. They call `POST /api/parent/payments` with
+`{ feeId, gateway }`. The server creates a payment + transaction row,
+then asks the gateway to create an order. The button shows the resulting
+gateway order id. Plugging in the gateway SDK to actually charge the
+card is the last step (Razorpay Checkout / Cashfree Drop-in) — wired the
+same way as the existing admin pay-now flow in `web/admin/src/app/(main)/pay-now`.
+
+### Manage parents from the admin UI
+
+Open `http://localhost:3000/parents` (after admin login). You can:
+- Create a parent and link to one or more children by `(branch, admissionNumber)`.
+- See the list of parents in the current tenant.
+- Delete a parent (cascades to their student links).
 
 ## 6. Verify multi-tenant isolation
 

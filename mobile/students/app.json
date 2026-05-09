@@ -7,6 +7,9 @@
     "scheme": "svbkstudents",
     "ios": { "supportsTablet": true, "bundleIdentifier": "in.edu.svbk.students" },
     "android": { "package": "in.edu.svbk.students" },
-    "plugins": ["expo-router"]
+    "plugins": ["expo-router"],
+    "extra": {
+      "apiBaseUrl": "http://localhost:3001/api"
+    }
   }
 }

@@ -156,3 +156,19 @@ export async function fetchPayments(): Promise<Payment[]> {
   const { data } = await api.get("/parent/payments");
   return unwrap<Payment[]>(data);
 }
+
+export type Gateway = "razorpay" | "cashfree";
+
+export interface InitiatePaymentResponse {
+  payment: Payment;
+  transaction: { id: string };
+  gatewayResponse: Record<string, unknown>;
+}
+
+export async function initiatePayment(
+  feeId: string,
+  gateway: Gateway,
+): Promise<InitiatePaymentResponse> {
+  const { data } = await api.post("/parent/payments", { feeId, gateway });
+  return unwrap<InitiatePaymentResponse>(data);
+}

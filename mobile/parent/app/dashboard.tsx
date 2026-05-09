@@ -1,0 +1,183 @@
+import { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  Text,
+  View,
+} from "react-native";
+import {
+  fetchDashboard,
+  logout,
+  type DashboardResponse,
+} from "../src/lib/parent-portal";
+import { apiErrorMessage } from "../src/lib/api";
+
+const inr = (n: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(n);
+
+export default function DashboardScreen() {
+  const router = useRouter();
+  const [data, setData] = useState<DashboardResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setError(null);
+    try {
+      const d = await fetchDashboard();
+      setData(d);
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function handleLogout() {
+    await logout();
+    router.replace("/login");
+  }
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "#f1f5f9" }}>
+      <View
+        style={{
+          paddingTop: 48,
+          paddingHorizontal: 20,
+          paddingBottom: 16,
+          backgroundColor: "#fff",
+          borderBottomWidth: 1,
+          borderBottomColor: "#e2e8f0",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Text style={{ fontSize: 22, fontWeight: "800", color: "#0f172a" }}>
+          Dashboard
+        </Text>
+        <Pressable onPress={handleLogout}>
+          <Text style={{ color: "#dc2626", fontWeight: "700" }}>Logout</Text>
+        </Pressable>
+      </View>
+
+      <FlatList
+        contentContainerStyle={{ padding: 16 }}
+        ListHeaderComponent={
+          <>
+            {error && (
+              <View
+                style={{
+                  padding: 12,
+                  marginBottom: 12,
+                  backgroundColor: "#fee2e2",
+                  borderRadius: 12,
+                }}
+              >
+                <Text style={{ color: "#b91c1c" }}>{error}</Text>
+              </View>
+            )}
+            {data && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 8,
+                  marginBottom: 16,
+                }}
+              >
+                <Stat label="Paid" value={inr(data.summary.totalPaid)} bg="#dcfce7" fg="#15803d" />
+                <Stat label="Due" value={inr(data.summary.totalDue)} bg="#fef3c7" fg="#92400e" />
+                <Stat label="Penalty" value={inr(data.summary.totalPenalty)} bg="#f1f5f9" fg="#334155" />
+              </View>
+            )}
+            <Text style={{ fontSize: 16, fontWeight: "700", color: "#1e293b", marginBottom: 8 }}>
+              Children
+            </Text>
+          </>
+        }
+        data={data?.children ?? []}
+        keyExtractor={(item) => item.student.id}
+        refreshControl={
+          <RefreshControl refreshing={false} onRefresh={() => load()} />
+        }
+        renderItem={({ item }) => (
+          <View
+            style={{
+              padding: 16,
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              marginBottom: 10,
+              borderWidth: 1,
+              borderColor: "#e2e8f0",
+            }}
+          >
+            <Text style={{ fontSize: 16, fontWeight: "700", color: "#0f172a" }}>
+              {item.student.name}
+            </Text>
+            <Text style={{ color: "#64748b", marginTop: 2 }}>
+              {item.student.class} · {item.student.section} · Roll {item.student.rollNo}
+            </Text>
+            <Text style={{ color: "#64748b" }}>
+              Adm {item.student.admissionNumber} · {item.student.academicYear}
+            </Text>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 10 }}>
+              <Text style={{ color: "#64748b" }}>{item.feesCount} fee record(s)</Text>
+              <Text style={{ color: item.amountDue > 0 ? "#b91c1c" : "#15803d", fontWeight: "700" }}>
+                {item.amountDue > 0 ? `Due ${inr(item.amountDue)}` : "Up to date"}
+              </Text>
+            </View>
+          </View>
+        )}
+        ListEmptyComponent={
+          !error ? (
+            <Text style={{ color: "#64748b", textAlign: "center", marginTop: 40 }}>
+              No children linked. Ask the school admin to link your account.
+            </Text>
+          ) : null
+        }
+      />
+    </View>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  bg,
+  fg,
+}: {
+  label: string;
+  value: string;
+  bg: string;
+  fg: string;
+}) {
+  return (
+    <View style={{ flex: 1, backgroundColor: bg, padding: 12, borderRadius: 12 }}>
+      <Text style={{ color: fg, fontSize: 11, fontWeight: "700", textTransform: "uppercase" }}>
+        {label}
+      </Text>
+      <Text style={{ color: fg, fontSize: 16, fontWeight: "800", marginTop: 4 }}>
+        {value}
+      </Text>
+    </View>
+  );
+}

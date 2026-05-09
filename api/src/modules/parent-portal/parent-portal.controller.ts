@@ -1,6 +1,8 @@
 import {
+  Body,
   Controller,
   Get,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -11,6 +13,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/roles.enum';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ParentPortalService } from './parent-portal.service';
+import { ParentInitiatePaymentDto } from './dto/initiate-payment.dto';
 
 @ApiTags('parent-portal')
 @ApiBearerAuth()
@@ -51,5 +54,19 @@ export class ParentPortalController {
   @ApiOperation({ summary: 'List of payments tied to the parent\'s children' })
   payments(@CurrentUser() user: any) {
     return this.portal.listPayments(user.tenantId, user.userId);
+  }
+
+  @Post('payments')
+  @ApiOperation({ summary: 'Initiate an online payment for a fee' })
+  initiatePayment(
+    @CurrentUser() user: any,
+    @Body() dto: ParentInitiatePaymentDto,
+  ) {
+    return this.portal.initiatePayment(
+      user.tenantId,
+      user.userId,
+      dto.feeId,
+      dto.gateway,
+    );
   }
 }
