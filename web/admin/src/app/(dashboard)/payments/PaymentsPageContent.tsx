@@ -9,75 +9,35 @@ import { getStoredToken } from "@/features/auth/services";
 import {
   batchReceiptsUrl,
   findPaymentDetailsApi,
-  findStudentWithFeesApi,
   listAllPaymentsApi,
   listFeePaymentsApi,
   listPendingClearanceApi,
   receiptUrl,
-  recordOfflinePaymentApi,
   updateClearanceApi,
   type FeePaymentRow,
   type FeeRow,
   type FeeWithPayments,
-  type OfflinePaymentType,
   type PaymentDetailsGroup,
   type PaymentLogRow,
   type PendingClearancePayment,
-  type RecordOfflinePaymentBody,
   type StudentRow,
 } from "@/features/payments/api/payments.api";
 
-type TabId = "record" | "pending" | "print";
-
 export function PaymentsPageContent() {
-  // Most-used flow first.
-  const [tab, setTab] = useState<TabId>("record");
-
   return (
     <div>
       <PageHeader
         title="Payment Details"
-        subtitle="Look up a student by admission number and see their complete fee history across School, Hostel and Transport tenants — record new payments, clear pending cheques, and print receipts."
+        subtitle="Look up a student by admission number and see their complete fee history across School, Hostel and Transport tenants. Record payments via the legacy Students view; clear pending cheques and print batches under Reports."
       />
-
-      <PaymentsHeaderStats onJumpToPending={() => setTab("pending")} />
-
-      <div
-        className="mb-6 inline-flex items-center gap-1 rounded-xl border p-1 bg-white"
-        style={{ borderColor: "var(--app-card-border)" }}
-      >
-        {[
-          { id: "record" as const, label: "Record payment" },
-          { id: "pending" as const, label: "Pending cheques" },
-          { id: "print" as const, label: "Print receipts" },
-        ].map(({ id, label }) => {
-          const active = tab === id;
-          return (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all"
-              style={{
-                backgroundColor: active ? "var(--app-brand-soft)" : "transparent",
-                color: active ? "var(--app-brand)" : "var(--app-text-secondary)",
-              }}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {tab === "pending" && <PendingClearancePanel />}
-      {tab === "record" && <RecordPaymentPanel />}
-      {tab === "print" && <PrintReceiptsPanel />}
+      <PaymentDetailsView />
     </div>
   );
 }
 
 // ─── Print receipts panel ──────────────────────────────────────────
 
-function PrintReceiptsPanel() {
+export function PrintReceiptsPanel() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -223,179 +183,6 @@ function RecentReceiptsCard({ onAdd }: { onAdd: (rcpt: string) => void }) {
   );
 }
 
-// ─── Header stats (today's collections, pending, recent) ───────────
-
-function PaymentsHeaderStats({ onJumpToPending }: { onJumpToPending: () => void }) {
-  const [stats, setStats] = useState<{
-    todayTotal: number;
-    todayCount: number;
-    monthTotal: number;
-    pendingCount: number;
-    pendingAmount: number;
-    recent: PaymentLogRow[];
-  } | null>(null);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        const monthStart = new Date(
-          todayStart.getFullYear(),
-          todayStart.getMonth(),
-          1,
-        );
-        const [recent, todayList, monthList, pending] = await Promise.all([
-          listAllPaymentsApi({}),
-          listAllPaymentsApi({ from: todayStart.toISOString() }),
-          listAllPaymentsApi({ from: monthStart.toISOString() }),
-          listPendingClearanceApi(),
-        ]);
-        const recentArr = unwrapList<PaymentLogRow>(recent);
-        const todayArr = unwrapList<PaymentLogRow>(todayList);
-        const monthArr = unwrapList<PaymentLogRow>(monthList);
-        const pendingArr = unwrapList<PendingClearancePayment>(pending);
-        const sum = (xs: { amount: string }[]) =>
-          xs.reduce((a, b) => a + Number(b.amount), 0);
-        setStats({
-          todayTotal: sum(todayArr),
-          todayCount: todayArr.length,
-          monthTotal: sum(monthArr),
-          pendingCount: pendingArr.length,
-          pendingAmount: sum(pendingArr),
-          recent: recentArr.slice(0, 5),
-        });
-      } catch {
-        // silent — header is enhancement, page still works
-      }
-    }
-    load();
-  }, []);
-
-  return (
-    <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-      <StatTile
-        label="Today's collections"
-        value={stats ? inr(stats.todayTotal) : "—"}
-        sub={stats ? `${stats.todayCount} payment${stats.todayCount === 1 ? "" : "s"}` : ""}
-        tone="green"
-      />
-      <StatTile
-        label="This month"
-        value={stats ? inr(stats.monthTotal) : "—"}
-        sub="cleared + instant"
-        tone="blue"
-      />
-      <button
-        onClick={onJumpToPending}
-        className="text-left rounded-[var(--app-card-radius)] border bg-white p-4 transition-shadow hover:shadow-[var(--app-card-shadow-hover)]"
-        style={{ borderColor: "var(--app-card-border)", boxShadow: "var(--app-card-shadow)" }}
-      >
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
-              Awaiting bank clearance
-            </p>
-            <p
-              className="mt-1.5 text-xl font-bold tracking-tight tabular-nums"
-              style={{ color: stats?.pendingCount ? "#92400e" : "#15803d" }}
-            >
-              {stats ? `${stats.pendingCount} cheque${stats.pendingCount === 1 ? "" : "s"}` : "—"}
-            </p>
-            <p className="text-xs text-[var(--app-text-secondary)] mt-0.5">
-              {stats ? inr(stats.pendingAmount) : ""}
-              {stats?.pendingCount ? " · click to review" : ""}
-            </p>
-          </div>
-          <div
-            className="h-9 w-9 rounded-xl flex items-center justify-center"
-            style={{
-              backgroundColor: stats?.pendingCount ? "rgb(245 158 11 / 0.12)" : "rgb(16 185 129 / 0.12)",
-              color: stats?.pendingCount ? "var(--app-warning)" : "var(--app-success)",
-            }}
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-        </div>
-      </button>
-
-      <Card padding="tight" className="!p-3">
-        <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
-          Recent receipts
-        </p>
-        {stats?.recent.length ? (
-          <ul className="mt-2 flex flex-col gap-1 text-[12.5px]">
-            {stats.recent.slice(0, 3).map((p) => (
-              <li key={p.id} className="flex items-center justify-between gap-2 truncate">
-                <span className="truncate text-[var(--app-text-secondary)]">
-                  {p.student?.name ?? "—"} · {p.paymentType}
-                </span>
-                <button
-                  onClick={() => printReceipt(p.id)}
-                  className="text-[var(--app-brand)] font-semibold hover:underline tabular-nums whitespace-nowrap"
-                >
-                  {inr(Number(p.amount))} →
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-xs text-[var(--app-text-muted)]">No payments yet</p>
-        )}
-      </Card>
-    </div>
-  );
-}
-
-function StatTile({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  tone: "green" | "blue" | "amber";
-}) {
-  const palette = {
-    green: { bg: "rgb(16 185 129 / 0.12)", fg: "var(--app-success)" },
-    blue: { bg: "rgb(11 84 171 / 0.10)", fg: "var(--app-brand)" },
-    amber: { bg: "rgb(245 158 11 / 0.12)", fg: "var(--app-warning)" },
-  }[tone];
-  return (
-    <div
-      className="rounded-[var(--app-card-radius)] border bg-white p-4"
-      style={{ borderColor: "var(--app-card-border)", boxShadow: "var(--app-card-shadow)" }}
-    >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
-            {label}
-          </p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight text-[var(--app-text-primary)] tabular-nums">
-            {value}
-          </p>
-          {sub && (
-            <p className="text-xs text-[var(--app-text-secondary)] mt-0.5">{sub}</p>
-          )}
-        </div>
-        <div
-          className="h-9 w-9 rounded-xl flex items-center justify-center"
-          style={{ backgroundColor: palette.bg, color: palette.fg }}
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
-            <path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function unwrapList<T>(res: unknown): T[] {
   if (Array.isArray(res)) return res as T[];
   if (!res || typeof res !== "object") return [];
@@ -405,7 +192,7 @@ function unwrapList<T>(res: unknown): T[] {
 
 // ─── Pending cheques panel ─────────────────────────────────────────
 
-function PendingClearancePanel() {
+export function PendingClearancePanel() {
   const [items, setItems] = useState<PendingClearancePayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -571,7 +358,7 @@ function PendingClearancePanel() {
 
 // ─── Record offline payment panel ──────────────────────────────────
 
-function RecordPaymentPanel() {
+function PaymentDetailsView() {
   // Fee picker
   const admissionRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
@@ -583,7 +370,7 @@ function RecordPaymentPanel() {
   const [pickError, setPickError] = useState<string | null>(null);
   const [student, setStudent] = useState<StudentRow | null>(null);
   const [groups, setGroups] = useState<PaymentDetailsGroup[]>([]);
-  // Flat list of fees for the picker (across all groups).
+  // Flat list of fees across all groups (used for the selected-fee summary).
   const fees = useMemo(() => groups.flatMap((g) => g.fees), [groups]);
   const [feeId, setFeeId] = useState("");
   const [history, setHistory] = useState<FeePaymentRow[]>([]);
@@ -642,89 +429,7 @@ function RecordPaymentPanel() {
     if (id) loadHistory(id);
   }
 
-  const [type, setType] = useState<OfflinePaymentType>("CASH");
-  const [amount, setAmount] = useState("");
-  const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10));
-  const [notes, setNotes] = useState("");
-  // Cheque
-  const [chequeNumber, setChequeNumber] = useState("");
-  const [chequeDate, setChequeDate] = useState("");
-  // DD
-  const [ddNumber, setDdNumber] = useState("");
-  const [ddDate, setDdDate] = useState("");
-  // Bank
-  const [bankName, setBankName] = useState("");
-  const [bankBranch, setBankBranch] = useState("");
-  const [drawerName, setDrawerName] = useState("");
-  // POS / NEFT
-  const [transactionId, setTransactionId] = useState("");
-  const [cardLast4, setCardLast4] = useState("");
-
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{
-    receiptNumber: string;
-    paymentId: string;
-  } | null>(null);
-
-  const requiresBank = type === "CHEQUE" || type === "DD" || type === "NEFT";
-  const requiresDrawer = type === "CHEQUE" || type === "DD";
-  const requiresTxn = type === "POS" || type === "NEFT";
-
-  function reset() {
-    setAmount(""); setNotes("");
-    setChequeNumber(""); setChequeDate("");
-    setDdNumber(""); setDdDate("");
-    setBankName(""); setBankBranch(""); setDrawerName("");
-    setTransactionId(""); setCardLast4("");
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-    if (!feeId.trim()) return setError("Fee ID is required");
-    const amt = Number(amount);
-    if (!Number.isFinite(amt) || amt <= 0) return setError("Amount must be > 0");
-    const body: RecordOfflinePaymentBody = {
-      paymentType: type,
-      amount: amt,
-      paidAt: new Date(paidAt).toISOString(),
-      notes: notes || undefined,
-      chequeNumber: type === "CHEQUE" ? chequeNumber : undefined,
-      chequeDate: type === "CHEQUE" ? chequeDate : undefined,
-      ddNumber: type === "DD" ? ddNumber : undefined,
-      ddDate: type === "DD" ? ddDate : undefined,
-      bankName: requiresBank ? bankName : undefined,
-      bankBranch: requiresBank ? bankBranch || undefined : undefined,
-      drawerName: requiresDrawer ? drawerName : undefined,
-      transactionId: requiresTxn ? transactionId : undefined,
-      cardLast4: type === "POS" && cardLast4 ? cardLast4 : undefined,
-    };
-    setSubmitting(true);
-    try {
-      const res = (await recordOfflinePaymentApi(feeId.trim(), body)) as {
-        id?: string;
-        receiptNumber?: string;
-        data?: { id?: string; receiptNumber?: string };
-      };
-      const inner = (res?.data ?? res) as { id?: string; receiptNumber?: string };
-      setSuccess({
-        receiptNumber: inner?.receiptNumber ?? "—",
-        paymentId: inner?.id ?? "",
-      });
-      reset();
-      // Refresh the payment history + the fee picker so balances update.
-      if (feeId) loadHistory(feeId);
-      if (admission) lookup();
-    } catch (err) {
-      setError(getApiErrorMessage(err, "Could not record payment"));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const step = !student ? 1 : !feeId ? 2 : 3;
+  const step = !student ? 1 : 2;
 
   return (
     <div className="space-y-4">
@@ -732,8 +437,7 @@ function RecordPaymentPanel() {
       <div className="flex items-center gap-2 mb-1 text-xs">
         {[
           { n: 1, label: "Find student" },
-          { n: 2, label: "Pick term" },
-          { n: 3, label: "Enter payment" },
+          { n: 2, label: "View fees & history" },
         ].map((s, i, arr) => {
           const active = step === s.n;
           const done = step > s.n;
@@ -913,25 +617,13 @@ function RecordPaymentPanel() {
         const balance = Math.max(0, net - paid);
         return (
           <Card padding="tight" className="border-l-4" style={{ borderLeftColor: "var(--app-brand)" }}>
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-              <div>
-                <div className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
-                  Selected fee
-                </div>
-                <div className="text-base font-bold text-[var(--app-text-primary)]">
-                  {f.term} · {student?.name}
-                </div>
+            <div className="mb-3">
+              <div className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
+                Selected fee
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setAmount(String(balance));
-                }}
-                disabled={balance === 0}
-                className="text-xs font-semibold text-[var(--app-brand)] hover:underline disabled:opacity-40"
-              >
-                Pay full balance →
-              </button>
+              <div className="text-base font-bold text-[var(--app-text-primary)]">
+                {f.term} · {student?.name}
+              </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
               <SumStat label="Original" value={inr(orig)} />
@@ -943,229 +635,6 @@ function RecordPaymentPanel() {
           </Card>
         );
       })()}
-
-      {/* Record form */}
-      <Card padding="default">
-      <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
-          <Field label="Selected fee" required hint={feeId ? "Pick another from the list above to switch" : "Pick a fee from the list above"}>
-            <input
-              value={
-                feeId
-                  ? `${fees.find((f) => f.id === feeId)?.term ?? ""} — ${student?.name ?? ""}`
-                  : ""
-              }
-              placeholder="No fee selected"
-              className="form-input"
-              readOnly
-              required
-            />
-          </Field>
-          <Field label="Payment type" required>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as OfflinePaymentType)}
-              className="form-input"
-            >
-              <option value="CASH">Cash</option>
-              <option value="CHEQUE">Cheque</option>
-              <option value="DD">Demand Draft</option>
-              <option value="POS">POS (Card swipe)</option>
-              <option value="NEFT">NEFT / Bank Transfer</option>
-            </select>
-          </Field>
-          <Field label="Amount (₹)" required>
-            <input
-              type="number"
-              min="1"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="e.g. 5000"
-              className="form-input"
-              required
-            />
-          </Field>
-          <Field label="Paid on" required>
-            <input
-              type="date"
-              value={paidAt}
-              onChange={(e) => setPaidAt(e.target.value)}
-              className="form-input"
-              required
-            />
-          </Field>
-        </div>
-
-        {/* Cheque-specific */}
-        {type === "CHEQUE" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
-            <Field label="Cheque number" required>
-              <input
-                value={chequeNumber}
-                onChange={(e) => setChequeNumber(e.target.value)}
-                className="form-input"
-                required
-              />
-            </Field>
-            <Field label="Cheque date" required>
-              <input
-                type="date"
-                value={chequeDate}
-                onChange={(e) => setChequeDate(e.target.value)}
-                className="form-input"
-                required
-              />
-            </Field>
-          </div>
-        )}
-
-        {/* DD-specific */}
-        {type === "DD" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
-            <Field label="DD number" required>
-              <input
-                value={ddNumber}
-                onChange={(e) => setDdNumber(e.target.value)}
-                className="form-input"
-                required
-              />
-            </Field>
-            <Field label="DD date" required>
-              <input
-                type="date"
-                value={ddDate}
-                onChange={(e) => setDdDate(e.target.value)}
-                className="form-input"
-                required
-              />
-            </Field>
-          </div>
-        )}
-
-        {/* Bank fields (cheque/DD/NEFT) */}
-        {requiresBank && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
-            <Field label="Bank name" required>
-              <input
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                placeholder="State Bank of India"
-                className="form-input"
-                required
-              />
-            </Field>
-            <Field label="Branch (optional)">
-              <input
-                value={bankBranch}
-                onChange={(e) => setBankBranch(e.target.value)}
-                placeholder="Hyderabad — Banjara Hills"
-                className="form-input"
-              />
-            </Field>
-          </div>
-        )}
-        {requiresDrawer && (
-          <div className="grid grid-cols-1 gap-5 mb-5">
-            <Field label="Drawer name" required hint="As written on the cheque/DD">
-              <input
-                value={drawerName}
-                onChange={(e) => setDrawerName(e.target.value)}
-                placeholder="Ramesh Kumar"
-                className="form-input"
-                required
-              />
-            </Field>
-          </div>
-        )}
-
-        {/* POS / NEFT */}
-        {requiresTxn && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
-            <Field
-              label={type === "POS" ? "Terminal txn id" : "UTR / Txn id"}
-              required
-            >
-              <input
-                value={transactionId}
-                onChange={(e) => setTransactionId(e.target.value)}
-                placeholder={type === "POS" ? "POS-TXN-99887766" : "UTR123456789"}
-                className="form-input"
-                required
-              />
-            </Field>
-            {type === "POS" && (
-              <Field label="Card last 4 (optional)">
-                <input
-                  value={cardLast4}
-                  onChange={(e) => setCardLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                  placeholder="4242"
-                  maxLength={4}
-                  className="form-input"
-                />
-              </Field>
-            )}
-          </div>
-        )}
-
-        <Field label="Notes (optional)">
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            className="form-input min-h-[60px] py-2"
-            placeholder="Any free-text remark…"
-          />
-        </Field>
-
-        {error && (
-          <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-100 text-sm text-emerald-800 flex items-center justify-between">
-            <span>
-              Payment recorded · receipt{" "}
-              <strong className="tabular-nums">{success.receiptNumber}</strong>
-            </span>
-            {success.paymentId && (
-              <button
-                type="button"
-                onClick={() => printReceipt(success.paymentId)}
-                className="text-xs font-semibold text-emerald-800 underline"
-              >
-                Open receipt →
-              </button>
-            )}
-          </div>
-        )}
-
-        <div className="mt-6 flex justify-end gap-2 pt-4 border-t border-slate-100">
-          <Button type="submit" variant="primary" isLoading={submitting}>
-            Record payment
-          </Button>
-        </div>
-
-        <style jsx>{`
-          :global(.form-input) {
-            height: 40px;
-            padding: 0 12px;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-            background: #ffffff;
-            font-size: 14px;
-            color: #0f172a;
-            outline: none;
-            width: 100%;
-            transition: border-color 0.15s, box-shadow 0.15s;
-          }
-          :global(.form-input:focus) {
-            border-color: var(--app-brand);
-            box-shadow: 0 0 0 3px rgb(11 84 171 / 0.15);
-          }
-        `}</style>
-      </form>
-      </Card>
     </div>
   );
 }

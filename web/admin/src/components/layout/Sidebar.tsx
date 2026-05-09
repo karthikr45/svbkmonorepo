@@ -41,6 +41,8 @@ const navItems: NavItem[] = [
     icon: "document",
     children: [
       { href: "/reports/payment-logs", label: "Payment Logs" },
+      { href: "/reports/pending-cheques", label: "Pending Cheques" },
+      { href: "/reports/print-receipts", label: "Print Receipts" },
     ],
   },
 ];
