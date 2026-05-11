@@ -36,6 +36,16 @@ const navItems: NavItem[] = [
   },
   {
     type: "group",
+    key: "configuration",
+    label: "Configuration",
+    icon: "save",
+    children: [
+      { href: "/settings/academic-years", label: "Academic Years" },
+      { href: "/settings/penalty-rules", label: "Penalty Rules" },
+    ],
+  },
+  {
+    type: "group",
     key: "reports",
     label: "Reports",
     icon: "document",
