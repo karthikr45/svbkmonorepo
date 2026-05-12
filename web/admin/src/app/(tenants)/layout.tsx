@@ -1,22 +1,51 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ProtectedRoute, useAuth } from "@/features/auth";
 
 function TenantsHeader() {
   const { user, logout } = useAuth();
+  const pathname = usePathname();
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`);
+
   return (
     <header
       className="h-14 flex items-center justify-between px-6 bg-white border-b border-slate-200 sticky top-0 z-20"
       style={{ boxShadow: "0 1px 3px rgb(0 0 0 / 0.05)" }}
     >
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-          <span className="text-blue-700 font-bold text-sm">S</span>
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+            <span className="text-blue-700 font-bold text-sm">S</span>
+          </div>
+          <div className="leading-tight">
+            <p className="font-bold text-slate-800 text-sm">SVBK Super-admin</p>
+            <p className="text-xs text-slate-500">{user?.email}</p>
+          </div>
         </div>
-        <div className="leading-tight">
-          <p className="font-bold text-slate-800 text-sm">SVBK Super-admin</p>
-          <p className="text-xs text-slate-500">{user?.email}</p>
-        </div>
+        <nav className="hidden sm:flex items-center gap-1">
+          {[
+            { href: "/tenants", label: "Tenants" },
+            { href: "/system-metadata", label: "System Metadata" },
+          ].map((n) => {
+            const active = isActive(n.href);
+            return (
+              <Link
+                key={n.href}
+                href={n.href}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+                style={{
+                  backgroundColor: active ? "#eff6ff" : "transparent",
+                  color: active ? "#0b54ab" : "#475569",
+                }}
+              >
+                {n.label}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
       <button
         onClick={() => logout()}

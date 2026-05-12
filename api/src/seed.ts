@@ -122,6 +122,9 @@ async function seed() {
   // 7. Parent + link
   await ensureParent(parentsRepo, linksRepo, tenant.id);
 
+  // 8. System metadata (super-admin curated, available to all tenants)
+  await ensureSystemMetadata(app);
+
   console.log('━'.repeat(60));
   console.log('  ✔ Seed complete');
   console.log('━'.repeat(60));
@@ -366,6 +369,62 @@ async function ensureParent(
   }
 
   return parent;
+}
+
+async function ensureSystemMetadata(app: any): Promise<void> {
+  const { SystemMetadata } = await import(
+    './modules/system-metadata/entities/system-metadata.entity'
+  );
+  const repo = app.get(getRepositoryToken(SystemMetadata)) as Repository<
+    InstanceType<typeof SystemMetadata>
+  >;
+
+  // Default reference data the super-admin can later edit.
+  const defaults: { type: string; value: string; displayOrder: number }[] = [
+    // Academic years
+    { type: 'academic_year', value: '2024-2025', displayOrder: 1 },
+    { type: 'academic_year', value: '2025-2026', displayOrder: 2 },
+    { type: 'academic_year', value: '2026-2027', displayOrder: 3 },
+    { type: 'academic_year', value: '2027-2028', displayOrder: 4 },
+    // Boards
+    { type: 'board_type', value: 'CBSE', displayOrder: 1 },
+    { type: 'board_type', value: 'ICSE', displayOrder: 2 },
+    { type: 'board_type', value: 'State', displayOrder: 3 },
+    { type: 'board_type', value: 'IB', displayOrder: 4 },
+    // Mediums (TS/AP)
+    { type: 'medium', value: 'English', displayOrder: 1 },
+    { type: 'medium', value: 'Telugu', displayOrder: 2 },
+    { type: 'medium', value: 'Hindi', displayOrder: 3 },
+    // Tenant types
+    { type: 'tenant_type', value: 'School', displayOrder: 1 },
+    { type: 'tenant_type', value: 'Hostel', displayOrder: 2 },
+    { type: 'tenant_type', value: 'Transport', displayOrder: 3 },
+    // Classes (full range for TS/AP)
+    ...['Nursery', 'LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'Inter 1Y', 'Inter 2Y']
+      .map((v, i) => ({ type: 'class', value: v, displayOrder: i })),
+    // Sections (common)
+    ...['A', 'B', 'C', 'D', 'E']
+      .map((v, i) => ({ type: 'section', value: v, displayOrder: i })),
+    // Inter streams
+    ...['MPC', 'BiPC', 'CEC', 'MEC', 'HEC']
+      .map((v, i) => ({ type: 'stream', value: v, displayOrder: i })),
+  ];
+
+  let created = 0;
+  for (const d of defaults) {
+    const existing = await repo.findOne({
+      where: { type: d.type, value: d.value },
+    });
+    if (!existing) {
+      await repo.save(
+        repo.create({ ...d, isActive: true, label: null, description: null }),
+      );
+      created++;
+    }
+  }
+  console.log(
+    `${created > 0 ? '✔' : '↩'}  system metadata: ${created} new, ${defaults.length - created} existing`,
+  );
 }
 
 seed().catch((err) => {
