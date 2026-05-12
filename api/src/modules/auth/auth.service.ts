@@ -27,8 +27,8 @@ export class AuthService {
     const accessToken = this.jwtService.sign(payload);
 
     const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: Number(this.configService.get('JWT_REFRESH_EXPIRES_IN')) || 604800, // 7 days in seconds
+      secret: this.configService.get<string>('jwt.refreshSecret'),
+      expiresIn: Number(this.configService.get('jwt.refreshExpiresIn')) || 604800, // 7 days in seconds
     });
 
     const hash = await bcrypt.hash(refreshToken, 10);
@@ -43,7 +43,7 @@ export class AuthService {
     let payload: JwtPayload;
     try {
       payload = this.jwtService.verify<JwtPayload>(refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        secret: this.configService.get<string>('jwt.refreshSecret'),
       });
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
@@ -92,8 +92,8 @@ export class AuthService {
 
     const newAccessToken = this.jwtService.sign(newPayload);
     const newRefreshToken = this.jwtService.sign(newPayload, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: Number(this.configService.get<string>('JWT_REFRESH_EXPIRES_IN')) || 604800, // 7 days in seconds
+      secret: this.configService.get<string>('jwt.refreshSecret'),
+      expiresIn: Number(this.configService.get<string>('jwt.refreshExpiresIn')) || 604800, // 7 days in seconds
     });
 
     const newHash = await bcrypt.hash(newRefreshToken, 10);
