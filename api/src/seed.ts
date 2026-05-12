@@ -26,6 +26,7 @@ import { AcademicYear } from './modules/academic-years/entities/academic-year.en
 import { Student } from './modules/students/entities/student.entity';
 import { Fee, PaymentStatus, TermType } from './modules/fees/entities/fee.entity';
 import { Parent } from './modules/parents/entities/parent.entity';
+import { SystemMetadata } from './modules/system-metadata/entities/system-metadata.entity';
 import {
   ParentStudent,
   Relationship,
@@ -372,12 +373,7 @@ async function ensureParent(
 }
 
 async function ensureSystemMetadata(app: any): Promise<void> {
-  const { SystemMetadata } = await import(
-    './modules/system-metadata/entities/system-metadata.entity'
-  );
-  const repo = app.get(getRepositoryToken(SystemMetadata)) as Repository<
-    InstanceType<typeof SystemMetadata>
-  >;
+  const repo = app.get(getRepositoryToken(SystemMetadata)) as Repository<SystemMetadata>;
 
   // Default reference data the super-admin can later edit.
   const defaults: { type: string; value: string; displayOrder: number }[] = [
