@@ -10,13 +10,12 @@ import { UsersService } from '../users/users.service';
 import { AdminsService } from '../admins/admins.service';
 import { TenantsService } from '../tenants/tenants.service';
 import { JwtPayload } from './strategies/jwt.strategy';
-import { Role } from '../../common/enums/roles.enum';
 
 export interface TenantChoice {
   adminId: string;
   tenantId: string | null;
   tenantName: string | null;
-  role: Role;
+  role: string;
   branch: string | null;
 }
 
@@ -25,7 +24,7 @@ export interface SignInDirectResult {
   user: {
     id: string;
     email: string;
-    role: Role;
+    role: string;
     tenantId: string | null;
     tenantName: string | null;
     branch: string | null;
