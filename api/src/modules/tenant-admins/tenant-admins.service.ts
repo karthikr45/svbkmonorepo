@@ -6,21 +6,28 @@ import {
 import { AdminsService, SafeAdmin } from '../admins/admins.service';
 import { CreateTenantAdminDto } from './dto/create-tenant-admin.dto';
 import { UpdateTenantAdminDto } from './dto/update-tenant-admin.dto';
-import { Role, TENANT_MANAGEABLE_ROLES } from '../../common/enums/roles.enum';
+import { Role } from '../../common/enums/roles.enum';
 
 /**
  * Tenant-scoped user management — exposed to the tenant's own ADMIN so they
- * can add fin/ops admins (or peer admins) to their own tenant. Backed by the
- * `admins` table; we don't keep a separate tenant_admins entity.
+ * can add fin/ops/custom admins (or peer admins) to their own tenant.
+ * Backed by the `admins` table; we don't keep a separate tenant_admins entity.
  */
 @Injectable()
 export class TenantAdminsService {
   constructor(private readonly adminsService: AdminsService) {}
 
-  private ensureAssignableRole(role: Role) {
-    if (!TENANT_MANAGEABLE_ROLES.includes(role)) {
+  /**
+   * Denylist: a tenant admin must not be able to create platform-level
+   * super-admins or parent accounts from inside a tenant. Everything else
+   * (the built-in admin/fin_admin/ops_admin plus any custom role configured
+   * by super-admin via system_metadata) is fine.
+   */
+  private ensureAssignableRole(role: string) {
+    const denied: string[] = [Role.SUPER_ADMIN, Role.PARENT];
+    if (!role || denied.includes(role)) {
       throw new ForbiddenException(
-        `Role ${role} cannot be assigned from the tenant admin console.`,
+        `Role "${role}" cannot be assigned from the tenant admin console.`,
       );
     }
   }

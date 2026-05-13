@@ -1,8 +1,12 @@
 import { del, get, patch, post } from "@/lib/api-client";
 
-export type TenantUserRole = "admin" | "fin_admin" | "ops_admin";
-
-export const TENANT_USER_ROLES: { value: TenantUserRole; label: string; help: string }[] = [
+/**
+ * Built-in roles. Custom roles (defined by super-admin via
+ * system_metadata(type=admin_role)) are accepted too — the backend treats
+ * `role` as a free-form string and the UI sources the dropdown options at
+ * runtime.
+ */
+export const TENANT_USER_ROLES: { value: string; label: string; help: string }[] = [
   {
     value: "admin",
     label: "Admin",
@@ -25,7 +29,7 @@ export interface TenantUserRow {
   firstName: string;
   lastName: string;
   email: string;
-  role: TenantUserRole | "super_admin" | "parent";
+  role: string;
   branch?: string | null;
   tenantId?: string | null;
   isActive: boolean;
@@ -37,7 +41,7 @@ export interface CreateTenantUserBody {
   firstName: string;
   lastName: string;
   email: string;
-  role: TenantUserRole;
+  role: string;
   branch?: string;
   password?: string;
 }
@@ -45,7 +49,7 @@ export interface CreateTenantUserBody {
 export interface UpdateTenantUserBody {
   firstName?: string;
   lastName?: string;
-  role?: TenantUserRole;
+  role?: string;
   branch?: string;
   password?: string;
   isActive?: boolean;

@@ -7,7 +7,6 @@ import {
   Unique,
   Index,
 } from 'typeorm';
-import { Role } from '../../../common/enums/roles.enum';
 
 @Entity('admins')
 // Same email can exist in multiple tenants, but not twice within the same
@@ -28,8 +27,14 @@ export class Admin {
   @Column()
   email: string;
 
-  @Column({ type: 'enum', enum: Role })
-  role: Role;
+  /**
+   * Free-form role string. Built-ins are super_admin / admin / fin_admin /
+   * ops_admin / parent (see Role enum); super-admin can also register custom
+   * roles via system_metadata(type='admin_role') and assign them here.
+   * Only the built-ins get special permissions; custom roles are labels.
+   */
+  @Column({ type: 'varchar', length: 50 })
+  role: string;
 
   @Column({ nullable: true })
   branch: string;

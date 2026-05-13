@@ -1,6 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { Role } from '../../../common/enums/roles.enum';
+import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateAdminDto {
   @ApiPropertyOptional({ example: 'John' })
@@ -13,19 +12,19 @@ export class UpdateAdminDto {
   @IsOptional()
   lastName?: string;
 
-  @ApiPropertyOptional({ enum: Role })
-  @IsEnum(Role)
+  @ApiPropertyOptional()
+  @IsString()
   @IsOptional()
-  role?: Role;
+  role?: string;
 
   @ApiPropertyOptional({ example: 'Main Branch' })
   @IsString()
   @IsOptional()
   branch?: string;
 
-  @ApiPropertyOptional({ example: 'NewPass@123', minLength: 8 })
+  @ApiPropertyOptional({ example: 'NewPass@123', minLength: 6 })
   @IsString()
-  @MinLength(8)
+  @MinLength(6)
   @IsOptional()
   password?: string;
 

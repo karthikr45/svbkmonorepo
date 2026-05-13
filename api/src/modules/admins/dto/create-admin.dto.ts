@@ -1,6 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { Role } from '../../../common/enums/roles.enum';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateAdminDto {
   @ApiProperty({ example: 'John' })
@@ -22,9 +21,15 @@ export class CreateAdminDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ enum: Role, example: Role.ADMIN })
-  @IsEnum(Role)
-  role: Role;
+  @ApiProperty({
+    example: 'admin',
+    description:
+      'Role identifier. Built-ins: super_admin / admin / fin_admin / ops_admin. ' +
+      'Custom roles can be defined by super-admin via system_metadata(type=admin_role).',
+  })
+  @IsString()
+  @IsNotEmpty()
+  role: string;
 
   @ApiPropertyOptional({ example: 'Main Branch' })
   @IsString()
@@ -36,6 +41,7 @@ export class CreateAdminDto {
     description: 'Initial password. Defaults to system default if omitted.',
   })
   @IsString()
+  @MinLength(6)
   @IsOptional()
   password?: string;
 }

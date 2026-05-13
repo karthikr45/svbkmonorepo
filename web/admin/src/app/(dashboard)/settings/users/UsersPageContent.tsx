@@ -12,10 +12,12 @@ import {
   updateTenantUserApi,
   TENANT_USER_ROLES,
   type CreateTenantUserBody,
-  type TenantUserRole,
   type TenantUserRow,
   type UpdateTenantUserBody,
 } from "@/features/tenant-users/api/tenant-users.api";
+import { listSystemMetadataApi } from "@/features/system-metadata/api/system-metadata.api";
+
+type RoleOption = { value: string; label: string; help?: string };
 
 type EditState =
   | { mode: "create" }
@@ -34,6 +36,35 @@ export function UsersPageContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [edit, setEdit] = useState<EditState | null>(null);
+  const [roleOptions, setRoleOptions] = useState<RoleOption[]>(
+    TENANT_USER_ROLES.map((r) => ({ value: r.value, label: r.label, help: r.help })),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    listSystemMetadataApi({ type: "admin_role", activeOnly: true })
+      .then((res) => {
+        const list = Array.isArray(res)
+          ? res
+          : (((res as any)?.data ?? []) as Array<Record<string, unknown>>);
+        const opts: RoleOption[] = list
+          .filter((r) => typeof r.value === "string" && r.value)
+          .sort((a, b) => Number(a.displayOrder ?? 0) - Number(b.displayOrder ?? 0))
+          .map((r) => ({
+            value: String(r.value),
+            label: String(r.label ?? r.value),
+            help:
+              TENANT_USER_ROLES.find((t) => t.value === r.value)?.help ?? undefined,
+          }));
+        if (!cancelled && opts.length > 0) setRoleOptions(opts);
+      })
+      .catch(() => {
+        /* keep fallback */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -178,6 +209,7 @@ export function UsersPageContent() {
       {edit && (
         <UserEditDialog
           state={edit}
+          roleOptions={roleOptions}
           onClose={() => setEdit(null)}
           onSaved={() => {
             setEdit(null);
@@ -207,10 +239,12 @@ function Th({
 
 function UserEditDialog({
   state,
+  roleOptions,
   onClose,
   onSaved,
 }: {
   state: EditState;
+  roleOptions: RoleOption[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -220,8 +254,8 @@ function UserEditDialog({
   const [firstName, setFirstName] = useState(existing?.firstName ?? "");
   const [lastName, setLastName] = useState(existing?.lastName ?? "");
   const [email, setEmail] = useState(existing?.email ?? "");
-  const [role, setRole] = useState<TenantUserRole>(
-    (existing?.role as TenantUserRole) ?? "fin_admin",
+  const [role, setRole] = useState<string>(
+    existing?.role ?? roleOptions[0]?.value ?? "fin_admin",
   );
   const [branch, setBranch] = useState(existing?.branch ?? "");
   const [password, setPassword] = useState("");
@@ -230,8 +264,8 @@ function UserEditDialog({
   const [err, setErr] = useState<string | null>(null);
 
   const roleHelp = useMemo(
-    () => TENANT_USER_ROLES.find((r) => r.value === role)?.help ?? "",
-    [role],
+    () => roleOptions.find((r) => r.value === role)?.help ?? "",
+    [role, roleOptions],
   );
 
   const submit = async (e: React.FormEvent) => {
@@ -330,10 +364,10 @@ function UserEditDialog({
           <Field label="Role *">
             <select
               value={role}
-              onChange={(e) => setRole(e.target.value as TenantUserRole)}
+              onChange={(e) => setRole(e.target.value)}
               className="form-input-x"
             >
-              {TENANT_USER_ROLES.map((r) => (
+              {roleOptions.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
                 </option>
@@ -342,6 +376,10 @@ function UserEditDialog({
             {roleHelp && (
               <p className="text-xs text-slate-500 mt-1">{roleHelp}</p>
             )}
+            <p className="text-[11px] text-slate-400 mt-1">
+              Need a different role? Ask the super-admin to add it under
+              System Metadata → <code>admin_role</code>.
+            </p>
           </Field>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

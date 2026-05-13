@@ -404,6 +404,12 @@ async function ensureSystemMetadata(app: any): Promise<void> {
     // Inter streams
     ...['MPC', 'BiPC', 'CEC', 'MEC', 'HEC']
       .map((v, i) => ({ type: 'stream', value: v, displayOrder: i })),
+    // Admin roles assignable in the Add-Admin / Tenant Users forms.
+    // Super-admin can add more here at runtime; permission gating in code
+    // is keyed off the four built-ins, so custom roles act as labels only.
+    { type: 'admin_role', value: 'admin', displayOrder: 1 },
+    { type: 'admin_role', value: 'fin_admin', displayOrder: 2 },
+    { type: 'admin_role', value: 'ops_admin', displayOrder: 3 },
   ];
 
   let created = 0;

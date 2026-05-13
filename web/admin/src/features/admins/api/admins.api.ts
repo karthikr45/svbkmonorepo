@@ -14,6 +14,8 @@ export type SaveAdminPayload = {
   // mobile: string;
   role: string;
   branch: string;
+  /** Optional. Backend falls back to its default seed password if omitted. */
+  password?: string;
 };
 
 export type Admin = {

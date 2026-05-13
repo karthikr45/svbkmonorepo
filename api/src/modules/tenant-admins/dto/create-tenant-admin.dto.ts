@@ -1,13 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
-  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
   MinLength,
 } from 'class-validator';
-import { Role } from '../../../common/enums/roles.enum';
 
 export class CreateTenantAdminDto {
   @ApiProperty({ example: 'Jane' })
@@ -25,13 +23,15 @@ export class CreateTenantAdminDto {
   email: string;
 
   @ApiProperty({
-    enum: Role,
-    example: Role.FIN_ADMIN,
+    example: 'fin_admin',
     description:
-      'Role to assign. Only ADMIN, FIN_ADMIN, OPS_ADMIN are accepted from this endpoint.',
+      'Role identifier. Any string except super_admin and parent. Built-in ' +
+      'choices: admin, fin_admin, ops_admin. Custom roles defined by ' +
+      'super-admin in system_metadata(type=admin_role) are also accepted.',
   })
-  @IsEnum(Role)
-  role: Role;
+  @IsString()
+  @IsNotEmpty()
+  role: string;
 
   @ApiPropertyOptional({ example: 'Main Branch' })
   @IsString()

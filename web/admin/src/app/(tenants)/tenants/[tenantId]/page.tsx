@@ -19,6 +19,7 @@ import TenantConfigurationTab from "./TenantConfigurationTab";
 import TenantDetailsTab from "./TenantDetailsTab";
 import TenantAdminsTab from "./TenantAdminsTab";
 import { saveAdmin } from "@/features/admins/services/admins.service";
+import { listSystemMetadataApi } from "@/features/system-metadata/api/system-metadata.api";
 
 type NewConfig = {
   envType: string;
@@ -116,7 +117,12 @@ const ENV_TYPE_OPTIONS: SelectMenuOption[] = [
 
 const GATEWAY_TYPE_OPTIONS: SelectMenuOption[] = [{ value: "Razorpay", label: "Razorpay" }];
 
-const ADMIN_ROLE_OPTIONS: SelectMenuOption[] = [{ value: "admin", label: "admin" }];
+// Fallback role list used until system_metadata loads (or if it returns nothing).
+const BUILTIN_ADMIN_ROLES: SelectMenuOption[] = [
+  { value: "admin", label: "Admin" },
+  { value: "fin_admin", label: "Finance Admin" },
+  { value: "ops_admin", label: "Operations Admin" },
+];
 
 /** SelectMenu inside `<dialog>` must not portal to `body` (top layer stacking). */
 function ModalSelectMenu({
@@ -228,8 +234,16 @@ function TenantDetailsPageContent() {
     email: string;
     role: string;
     branch: string;
+    password: string;
   };
-  const emptyAdmin: NewAdmin = { firstName: "", lastName: "", email: "", role: "", branch: "" };
+  const emptyAdmin: NewAdmin = {
+    firstName: "",
+    lastName: "",
+    email: "",
+    role: "",
+    branch: "",
+    password: "",
+  };
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const [newAdmin, setNewAdmin] = useState<NewAdmin>(emptyAdmin);
   const [adminErrors, setAdminErrors] = useState<Partial<Record<keyof NewAdmin, string>>>({});
@@ -237,16 +251,55 @@ function TenantDetailsPageContent() {
   const [adminSaving, setAdminSaving] = useState(false);
   const [adminSaveError, setAdminSaveError] = useState("");
 
+  // Role options sourced from system_metadata(type=admin_role). Falls back to
+  // the built-in list until the request resolves (or if it fails).
+  const [roleOptions, setRoleOptions] = useState<SelectMenuOption[]>(BUILTIN_ADMIN_ROLES);
+  useEffect(() => {
+    let cancelled = false;
+    listSystemMetadataApi({ type: "admin_role", activeOnly: true })
+      .then((res) => {
+        const list = Array.isArray(res)
+          ? res
+          : ((res as { data?: unknown })?.data as Array<Record<string, unknown>>) ?? [];
+        const opts: SelectMenuOption[] = list
+          .filter((r) => typeof r.value === "string" && r.value)
+          .sort((a, b) => Number(a.displayOrder ?? 0) - Number(b.displayOrder ?? 0))
+          .map((r) => ({
+            value: String(r.value),
+            label: String(r.label ?? r.value),
+          }));
+        if (!cancelled && opts.length > 0) setRoleOptions(opts);
+      })
+      .catch(() => {
+        /* keep built-in fallback */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const updateAdmin = (updates: Partial<NewAdmin>) =>
     setNewAdmin((prev) => ({ ...prev, ...updates }));
 
   const onAdminSubmit = async () => {
     const errs: Partial<Record<keyof NewAdmin, string>> = {};
-    (Object.keys(emptyAdmin) as (keyof NewAdmin)[]).forEach((key) => {
+    // password is optional; everything else is required
+    const required: (keyof NewAdmin)[] = [
+      "firstName",
+      "lastName",
+      "email",
+      "role",
+      "branch",
+    ];
+    required.forEach((key) => {
       if (!newAdmin[key].trim()) errs[key] = "This field is required";
-      if (key === "email" && newAdmin.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newAdmin.email))
-        errs.email = "Enter a valid email address";
     });
+    if (newAdmin.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newAdmin.email)) {
+      errs.email = "Enter a valid email address";
+    }
+    if (newAdmin.password && newAdmin.password.length < 6) {
+      errs.password = "Password must be at least 6 characters";
+    }
     setAdminErrors(errs);
     if (Object.keys(errs).length > 0) return;
     setAdminSaving(true);
@@ -259,6 +312,7 @@ function TenantDetailsPageContent() {
         email: newAdmin.email,
         role: newAdmin.role,
         branch: newAdmin.branch,
+        ...(newAdmin.password ? { password: newAdmin.password } : {}),
       });
       setAdminSuccess("Admin added successfully!");
       window.setTimeout(() => {
@@ -923,7 +977,7 @@ function TenantDetailsPageContent() {
               ariaLabel="Admin role"
               value={newAdmin.role}
               onChange={(v) => updateAdmin({ role: v })}
-              options={ADMIN_ROLE_OPTIONS}
+              options={roleOptions}
               error={adminErrors.role}
               placeholder="Select role"
               required
@@ -936,7 +990,20 @@ function TenantDetailsPageContent() {
               error={adminErrors.branch}
               fullWidth
             />
+            <Input
+              label="Initial password (optional)"
+              type="text"
+              placeholder="Leave blank for system default"
+              value={newAdmin.password}
+              onChange={(e) => updateAdmin({ password: e.target.value })}
+              error={adminErrors.password}
+              fullWidth
+            />
           </div>
+          <p className="text-xs text-slate-500 -mt-3">
+            Need a custom role? Add it under <span className="font-semibold">System Metadata → admin_role</span>{" "}
+            and it will appear here.
+          </p>
 
           {adminSuccess && (
             <p className="text-sm font-medium text-emerald-600">{adminSuccess}</p>
