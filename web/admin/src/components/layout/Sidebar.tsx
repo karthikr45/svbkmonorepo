@@ -42,6 +42,7 @@ const navItems: NavItem[] = [
     children: [
       { href: "/settings/academic-years", label: "Academic Years" },
       { href: "/settings/penalty-rules", label: "Penalty Rules" },
+      { href: "/settings/users", label: "Users & Roles" },
     ],
   },
   {

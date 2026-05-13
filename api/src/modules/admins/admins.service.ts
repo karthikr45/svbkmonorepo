@@ -1,11 +1,17 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { Admin } from './entities/admin.entity';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
+import { Role } from '../../common/enums/roles.enum';
 
 const DEFAULT_ADMIN_PASSWORD = 'Svbk@1234';
 
@@ -23,17 +29,45 @@ export class AdminsService {
     return safe;
   }
 
-  async create(dto: CreateAdminDto): Promise<SafeAdmin> {
-    const existing = await this.adminsRepository.findOne({ where: { email: dto.email } });
-    if (existing) {
-      throw new ConflictException('An admin with this email already exists');
+  /** Creates an admin. `password` optional — falls back to the default seed password. */
+  async create(dto: CreateAdminDto & { password?: string }): Promise<SafeAdmin> {
+    if (dto.role === Role.SUPER_ADMIN) {
+      // Super-admins are tenant-less, so the (email, tenantId) unique index
+      // can't enforce uniqueness for them (NULL tenantId is distinct in PG).
+      const existing = await this.adminsRepository.findOne({
+        where: { email: dto.email, role: Role.SUPER_ADMIN, tenantId: IsNull() },
+      });
+      if (existing) {
+        throw new ConflictException('A super-admin with this email already exists');
+      }
+    } else {
+      if (!dto.tenantId) {
+        throw new ForbiddenException('tenantId is required for non super-admin roles');
+      }
+      const existing = await this.adminsRepository.findOne({
+        where: { email: dto.email, tenantId: dto.tenantId },
+      });
+      if (existing) {
+        throw new ConflictException(
+          'An admin with this email already exists in this tenant',
+        );
+      }
     }
 
     const clientId = `client_${randomBytes(8).toString('hex')}`;
     const secretKey = randomBytes(32).toString('hex');
-    const passwordHash = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
+    const passwordHash = await bcrypt.hash(
+      dto.password || DEFAULT_ADMIN_PASSWORD,
+      10,
+    );
 
-    const admin = this.adminsRepository.create({ ...dto, clientId, secretKey, passwordHash });
+    const { password: _pw, ...rest } = dto;
+    const admin = this.adminsRepository.create({
+      ...rest,
+      clientId,
+      secretKey,
+      passwordHash,
+    });
     return this.sanitize(await this.adminsRepository.save(admin));
   }
 
@@ -67,8 +101,28 @@ export class AdminsService {
     await this.adminsRepository.remove(admin);
   }
 
+  /**
+   * Returns ALL admin rows matching the email — same email can exist across
+   * tenants, so callers must disambiguate (typically by validating the
+   * password against each row).
+   */
+  async findAllByEmail(email: string): Promise<Admin[]> {
+    return this.adminsRepository.find({ where: { email } });
+  }
+
+  /** Convenience: returns the first match. Prefer findAllByEmail for multi-tenant flows. */
   async findByEmail(email: string): Promise<Admin | null> {
     return this.adminsRepository.findOne({ where: { email } });
+  }
+
+  async findByEmailAndTenant(email: string, tenantId: string | null): Promise<Admin | null> {
+    return this.adminsRepository.findOne({
+      where: { email, tenantId: tenantId ?? (IsNull() as any) },
+    });
+  }
+
+  async findById(id: string): Promise<Admin | null> {
+    return this.adminsRepository.findOne({ where: { id } });
   }
 
   async updateRefreshToken(adminId: string, hash: string | null): Promise<void> {

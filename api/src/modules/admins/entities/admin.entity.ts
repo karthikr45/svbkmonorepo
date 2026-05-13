@@ -4,10 +4,17 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Unique,
+  Index,
 } from 'typeorm';
 import { Role } from '../../../common/enums/roles.enum';
 
 @Entity('admins')
+// Same email can exist in multiple tenants, but not twice within the same
+// tenant. Super-admins (tenantId NULL) are guarded at the service level
+// because Postgres treats NULLs as distinct in unique constraints.
+@Unique('uq_admin_email_tenant', ['email', 'tenantId'])
+@Index('idx_admin_email', ['email'])
 export class Admin {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -18,7 +25,7 @@ export class Admin {
   @Column()
   lastName: string;
 
-  @Column({ unique: true })
+  @Column()
   email: string;
 
   @Column({ type: 'enum', enum: Role })

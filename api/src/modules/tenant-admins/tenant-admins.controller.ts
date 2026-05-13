@@ -1,5 +1,15 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  ForbiddenException,
+} from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { TenantAdminsService } from './tenant-admins.service';
 import { CreateTenantAdminDto } from './dto/create-tenant-admin.dto';
 import { UpdateTenantAdminDto } from './dto/update-tenant-admin.dto';
@@ -16,27 +26,46 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class TenantAdminsController {
   constructor(private readonly tenantAdminsService: TenantAdminsService) {}
 
-  @Post()
-  @Roles(Role.SUPER_ADMIN)
-  create(@CurrentUser() _user: any, @Body() _dto: CreateTenantAdminDto) {
-    // TODO: implement
+  private requireTenant(user: any): string {
+    if (!user?.tenantId) {
+      throw new ForbiddenException('Caller is not scoped to a tenant.');
+    }
+    return user.tenantId;
   }
 
   @Get()
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  findAll(@CurrentUser() _user: any) {
-    // TODO: implement
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'List users in the caller’s tenant' })
+  list(@CurrentUser() user: any) {
+    return this.tenantAdminsService.list(this.requireTenant(user));
+  }
+
+  @Post()
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Create a user (admin/fin-admin/ops-admin) in the caller’s tenant' })
+  create(@CurrentUser() user: any, @Body() dto: CreateTenantAdminDto) {
+    return this.tenantAdminsService.create(this.requireTenant(user), dto);
   }
 
   @Patch(':id')
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
-  update(@Param('id') _id: string, @Body() _dto: UpdateTenantAdminDto) {
-    // TODO: implement
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Update a user in the caller’s tenant' })
+  update(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() dto: UpdateTenantAdminDto,
+  ) {
+    return this.tenantAdminsService.update(this.requireTenant(user), id, dto);
   }
 
   @Delete(':id')
-  @Roles(Role.SUPER_ADMIN)
-  remove(@Param('id') _id: string) {
-    // TODO: implement
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Delete a user in the caller’s tenant' })
+  remove(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.tenantAdminsService.remove(
+      this.requireTenant(user),
+      id,
+      user.userId,
+    );
   }
 }

@@ -30,4 +30,12 @@ export class CreateAdminDto {
   @IsString()
   @IsOptional()
   branch?: string;
+
+  @ApiPropertyOptional({
+    example: 'Welcome@123',
+    description: 'Initial password. Defaults to system default if omitted.',
+  })
+  @IsString()
+  @IsOptional()
+  password?: string;
 }

@@ -1,5 +1,6 @@
 export {
   login,
+  selectTenant,
   logout,
   getStoredToken,
   setStoredToken,

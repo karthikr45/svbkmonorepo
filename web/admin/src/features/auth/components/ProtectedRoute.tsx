@@ -13,6 +13,8 @@ interface ProtectedRouteProps {
 /** Redirect destinations when a role lands on the wrong route group. */
 const ROLE_HOME: Record<string, string> = {
   admin: "/dashboard",
+  fin_admin: "/dashboard",
+  ops_admin: "/dashboard",
   super_admin: "/tenants",
 };
 

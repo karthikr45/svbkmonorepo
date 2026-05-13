@@ -7,28 +7,50 @@ export interface LoginCredentials {
 export interface AuthUser {
   email: string;
   role: string;
-  tenantId: string;
-  id : string;
+  tenantId: string | null;
+  tenantName?: string | null;
+  id: string;
 }
 
-/** Shape of `data.response` from the login/refresh endpoint. */
+/** Shape of `data.response` from the login/refresh endpoint (single-tenant case). */
 export interface LoginApiData {
   accessToken: string;
   refreshToken: string;
   email: string;
   role: string;
-  tenantId: string;
+  tenantId: string | null;
+  tenantName?: string | null;
   id: string;
+  branch?: string | null;
+}
+
+/** A tenant the signed-in user has access to. */
+export interface TenantChoice {
+  adminId: string;
+  tenantId: string | null;
+  tenantName: string | null;
+  role: string;
+  branch: string | null;
+}
+
+/** Payload returned when the email exists in multiple tenants. */
+export interface TenantSelectionData {
+  email: string;
+  selectionToken: string;
+  tenants: TenantChoice[];
 }
 
 /** Full API response wrapper from the backend. */
 export interface LoginResponse {
-  success: boolean;
-  data: {
+  success?: boolean;
+  message?: string;
+  requireTenantSelection?: boolean;
+  response: LoginApiData | TenantSelectionData;
+  // legacy nesting used by older clients
+  data?: {
     message: string;
     response: LoginApiData;
   };
-  message: string;
 }
 
 export interface AuthState {

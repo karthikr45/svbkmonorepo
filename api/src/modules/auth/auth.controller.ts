@@ -7,16 +7,17 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import {
   ApiTags,
   ApiBody,
   ApiOkResponse,
   ApiBearerAuth,
+  ApiOperation,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { SelectTenantDto } from './dto/select-tenant.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -27,20 +28,62 @@ export class AuthController {
 
   @Post('signin')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(AuthGuard('local'))
   @ApiBody({ type: LoginDto })
-  @ApiOkResponse({ description: 'Returns access + refresh tokens' })
-  async login(@CurrentUser() user: any) {
-    const tokens = await this.authService.login(user);
+  @ApiOperation({
+    summary:
+      'Sign in with email + password. Returns either tokens (single tenant) ' +
+      'or a tenant-picker payload (multiple matches).',
+  })
+  async signin(@Body() dto: LoginDto) {
+    const result = await this.authService.signIn(dto.email, dto.password);
+    if (result.kind === 'tokens') {
+      return {
+        message: 'Login successfully',
+        response: {
+          id: result.user.id,
+          email: result.user.email,
+          role: result.user.role,
+          tenantId: result.user.tenantId,
+          tenantName: result.user.tenantName,
+          branch: result.user.branch,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+        },
+      };
+    }
     return {
-      message: 'Login successfully',
-      response:{
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      tenantId: user.tenantId ?? null,
-        ...tokens,
-      }
+      message: 'Choose a tenant to continue',
+      requireTenantSelection: true,
+      response: {
+        email: result.email,
+        selectionToken: result.selectionToken,
+        tenants: result.tenants,
+      },
+    };
+  }
+
+  @Post('select-tenant')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Exchange a selection token + chosen tenant for real tokens.',
+  })
+  async selectTenant(@Body() dto: SelectTenantDto) {
+    const result = await this.authService.selectTenant(
+      dto.selectionToken,
+      dto.adminId,
+    );
+    return {
+      message: 'Tenant selected',
+      response: {
+        id: result.user.id,
+        email: result.user.email,
+        role: result.user.role,
+        tenantId: result.user.tenantId,
+        tenantName: result.user.tenantName,
+        branch: result.user.branch,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      },
     };
   }
 
