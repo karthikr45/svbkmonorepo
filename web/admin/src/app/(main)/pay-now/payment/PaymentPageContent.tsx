@@ -73,6 +73,14 @@ export function PaymentPageContent() {
   }
 
   function openRazorpayCheckout(order: CreateOrderResponse, paymentDetails: any) {
+    if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) {
+      setError(
+        "Online payment is not configured (NEXT_PUBLIC_RAZORPAY_KEY_ID is missing). " +
+          "Ask the administrator to set the Razorpay key in the env.",
+      );
+      return;
+    }
+
     const effectiveAmount = (
       paymentDetails.discountedAmount &&
       paymentDetails.discountedAmount !== "NA" &&
@@ -81,12 +89,9 @@ export function PaymentPageContent() {
     ) ? paymentDetails.discountedAmount : paymentDetails.amount;
 
     const options = {
-      key: 'rzp_test_sqNxwNoHPVS5c0',
-      key_secret: 'CUOhlURnP5abO40zUFZ30mOB',
-
-      // key: 'rzp_live_zdLen5i4S2GX08',
-      // key: 'rzp_live_zdLen5i4S2GX08',
-      // key_secret: 'ek6dSNO2VvHbKpuikxKYK70a',
+      // Razorpay public key — must come from env so we never check in secrets.
+      // Set NEXT_PUBLIC_RAZORPAY_KEY_ID for the deployed environment.
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
 
       amount: effectiveAmount * 100, // paise
       order_id: order.orderId,

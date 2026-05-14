@@ -17,8 +17,9 @@ import {
   type PenaltyRuleRow,
   type PenaltyTerm,
 } from "@/features/configuration/api/penalty-rules.api";
+import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
 
-const TERMS: PenaltyTerm[] = [
+const FALLBACK_TERMS: PenaltyTerm[] = [
   "1st Term Fee",
   "2nd Term Fee",
   "3rd Term Fee",
@@ -71,6 +72,16 @@ export function PenaltyRulesContent() {
 // ─── Rules panel ───────────────────────────────────────────────────
 
 function RulesPanel() {
+  const { options: termOpts } = useMetadata("term", {
+    fallback: FALLBACK_TERMS.map((v, i) => ({
+      value: v,
+      label: v,
+      displayOrder: i,
+      isActive: true,
+    })),
+  });
+  const TERMS = termOpts.map((o) => o.value) as PenaltyTerm[];
+
   const [rows, setRows] = useState<PenaltyRuleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -308,9 +319,21 @@ function RulesPanel() {
 // ─── Manual apply / waive panel ────────────────────────────────────
 
 function ManualPanel() {
+  const { options: termOpts } = useMetadata("term", {
+    fallback: FALLBACK_TERMS.map((v, i) => ({
+      value: v,
+      label: v,
+      displayOrder: i,
+      isActive: true,
+    })),
+  });
+  const TERMS = termOpts.map((o) => o.value) as PenaltyTerm[];
+
   const [mode, setMode] = useState<"apply" | "waive">("apply");
   const [academicYear, setAcademicYear] = useState("");
-  const [term, setTerm] = useState<PenaltyTerm>("1st Term Fee");
+  const [term, setTerm] = useState<PenaltyTerm>(
+    (TERMS[0] ?? "1st Term Fee") as PenaltyTerm,
+  );
   const [amount, setAmount] = useState("");
   const [applyToAll, setApplyToAll] = useState(true);
   const [admissionsText, setAdmissionsText] = useState("");

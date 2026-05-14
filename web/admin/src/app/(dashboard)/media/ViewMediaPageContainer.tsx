@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { get, getApiErrorMessage } from "@/lib/api-client";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ReactPlayer = dynamic(() => import("react-player"), { ssr: false }) as any;
@@ -17,48 +18,22 @@ type MediaItem = {
   updatedAt: string;
 };
 
-/* ─── Dummy data ─── */
-const DUMMY_AUDIO: MediaItem[] = [
-  {
-    _id: "67c57cd7445465e8192e706d",
-    name: "Space_Kuteer_Vani_Program_3_17102022.mp3",
-    url: "https://aauti-standard.azureedge.net/svbk/dev/1740995798367_Space_Kuteer_Vani_Program_3_17102022.mp3",
-    branch: "hyd",
-    type: "audio/mpeg",
-    createdAt: "2025-03-03T09:56:39.800Z",
-    updatedAt: "2025-03-03T09:56:39.800Z",
-  },
-  {
-    _id: "67c552bc445465e8192e5abd",
-    name: "Space_Kuteer_Vani_Program_3_17102022.mp3",
-    url: "https://aauti-standard.azureedge.net/svbk/dev/1740985019159_Space_Kuteer_Vani_Program_3_17102022.mp3",
-    branch: "hyd",
-    type: "audio/mpeg",
-    createdAt: "2025-03-03T06:57:00.029Z",
-    updatedAt: "2025-03-03T06:57:00.029Z",
-  },
-];
-
-const DUMMY_VIDEO: MediaItem[] = [
-  {
-    _id: "67c58001445465e8192e7123",
-    name: "Annual_Day_Celebrations_2024.mp4",
-    url: "https://www.w3schools.com/html/mov_bbb.mp4",
-    branch: "hyd",
-    type: "video/mp4",
-    createdAt: "2025-03-04T10:20:00.000Z",
-    updatedAt: "2025-03-04T10:20:00.000Z",
-  },
-  {
-    _id: "67c58002445465e8192e7124",
-    name: "Science_Exhibition_Highlights.mp4",
-    url: "https://www.w3schools.com/html/movie.mp4",
-    branch: "hyd",
-    type: "video/mp4",
-    createdAt: "2025-03-02T14:30:00.000Z",
-    updatedAt: "2025-03-02T14:30:00.000Z",
-  },
-];
+function normaliseMediaList(raw: unknown): MediaItem[] {
+  const list = Array.isArray(raw)
+    ? raw
+    : Array.isArray((raw as { data?: unknown })?.data)
+      ? ((raw as { data: unknown[] }).data)
+      : [];
+  return (list as Array<Record<string, unknown>>).map((m) => ({
+    _id: String(m._id ?? m.id ?? ""),
+    name: String(m.name ?? m.fileName ?? "Untitled"),
+    url: String(m.url ?? ""),
+    branch: String(m.branch ?? ""),
+    type: String(m.type ?? m.mimeType ?? ""),
+    createdAt: String(m.createdAt ?? new Date().toISOString()),
+    updatedAt: String(m.updatedAt ?? m.createdAt ?? new Date().toISOString()),
+  }));
+}
 
 const TABS = [
   { id: "audio" as const, label: "Audio" },
@@ -160,8 +135,37 @@ function VideoCard({ item }: { item: MediaItem }) {
 /* ─── Main Page Content ─── */
 export function ViewMediaPageContainer() {
   const [activeTab, setActiveTab] = useState<TabId>("audio");
+  const [allItems, setAllItems] = useState<MediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const items = activeTab === "audio" ? DUMMY_AUDIO : DUMMY_VIDEO;
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    get<unknown>("/media")
+      .then((res) => {
+        if (cancelled) return;
+        setAllItems(normaliseMediaList(res));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(getApiErrorMessage(err, "Could not load media"));
+        setAllItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const items = allItems.filter((m) =>
+    activeTab === "audio"
+      ? /^audio\//i.test(m.type)
+      : /^video\//i.test(m.type),
+  );
 
   return (
     <div className="space-y-1">
@@ -196,11 +200,19 @@ export function ViewMediaPageContainer() {
 
       {/* Count badge */}
       <p className="text-sm" style={{ color: "var(--app-text-secondary)" }}>
-        {items.length} {activeTab === "audio" ? "audio" : "video"} file{items.length !== 1 ? "s" : ""}
+        {loading
+          ? "Loading…"
+          : `${items.length} ${activeTab === "audio" ? "audio" : "video"} file${items.length !== 1 ? "s" : ""}`}
       </p>
 
+      {error && (
+        <div className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* Media grid */}
-      {items.length === 0 ? (
+      {loading ? null : items.length === 0 ? (
         <div
           className="flex flex-col items-center justify-center rounded-xl border py-20"
           style={{ backgroundColor: "var(--app-card-bg)", borderColor: "var(--app-divider)" }}

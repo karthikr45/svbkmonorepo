@@ -411,6 +411,30 @@ async function ensureSystemMetadata(app: any): Promise<void> {
     { type: 'admin_role', value: 'admin', displayOrder: 1 },
     { type: 'admin_role', value: 'fin_admin', displayOrder: 2 },
     { type: 'admin_role', value: 'ops_admin', displayOrder: 3 },
+    // Term labels — mirror of the TermType enum, used by every fee/penalty/
+    // student form. TS/AP schools commonly run 5 terms.
+    { type: 'term', value: '1st Term Fee', displayOrder: 1 },
+    { type: 'term', value: '2nd Term Fee', displayOrder: 2 },
+    { type: 'term', value: '3rd Term Fee', displayOrder: 3 },
+    { type: 'term', value: '4th Term Fee', displayOrder: 4 },
+    { type: 'term', value: '5th Term Fee', displayOrder: 5 },
+    // Fee payment status (mirrors PaymentStatus enum; labels only).
+    { type: 'payment_status', value: 'UNPAID', displayOrder: 1 },
+    { type: 'payment_status', value: 'PARTIAL', displayOrder: 2 },
+    { type: 'payment_status', value: 'PAID', displayOrder: 3 },
+    // Cheque / DD clearance lifecycle.
+    { type: 'clearance_status', value: 'PENDING', displayOrder: 1 },
+    { type: 'clearance_status', value: 'CLEARED', displayOrder: 2 },
+    { type: 'clearance_status', value: 'BOUNCED', displayOrder: 3 },
+    // Template moderation states.
+    { type: 'template_status', value: 'approved', displayOrder: 1 },
+    { type: 'template_status', value: 'rejected', displayOrder: 2 },
+    // Tenant config dropdowns.
+    { type: 'environment_type', value: 'Production', displayOrder: 1 },
+    { type: 'environment_type', value: 'QA', displayOrder: 2 },
+    { type: 'environment_type', value: 'Development', displayOrder: 3 },
+    { type: 'payment_gateway', value: 'Razorpay', displayOrder: 1 },
+    { type: 'payment_gateway', value: 'Cashfree', displayOrder: 2 },
   ];
 
   let created = 0;

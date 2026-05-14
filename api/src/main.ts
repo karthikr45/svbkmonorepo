@@ -7,6 +7,51 @@ import compression from 'compression';
 import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { SystemMetadata } from './modules/system-metadata/entities/system-metadata.entity';
+
+/**
+ * Reference-data types the UI relies on. Warn (don't crash) if any are
+ * empty in the DB so a fresh deploy without `pnpm seed` is loud but not
+ * fatal — admin can still log in and create entries.
+ */
+const REQUIRED_METADATA_TYPES = [
+  'academic_year',
+  'class',
+  'section',
+  'medium',
+  'board_type',
+  'tenant_type',
+  'admin_role',
+  'term',
+  'payment_status',
+  'clearance_status',
+  'template_status',
+  'environment_type',
+  'payment_gateway',
+];
+
+async function checkMetadataHealth(app: Awaited<ReturnType<typeof NestFactory.create>>) {
+  try {
+    const repo = app.get<Repository<SystemMetadata>>(getRepositoryToken(SystemMetadata));
+    const missing: string[] = [];
+    for (const type of REQUIRED_METADATA_TYPES) {
+      const count = await repo.count({ where: { type } });
+      if (count === 0) missing.push(type);
+    }
+    if (missing.length > 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '\n⚠  system_metadata is missing types used by UI dropdowns:\n   ' +
+          missing.join(', ') +
+          "\n   Run `pnpm seed` (or add them under super-admin → System Metadata) before users hit the affected forms.\n",
+      );
+    }
+  } catch {
+    /* table might not exist yet; synchronize will catch real issues */
+  }
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
@@ -53,6 +98,8 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
+
+  await checkMetadataHealth(app);
 
   const port = configService.get<number>('PORT') || 3001;
   await app.listen(port);

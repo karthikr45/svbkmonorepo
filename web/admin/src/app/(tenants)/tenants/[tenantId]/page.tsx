@@ -20,6 +20,7 @@ import TenantDetailsTab from "./TenantDetailsTab";
 import TenantAdminsTab from "./TenantAdminsTab";
 import { saveAdmin } from "@/features/admins/services/admins.service";
 import { listSystemMetadataApi } from "@/features/system-metadata/api/system-metadata.api";
+import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
 
 type NewConfig = {
   envType: string;
@@ -109,13 +110,16 @@ function getNewConfigValidationErrors(cfg: NewConfig): Partial<Record<keyof NewC
   return errs;
 }
 
-const ENV_TYPE_OPTIONS: SelectMenuOption[] = [
+const FALLBACK_ENV_TYPE_OPTIONS: SelectMenuOption[] = [
   { value: "Production", label: "Production" },
   { value: "QA", label: "QA" },
   { value: "Development", label: "Development" },
 ];
 
-const GATEWAY_TYPE_OPTIONS: SelectMenuOption[] = [{ value: "Razorpay", label: "Razorpay" }];
+const FALLBACK_GATEWAY_TYPE_OPTIONS: SelectMenuOption[] = [
+  { value: "Razorpay", label: "Razorpay" },
+  { value: "Cashfree", label: "Cashfree" },
+];
 
 // Fallback role list used until system_metadata loads (or if it returns nothing).
 const BUILTIN_ADMIN_ROLES: SelectMenuOption[] = [
@@ -171,6 +175,26 @@ function TenantDetailsPageContent() {
   const { tenantId } = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const envMeta = useMetadata("environment_type", {
+    fallback: FALLBACK_ENV_TYPE_OPTIONS.map((o, i) => ({
+      value: o.value, label: o.label, displayOrder: i, isActive: true,
+    })),
+  });
+  const gatewayMeta = useMetadata("payment_gateway", {
+    fallback: FALLBACK_GATEWAY_TYPE_OPTIONS.map((o, i) => ({
+      value: o.value, label: o.label, displayOrder: i, isActive: true,
+    })),
+  });
+  const ENV_TYPE_OPTIONS: SelectMenuOption[] = envMeta.options.map((o) => ({
+    value: o.value,
+    label: o.label,
+  }));
+  const GATEWAY_TYPE_OPTIONS: SelectMenuOption[] = gatewayMeta.options.map((o) => ({
+    value: o.value,
+    label: o.label,
+  }));
+
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");

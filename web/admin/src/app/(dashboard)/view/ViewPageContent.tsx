@@ -18,6 +18,7 @@ import type { StudentFeeRow } from "@/features/students/types";
 import { getAllStudentsByBranch } from "@/features/students/services";
 import { getStudentById, updateStudentById } from "@/features/students/services/students.service";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
 
 const PAGE_SIZE = 10;
 const BRANCH = "hyd";
@@ -77,10 +78,10 @@ const DEFAULT_VISIBLE_FIELD_KEYS = new Set([
   "4th Term Amount After Discount",
   "4th Term Status",
 ]);
-const CLASS_FILTER_OPTIONS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"] as const;
-const SECTION_FILTER_OPTIONS = ["A", "B", "C", "D"] as const;
-const PAYMENT_STATUS_FILTER_OPTIONS = ["Paid", "Unpaid"] as const;
-const TERM_FILTER_OPTIONS = ["1st Term", "2nd Term", "3rd Term", "4th Term"] as const;
+const FALLBACK_CLASS_FILTER = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+const FALLBACK_SECTION_FILTER = ["A", "B", "C", "D"];
+const FALLBACK_PAYMENT_STATUS_FILTER = ["Paid", "Unpaid"];
+const FALLBACK_TERM_FILTER = ["1st Term", "2nd Term", "3rd Term", "4th Term"];
 const EXPORT_MONTH_OPTIONS = [
   "All",
   "Custom",
@@ -386,6 +387,44 @@ type ViewPageContentProps = {
 };
 
 export function ViewPageContent({ onNavigateUpload }: ViewPageContentProps) {
+  const classMeta = useMetadata("class", {
+    fallback: FALLBACK_CLASS_FILTER.map((v, i) => ({
+      value: v, label: v, displayOrder: i, isActive: true,
+    })),
+  });
+  const sectionMeta = useMetadata("section", {
+    fallback: FALLBACK_SECTION_FILTER.map((v, i) => ({
+      value: v, label: v, displayOrder: i, isActive: true,
+    })),
+  });
+  const paymentStatusMeta = useMetadata("payment_status", {
+    fallback: FALLBACK_PAYMENT_STATUS_FILTER.map((v, i) => ({
+      value: v, label: v, displayOrder: i, isActive: true,
+    })),
+  });
+  const termFilterMeta = useMetadata("term", {
+    fallback: FALLBACK_TERM_FILTER.map((v, i) => ({
+      value: v, label: v, displayOrder: i, isActive: true,
+    })),
+  });
+  // Memo'd plain string arrays so existing call sites can stay simple.
+  const CLASS_FILTER_OPTIONS = useMemo(
+    () => classMeta.options.map((o) => o.value),
+    [classMeta.options],
+  );
+  const SECTION_FILTER_OPTIONS = useMemo(
+    () => sectionMeta.options.map((o) => o.value),
+    [sectionMeta.options],
+  );
+  const PAYMENT_STATUS_FILTER_OPTIONS = useMemo(
+    () => paymentStatusMeta.options.map((o) => o.label),
+    [paymentStatusMeta.options],
+  );
+  const TERM_FILTER_OPTIONS = useMemo(
+    () => termFilterMeta.options.map((o) => o.label),
+    [termFilterMeta.options],
+  );
+
   const [search, setSearch] = useState("");
   const [academicYear, setAcademicYear] = useState("");
   const [actionMenuValue, setActionMenuValue] = useState(ACTION_MENU_PLACEHOLDER);

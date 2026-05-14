@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { RichTextEditor } from "@/components/common/RichTextEditor";
 import { useFetchApprovedTemplates } from "@/features/templates";
+import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
 
-const CLASSES = [
-  "Class 1", "Class 2", "Class 3", "Class 4", "Class 5",
-  "Class 6", "Class 7", "Class 8", "Class 9", "Class 10",
+const FALLBACK_CLASSES = [
+  "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
 ];
 
 type ScheduleType = "now" | "later";
@@ -34,9 +34,11 @@ const INITIAL: FormState = {
 function ClassMultiSelect({
   selected,
   onChange,
+  classes: CLASSES,
 }: {
   selected: string[];
   onChange: (classes: string[]) => void;
+  classes: string[];
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -113,6 +115,15 @@ function ClassMultiSelect({
 
 export function AnnouncementsPageContent() {
   const { data: templates, loading: templatesLoading } = useFetchApprovedTemplates();
+  const classMeta = useMetadata("class", {
+    fallback: FALLBACK_CLASSES.map((v, i) => ({
+      value: v, label: v, displayOrder: i, isActive: true,
+    })),
+  });
+  const classOptions = useMemo(
+    () => classMeta.options.map((o) => o.label || o.value),
+    [classMeta.options],
+  );
   const [form, setForm] = useState<FormState>(INITIAL);
   const [sending, setSending] = useState(false);
 
@@ -223,6 +234,7 @@ export function AnnouncementsPageContent() {
             <ClassMultiSelect
               selected={form.classes}
               onChange={(classes) => set("classes", classes)}
+              classes={classOptions}
             />
           </div>
 

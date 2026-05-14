@@ -1,19 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import { createStudentApi, type CreateStudentPayload } from "@/features/students/api/students.api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
 
-const TERMS = [
+// Fallback so the modal still works on a fresh DB before the seed runs.
+const FALLBACK_TERMS = [
   "1st Term Fee",
   "2nd Term Fee",
   "3rd Term Fee",
   "4th Term Fee",
   "5th Term Fee",
-] as const;
+];
 
-const TERM_LABELS = ["1st", "2nd", "3rd", "4th", "5th"] as const;
+const ORDINAL = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"] as const;
 
 interface Props {
   open: boolean;
@@ -29,12 +31,6 @@ interface TermInput {
   discount: string;
 }
 
-const emptyTerms: TermInput[] = TERMS.map(() => ({
-  enabled: false,
-  amount: "",
-  discount: "",
-}));
-
 export function AddStudentModal({
   open,
   defaultAcademicYear = "",
@@ -42,6 +38,20 @@ export function AddStudentModal({
   onClose,
   onCreated,
 }: Props) {
+  const { options: termOptions } = useMetadata("term", {
+    fallback: FALLBACK_TERMS.map((v, i) => ({
+      value: v,
+      label: v,
+      displayOrder: i,
+      isActive: true,
+    })),
+  });
+  const TERMS = useMemo(() => termOptions.map((o) => o.value), [termOptions]);
+  const TERM_LABELS = useMemo(
+    () => termOptions.map((_, i) => ORDINAL[i] ?? `${i + 1}th`),
+    [termOptions],
+  );
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -55,7 +65,9 @@ export function AddStudentModal({
     section: "",
     rollNo: "",
   });
-  const [terms, setTerms] = useState<TermInput[]>(emptyTerms);
+  const [terms, setTerms] = useState<TermInput[]>(
+    TERMS.map(() => ({ enabled: false, amount: "", discount: "" })),
+  );
 
   if (!open) return null;
 
@@ -71,7 +83,7 @@ export function AddStudentModal({
       section: "",
       rollNo: "",
     });
-    setTerms(emptyTerms);
+    setTerms(TERMS.map(() => ({ enabled: false, amount: "", discount: "" })));
     setError(null);
   }
 

@@ -10,10 +10,11 @@ import { Tenant } from "@/features/tenants/tenantData";
 import { getTenants, saveTenant, updateTenant } from "@/features/tenants/services/tenants.service";
 import { TenantCard } from "@/components/common/TenantCard/TenantCard";
 import { TenantCardContent, TenantCardField, TenantCardHeader } from "@/components/common";
+import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
 
-const INSTITUTION_TYPES = ["School", "Hostel", "Transport"] as const;
-const MEDIUMS = ["Telugu", "English"] as const;
-const BOARD_TYPES = ["CBSE", "State"] as const;
+const FALLBACK_INSTITUTION_TYPES = ["School", "Hostel", "Transport"];
+const FALLBACK_MEDIUMS = ["Telugu", "English"];
+const FALLBACK_BOARD_TYPES = ["CBSE", "State"];
 
 const emptyForm: Omit<Tenant, "id"> = {
   type: "",
@@ -80,6 +81,34 @@ function FormSelectMenu({
 
 function TenantManagement() {
   const router = useRouter();
+  const instMeta = useMetadata("tenant_type", {
+    fallback: FALLBACK_INSTITUTION_TYPES.map((v, i) => ({
+      value: v, label: v, displayOrder: i, isActive: true,
+    })),
+  });
+  const mediumMeta = useMetadata("medium", {
+    fallback: FALLBACK_MEDIUMS.map((v, i) => ({
+      value: v, label: v, displayOrder: i, isActive: true,
+    })),
+  });
+  const boardMeta = useMetadata("board_type", {
+    fallback: FALLBACK_BOARD_TYPES.map((v, i) => ({
+      value: v, label: v, displayOrder: i, isActive: true,
+    })),
+  });
+  const INSTITUTION_TYPES = useMemo(
+    () => instMeta.options.map((o) => o.value),
+    [instMeta.options],
+  );
+  const MEDIUMS = useMemo(
+    () => mediumMeta.options.map((o) => o.value),
+    [mediumMeta.options],
+  );
+  const BOARD_TYPES = useMemo(
+    () => boardMeta.options.map((o) => o.value),
+    [boardMeta.options],
+  );
+
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [search, setSearch] = useState("");
   const [filterCity, setFilterCity] = useState("All");
