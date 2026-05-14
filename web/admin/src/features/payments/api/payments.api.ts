@@ -178,6 +178,27 @@ export async function listFeePaymentsApi(feeId: string): Promise<FeePaymentRow[]
   return get<FeePaymentRow[]>(`/fees/${feeId}/payments`);
 }
 
+export type FeeAdjustmentKind =
+  | "PENALTY_ADD"
+  | "PENALTY_WAIVE"
+  | "DISCOUNT_ADD"
+  | "DISCOUNT_WAIVE";
+
+export interface FeeAdjustmentRow {
+  id: string;
+  feeId: string;
+  kind: FeeAdjustmentKind;
+  amount: string;
+  reason: string | null;
+  createdById: string | null;
+  createdByEmail: string | null;
+  createdAt: string;
+}
+
+export async function listFeeAdjustmentsApi(feeId: string): Promise<FeeAdjustmentRow[]> {
+  return get<FeeAdjustmentRow[]>(`/fees/${feeId}/adjustments`);
+}
+
 export interface PaymentLogFilters {
   type?: "online" | "offline";
   clearance?: "PENDING" | "CLEARED" | "BOUNCED" | "NA";

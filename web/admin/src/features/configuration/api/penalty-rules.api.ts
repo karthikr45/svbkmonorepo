@@ -92,6 +92,20 @@ export async function addPenaltyToFeeApi(
   return post<unknown>(`/fees/${feeId}/penalty`, body);
 }
 
+export async function waivePenaltyOnFeeApi(
+  feeId: string,
+  body: { amount?: number; reason?: string },
+): Promise<unknown> {
+  return post<unknown>(`/fees/${feeId}/penalty/waive`, body);
+}
+
+export async function waiveDiscountOnFeeApi(
+  feeId: string,
+  body: { amount?: number; reason?: string },
+): Promise<unknown> {
+  return post<unknown>(`/fees/${feeId}/discount/waive`, body);
+}
+
 // ─── Bulk discount (mirror of penalty bulk) ────────────────────────────────
 
 export async function applyDiscountBulkApi(body: {

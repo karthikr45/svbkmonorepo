@@ -187,6 +187,31 @@ export class AddSinglePenaltyDto {
 }
 
 /**
+ * POST /fees/:id/penalty/waive  or  /fees/:id/discount/waive
+ * Waives part or all of a single fee's penalty/discount. Omit `amount`
+ * to waive everything currently applied.
+ */
+export class WaiveSingleDto {
+  @ApiPropertyOptional({
+    example: 50,
+    description:
+      'Optional partial-waive amount. Omit to waive the entire current ' +
+      'penalty / discount on this fee.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  amount?: number;
+
+  @ApiPropertyOptional({ example: 'Cheque cleared late but tracked separately' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
+/**
  * POST /fees/discount/add
  * Bulk discount across a branch + academic year + term. Mirrors
  * AddPenaltyDto: applies to listed students, or all non-PAID fees in

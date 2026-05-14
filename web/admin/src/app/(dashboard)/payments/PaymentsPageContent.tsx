@@ -11,6 +11,8 @@ import {
   findPaymentDetailsApi,
   listAllPaymentsApi,
   listFeePaymentsApi,
+  listFeeAdjustmentsApi,
+  type FeeAdjustmentRow,
   listPendingClearanceApi,
   receiptUrl,
   updateClearanceApi,
@@ -25,7 +27,48 @@ import {
 import {
   addDiscountManualApi,
   addPenaltyToFeeApi,
+  waiveDiscountOnFeeApi,
+  waivePenaltyOnFeeApi,
 } from "@/features/configuration/api/penalty-rules.api";
+
+/**
+ * Visual metadata for the four adjustment kinds. Keeps the timeline
+ * row terse — symbol, badge colour, sign for the amount column, and a
+ * human label.
+ */
+const ADJUSTMENT_META: Record<
+  "PENALTY_ADD" | "PENALTY_WAIVE" | "DISCOUNT_ADD" | "DISCOUNT_WAIVE",
+  { label: string; symbol: string; badge: string; sign: string; amountTone: string }
+> = {
+  PENALTY_ADD: {
+    label: "Penalty added",
+    symbol: "▲",
+    badge: "bg-amber-50 text-amber-700",
+    sign: "+",
+    amountTone: "text-amber-700",
+  },
+  PENALTY_WAIVE: {
+    label: "Penalty waived",
+    symbol: "▼",
+    badge: "bg-slate-100 text-slate-600",
+    sign: "−",
+    amountTone: "text-slate-700",
+  },
+  DISCOUNT_ADD: {
+    label: "Discount added",
+    symbol: "▲",
+    badge: "bg-emerald-50 text-emerald-700",
+    sign: "+",
+    amountTone: "text-emerald-700",
+  },
+  DISCOUNT_WAIVE: {
+    label: "Discount waived",
+    symbol: "▼",
+    badge: "bg-slate-100 text-slate-600",
+    sign: "−",
+    amountTone: "text-slate-700",
+  },
+};
 
 export function PaymentsPageContent() {
   return (
@@ -378,9 +421,13 @@ function PaymentDetailsView() {
   const fees = useMemo(() => groups.flatMap((g) => g.fees), [groups]);
   const [feeId, setFeeId] = useState("");
   const [history, setHistory] = useState<FeePaymentRow[]>([]);
+  const [adjustments, setAdjustments] = useState<FeeAdjustmentRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [adjustModal, setAdjustModal] = useState<
-    | { kind: "discount" | "penalty"; fee: FeeRow }
+    | {
+        kind: "discount" | "penalty" | "waive-discount" | "waive-penalty";
+        fee: FeeRow;
+      }
     | null
   >(null);
 
@@ -421,12 +468,23 @@ function PaymentDetailsView() {
   async function loadHistory(id: string) {
     setHistoryLoading(true);
     setHistory([]);
+    setAdjustments([]);
     try {
-      const res = await listFeePaymentsApi(id);
-      const list = Array.isArray(res) ? res : ((res as any)?.data ?? []);
-      setHistory(list);
+      const [paymentsRes, adjustmentsRes] = await Promise.all([
+        listFeePaymentsApi(id),
+        listFeeAdjustmentsApi(id),
+      ]);
+      const payments = Array.isArray(paymentsRes)
+        ? paymentsRes
+        : ((paymentsRes as any)?.data ?? []);
+      const adjs = Array.isArray(adjustmentsRes)
+        ? adjustmentsRes
+        : ((adjustmentsRes as any)?.data ?? []);
+      setHistory(payments);
+      setAdjustments(adjs);
     } catch {
       setHistory([]);
+      setAdjustments([]);
     } finally {
       setHistoryLoading(false);
     }
@@ -614,6 +672,83 @@ function PaymentDetailsView() {
         </Card>
       )}
 
+      {/* Penalty / discount history (when a fee is picked) */}
+      {feeId && (
+        <Card padding="none" className="overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-[var(--app-text-primary)]">
+                Adjustment history
+              </h3>
+              <p className="text-xs text-[var(--app-text-secondary)]">
+                Every penalty / discount add or waive on this term, with who and when.
+              </p>
+            </div>
+            {historyLoading && (
+              <span className="text-xs text-[var(--app-text-muted)]">Loading…</span>
+            )}
+          </div>
+          {adjustments.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-[var(--app-text-secondary)] text-center">
+              No penalty or discount activity recorded for this term.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50/60 border-b border-slate-100">
+                  <Th>Date</Th>
+                  <Th>Action</Th>
+                  <Th align="right">Amount</Th>
+                  <Th>Reason</Th>
+                  <Th>By</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {adjustments.map((a, i) => {
+                  const meta = ADJUSTMENT_META[a.kind as keyof typeof ADJUSTMENT_META];
+                  return (
+                    <tr
+                      key={a.id}
+                      className={`hover:bg-slate-50 ${i !== adjustments.length - 1 ? "border-b border-slate-50" : ""}`}
+                    >
+                      <td className="px-5 py-3 text-[var(--app-text-secondary)] tabular-nums">
+                        {new Date(a.createdAt).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${meta.badge}`}
+                        >
+                          <span>{meta.symbol}</span>
+                          {meta.label}
+                        </span>
+                      </td>
+                      <td
+                        className={`px-5 py-3 text-right font-semibold tabular-nums ${meta.amountTone}`}
+                      >
+                        {meta.sign}
+                        {inr(Number(a.amount))}
+                      </td>
+                      <td className="px-5 py-3 text-[var(--app-text-secondary)]">
+                        {a.reason || <span className="text-[var(--app-text-muted)]">—</span>}
+                      </td>
+                      <td className="px-5 py-3 text-[var(--app-text-secondary)] text-xs">
+                        {a.createdByEmail ?? "system"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      )}
+
       {/* Selected fee summary — mirrors the legacy student-edit modal */}
       {feeId && (() => {
         const f = fees.find((fee) => fee.id === feeId);
@@ -638,7 +773,7 @@ function PaymentDetailsView() {
                   Net = Original {pen > 0 ? "+ Penalty " : ""}{disc > 0 ? "− Discount " : ""}= {inr(net)}
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setAdjustModal({ kind: "discount", fee: f })}
@@ -653,6 +788,24 @@ function PaymentDetailsView() {
                 >
                   + Penalty
                 </button>
+                {disc > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setAdjustModal({ kind: "waive-discount", fee: f })}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    Waive discount
+                  </button>
+                )}
+                {pen > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setAdjustModal({ kind: "waive-penalty", fee: f })}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    Waive penalty
+                  </button>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
@@ -673,9 +826,11 @@ function PaymentDetailsView() {
           fee={adjustModal.fee}
           onClose={() => setAdjustModal(null)}
           onApplied={() => {
+            const id = adjustModal.fee.id;
             setAdjustModal(null);
-            // Re-fetch the same lookup so the fee summary refreshes.
+            // Refresh the fee summary AND the adjustment timeline.
             if (admission.trim()) lookup();
+            if (id) loadHistory(id);
           }}
         />
       )}
@@ -875,45 +1030,80 @@ function Th({
  * single selected fee. Calls the per-fee endpoint, surfaces validation
  * errors, and triggers a refresh in the caller.
  */
+type AdjustKind = "discount" | "penalty" | "waive-discount" | "waive-penalty";
+
 function AdjustFeeModal({
   kind,
   fee,
   onClose,
   onApplied,
 }: {
-  kind: "discount" | "penalty";
+  kind: AdjustKind;
   fee: FeeRow;
   onClose: () => void;
   onApplied: () => void;
 }) {
-  const [amount, setAmount] = useState("");
+  const isWaive = kind === "waive-discount" || kind === "waive-penalty";
+  const isDiscount = kind === "discount" || kind === "waive-discount";
+  const currentMax = isDiscount
+    ? Number(fee.totalDiscount)
+    : Number(fee.totalPenalty ?? 0);
+
+  // For waive: default to "full" — user can switch to "partial".
+  const [mode, setMode] = useState<"full" | "partial">(isWaive ? "full" : "partial");
+  const [amount, setAmount] = useState(isWaive ? "" : "");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const title = (() => {
+    if (kind === "discount") return "Add discount";
+    if (kind === "penalty") return "Add penalty";
+    if (kind === "waive-discount") return "Waive discount";
+    return "Waive penalty";
+  })();
+
+  const submitLabel = (() => {
+    if (kind === "discount") return "Add discount";
+    if (kind === "penalty") return "Add penalty";
+    if (kind === "waive-discount") return "Waive discount";
+    return "Waive penalty";
+  })();
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
-    const num = Number(amount);
-    if (!Number.isFinite(num) || num <= 0) {
-      setErr("Enter a positive amount.");
-      return;
+    let num: number | undefined;
+    if (!isWaive || mode === "partial") {
+      num = Number(amount);
+      if (!Number.isFinite(num) || num <= 0) {
+        setErr("Enter a positive amount.");
+        return;
+      }
+      if (isWaive && num > currentMax) {
+        setErr(`Cannot waive more than the current ${isDiscount ? "discount" : "penalty"} (${inr(currentMax)}).`);
+        return;
+      }
     }
     setBusy(true);
     try {
       const payload = { amount: num, reason: reason.trim() || undefined };
-      if (kind === "discount") await addDiscountManualApi(fee.id, payload);
-      else await addPenaltyToFeeApi(fee.id, payload);
+      if (kind === "discount") {
+        await addDiscountManualApi(fee.id, { amount: num as number, reason: payload.reason });
+      } else if (kind === "penalty") {
+        await addPenaltyToFeeApi(fee.id, { amount: num as number, reason: payload.reason });
+      } else if (kind === "waive-discount") {
+        await waiveDiscountOnFeeApi(fee.id, payload);
+      } else {
+        await waivePenaltyOnFeeApi(fee.id, payload);
+      }
       onApplied();
     } catch (e2) {
-      setErr(getApiErrorMessage(e2, `Could not add ${kind}`));
+      setErr(getApiErrorMessage(e2, `Could not ${title.toLowerCase()}`));
     } finally {
       setBusy(false);
     }
   };
-
-  const isDiscount = kind === "discount";
-  const accent = isDiscount ? "emerald" : "amber";
 
   return (
     <div
@@ -925,9 +1115,7 @@ function AdjustFeeModal({
         className="w-full max-w-md bg-white rounded-2xl shadow-xl"
       >
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900">
-            Add {isDiscount ? "discount" : "penalty"}
-          </h2>
+          <h2 className="text-lg font-bold text-slate-900">{title}</h2>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-700"
@@ -947,20 +1135,50 @@ function AdjustFeeModal({
             </div>
           </div>
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Amount (₹) *
-            </span>
-            <input
-              type="number"
-              min={0.01}
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
-              autoFocus
-            />
-          </label>
+          {isWaive && (
+            <div className="flex gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setMode("full")}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                  mode === "full"
+                    ? "bg-slate-900 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                Waive full {inr(currentMax)}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("partial")}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                  mode === "partial"
+                    ? "bg-slate-900 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                Waive partial
+              </button>
+            </div>
+          )}
+
+          {(!isWaive || mode === "partial") && (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Amount (₹) *
+              </span>
+              <input
+                type="number"
+                min={0.01}
+                step="0.01"
+                max={isWaive ? currentMax : undefined}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                autoFocus
+              />
+            </label>
+          )}
 
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -973,8 +1191,12 @@ function AdjustFeeModal({
               onChange={(e) => setReason(e.target.value)}
               placeholder={
                 isDiscount
-                  ? "e.g. Sibling concession, staff discount"
-                  : "e.g. Late payment, cheque bounce charges"
+                  ? isWaive
+                    ? "e.g. Discount no longer applicable"
+                    : "e.g. Sibling concession, staff discount"
+                  : isWaive
+                    ? "e.g. Cheque cleared on time"
+                    : "e.g. Late payment, cheque bounce charges"
               }
               className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
             />
@@ -991,14 +1213,12 @@ function AdjustFeeModal({
               Cancel
             </Button>
             <Button variant="primary" type="submit" isLoading={busy}>
-              Add {isDiscount ? "discount" : "penalty"}
+              {submitLabel}
             </Button>
           </div>
           <p className="text-[11px] text-slate-400">
-            Recorded against this fee and applied to the Net amount.{" "}
-            {isDiscount
-              ? "Cannot drop Net below what's already been paid."
-              : "Disallowed on PAID fees."}
+            Recorded against this fee with your name + the time, visible in the
+            adjustment history.
           </p>
         </form>
       </div>

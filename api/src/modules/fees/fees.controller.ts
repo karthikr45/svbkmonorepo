@@ -23,6 +23,7 @@ import {
   AddSinglePenaltyDto,
   BulkAddDiscountDto,
   WaiveDiscountDto,
+  WaiveSingleDto,
   RecordOfflinePaymentDto,
   RecordOnlinePaymentDto,
   UpdateClearanceDto,
@@ -60,7 +61,11 @@ export class FeesController {
   })
   async addPenalty(@Body() dto: AddPenaltyDto, @Req() req: Request) {
     const { tenantId, branch } = ctxWithBranch(req);
-    return this.feesService.addPenaltyForStudents(tenantId, { ...dto, branch });
+    return this.feesService.addPenaltyForStudents(
+      tenantId,
+      { ...dto, branch },
+      actorOf(req),
+    );
   }
 
   @Post('penalty/waive')
@@ -72,7 +77,11 @@ export class FeesController {
   })
   async waivePenalty(@Body() dto: WaivePenaltyDto, @Req() req: Request) {
     const { tenantId, branch } = ctxWithBranch(req);
-    return this.feesService.waivePenaltyForStudents(tenantId, { ...dto, branch });
+    return this.feesService.waivePenaltyForStudents(
+      tenantId,
+      { ...dto, branch },
+      actorOf(req),
+    );
   }
 
   @Post('discount/add')
@@ -88,7 +97,11 @@ export class FeesController {
   })
   async addDiscountBulk(@Body() dto: BulkAddDiscountDto, @Req() req: Request) {
     const { tenantId, branch } = ctxWithBranch(req);
-    return this.feesService.addDiscountForStudents(tenantId, { ...dto, branch });
+    return this.feesService.addDiscountForStudents(
+      tenantId,
+      { ...dto, branch },
+      actorOf(req),
+    );
   }
 
   @Post('discount/waive')
@@ -102,7 +115,11 @@ export class FeesController {
   })
   async waiveDiscountBulk(@Body() dto: WaiveDiscountDto, @Req() req: Request) {
     const { tenantId, branch } = ctxWithBranch(req);
-    return this.feesService.waiveDiscountForStudents(tenantId, { ...dto, branch });
+    return this.feesService.waiveDiscountForStudents(
+      tenantId,
+      { ...dto, branch },
+      actorOf(req),
+    );
   }
 
   @Post(':id/discount')
@@ -119,7 +136,13 @@ export class FeesController {
     @Req() req: Request,
   ) {
     const { tenantId } = ctx(req);
-    return this.feesService.addDiscount(tenantId, feeId, dto.amount, dto.reason);
+    return this.feesService.addDiscount(
+      tenantId,
+      feeId,
+      dto.amount,
+      dto.reason,
+      actorOf(req),
+    );
   }
 
   @Post(':id/penalty')
@@ -136,7 +159,74 @@ export class FeesController {
     @Req() req: Request,
   ) {
     const { tenantId } = ctx(req);
-    return this.feesService.addPenaltyToFee(tenantId, feeId, dto.amount, dto.reason);
+    return this.feesService.addPenaltyToFee(
+      tenantId,
+      feeId,
+      dto.amount,
+      dto.reason,
+      actorOf(req),
+    );
+  }
+
+  @Post(':id/penalty/waive')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Waive penalty on a single fee',
+    description:
+      'Waives part or all of total_penalty on this fee. Omit `amount` to waive everything currently applied.',
+  })
+  @ApiParam({ name: 'id', description: 'Fee UUID' })
+  async waivePenaltyOnFee(
+    @Param('id', buildUuidPipe('id')) feeId: string,
+    @Body() dto: WaiveSingleDto,
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    return this.feesService.waivePenaltyOnFee(
+      tenantId,
+      feeId,
+      dto.amount,
+      dto.reason,
+      actorOf(req),
+    );
+  }
+
+  @Post(':id/discount/waive')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Waive discount on a single fee',
+    description:
+      'Waives part or all of total_discount on this fee. Omit `amount` to waive everything currently applied. Refused if it would push net below the amount already paid.',
+  })
+  @ApiParam({ name: 'id', description: 'Fee UUID' })
+  async waiveDiscountOnFee(
+    @Param('id', buildUuidPipe('id')) feeId: string,
+    @Body() dto: WaiveSingleDto,
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    return this.feesService.waiveDiscountOnFee(
+      tenantId,
+      feeId,
+      dto.amount,
+      dto.reason,
+      actorOf(req),
+    );
+  }
+
+  @Get(':id/adjustments')
+  @ApiOperation({
+    summary: 'List penalty / discount history for a fee',
+    description:
+      'Returns every fee_adjustments row for this fee — penalty add, penalty waive, discount add, discount waive — with actor (email) and timestamp. Used by the Payment Details timeline.',
+  })
+  @ApiParam({ name: 'id', description: 'Fee UUID' })
+  async listAdjustments(
+    @Param('id', buildUuidPipe('id')) feeId: string,
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    return this.feesService.listAdjustments(tenantId, feeId);
   }
 
   @Post(':id/offline-payment')
@@ -364,6 +454,15 @@ function ctx(req: Request): AuthContext {
     tenantId: user.tenantId,
     userId: user.userId,
     branch: user.branch ?? null,
+  };
+}
+
+/** Snapshot of the authenticated user, safe to record on audit rows. */
+function actorOf(req: Request): { userId: string; email: string | null } {
+  const user = (req as any).user ?? {};
+  return {
+    userId: user.userId,
+    email: typeof user.email === 'string' ? user.email : null,
   };
 }
 

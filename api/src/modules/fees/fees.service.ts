@@ -8,8 +8,15 @@ import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Fee, PaymentStatus, TermType } from './entities/fee.entity';
 import { FeePayment, ClearanceStatus, PaymentType } from './entities/fee-payment.entity';
+import { FeeAdjustment, FeeAdjustmentKind } from './entities/fee-adjustment.entity';
 import { Student } from '../students/entities/student.entity';
 import { CreateFeeInput, ExistingFeeRecord } from './dto/fee.dto';
+
+/** Snapshot of who triggered a penalty/discount mutation. */
+export interface AdjustmentActor {
+  userId: string | null;
+  email?: string | null;
+}
 
 const BATCH_SIZE = 500;
 
@@ -35,8 +42,47 @@ export class FeesService {
 
   constructor(
     @InjectRepository(Fee) private readonly feeRepo: Repository<Fee>,
+    @InjectRepository(FeeAdjustment)
+    private readonly adjustmentRepo: Repository<FeeAdjustment>,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Records one fee_adjustments row inside the supplied transaction
+   * manager so the audit row commits atomically with the fee mutation.
+   */
+  private async logAdjustment(
+    manager: EntityManager,
+    row: {
+      tenantId: string;
+      feeId: string;
+      kind: FeeAdjustmentKind;
+      amount: number;
+      reason?: string | null;
+      actor?: AdjustmentActor;
+    },
+  ): Promise<void> {
+    const repo = manager.getRepository(FeeAdjustment);
+    await repo.save(
+      repo.create({
+        tenantId: row.tenantId,
+        feeId: row.feeId,
+        kind: row.kind,
+        amount: row.amount.toFixed(2),
+        reason: row.reason?.trim() || null,
+        createdById: row.actor?.userId ?? null,
+        createdByEmail: row.actor?.email ?? null,
+      }),
+    );
+  }
+
+  /** Read all adjustments for a fee, newest first. */
+  async listAdjustments(tenantId: string, feeId: string): Promise<FeeAdjustment[]> {
+    return this.adjustmentRepo.find({
+      where: { tenantId, feeId },
+      order: { createdAt: 'DESC' },
+    });
+  }
 
   async getFeeStats(tenantId: string): Promise<{
     students: {
@@ -235,6 +281,7 @@ async addPenaltyForStudents(
     amount: number;
     reason?: string;
   },
+  actor?: AdjustmentActor,
 ): Promise<{
   feesAffected: number;
   feesSkipped: number;
@@ -282,7 +329,19 @@ async addPenaltyForStudents(
       affected++;
     }
 
-    if (toSave.length) await repo.save(toSave);
+    if (toSave.length) {
+      await repo.save(toSave);
+      for (const fee of toSave) {
+        await this.logAdjustment(manager, {
+          tenantId,
+          feeId: fee.id,
+          kind: FeeAdjustmentKind.PENALTY_ADD,
+          amount: input.amount,
+          reason: input.reason,
+          actor,
+        });
+      }
+    }
 
     this.logger.log(
       `Penalty +${input.amount} applied to ${affected} fees, skipped ${skipped} ` +
@@ -317,6 +376,7 @@ async waivePenaltyForStudents(
     admissionNumbers?: string[];
     reason?: string;
   },
+  actor?: AdjustmentActor,
 ): Promise<{
   feesAffected: number;
   feesSkipped: number;
@@ -352,7 +412,7 @@ async waivePenaltyForStudents(
     let affected = 0;
     let skipped = 0;
     let totalWaived = 0;
-    const toSave: Fee[] = [];
+    const toSave: { fee: Fee; waived: number }[] = [];
 
     for (const fee of fees) {
       if (
@@ -362,14 +422,27 @@ async waivePenaltyForStudents(
         skipped++;
         continue;
       }
-      totalWaived += Number(fee.totalPenalty);
+      const waivedFromThis = Number(fee.totalPenalty);
+      totalWaived += waivedFromThis;
       fee.totalPenalty = '0.00';
       this.recomputeDerived(fee);
-      toSave.push(fee);
+      toSave.push({ fee, waived: waivedFromThis });
       affected++;
     }
 
-    if (toSave.length) await repo.save(toSave);
+    if (toSave.length) {
+      await repo.save(toSave.map((t) => t.fee));
+      for (const { fee, waived } of toSave) {
+        await this.logAdjustment(manager, {
+          tenantId,
+          feeId: fee.id,
+          kind: FeeAdjustmentKind.PENALTY_WAIVE,
+          amount: waived,
+          reason: input.reason,
+          actor,
+        });
+      }
+    }
 
     this.logger.log(
       `Penalty waiver removed ₹${totalWaived.toFixed(2)} from ${affected} fees, ` +
@@ -404,6 +477,7 @@ async waivePenaltyForStudents(
       amount: number;
       reason?: string;
     },
+    actor?: AdjustmentActor,
   ): Promise<{
     feesAffected: number;
     feesSkipped: number;
@@ -458,7 +532,19 @@ async waivePenaltyForStudents(
         affected++;
       }
 
-      if (toSave.length) await repo.save(toSave);
+      if (toSave.length) {
+        await repo.save(toSave);
+        for (const fee of toSave) {
+          await this.logAdjustment(manager, {
+            tenantId,
+            feeId: fee.id,
+            kind: FeeAdjustmentKind.DISCOUNT_ADD,
+            amount: input.amount,
+            reason: input.reason,
+            actor,
+          });
+        }
+      }
 
       this.logger.log(
         `Discount +${input.amount} applied to ${affected} fees, skipped ${skipped} ` +
@@ -491,6 +577,7 @@ async waivePenaltyForStudents(
       admissionNumbers?: string[];
       reason?: string;
     },
+    actor?: AdjustmentActor,
   ): Promise<{
     feesAffected: number;
     feesSkipped: number;
@@ -525,7 +612,7 @@ async waivePenaltyForStudents(
       let affected = 0;
       let skipped = 0;
       let totalWaived = 0;
-      const toSave: Fee[] = [];
+      const toSave: { fee: Fee; waived: number }[] = [];
 
       for (const fee of fees) {
         if (
@@ -542,14 +629,27 @@ async waivePenaltyForStudents(
           skipped++;
           continue;
         }
-        totalWaived += Number(fee.totalDiscount);
+        const waivedFromThis = Number(fee.totalDiscount);
+        totalWaived += waivedFromThis;
         fee.totalDiscount = '0.00';
         this.recomputeDerived(fee);
-        toSave.push(fee);
+        toSave.push({ fee, waived: waivedFromThis });
         affected++;
       }
 
-      if (toSave.length) await repo.save(toSave);
+      if (toSave.length) {
+        await repo.save(toSave.map((t) => t.fee));
+        for (const { fee, waived } of toSave) {
+          await this.logAdjustment(manager, {
+            tenantId,
+            feeId: fee.id,
+            kind: FeeAdjustmentKind.DISCOUNT_WAIVE,
+            amount: waived,
+            reason: input.reason,
+            actor,
+          });
+        }
+      }
 
       this.logger.log(
         `Discount waiver removed ₹${totalWaived.toFixed(2)} from ${affected} fees, ` +
@@ -577,6 +677,7 @@ async waivePenaltyForStudents(
     feeId: string,
     amount: number,
     reason: string | undefined,
+    actor?: AdjustmentActor,
   ): Promise<Fee> {
     return this.dataSource.transaction(async (manager) => {
       const fee = await this.lockFee(manager, tenantId, feeId);
@@ -587,10 +688,58 @@ async waivePenaltyForStudents(
       }
       fee.totalPenalty = (Number(fee.totalPenalty) + amount).toFixed(2);
       this.recomputeDerived(fee);
+      const saved = await manager.getRepository(Fee).save(fee);
+      await this.logAdjustment(manager, {
+        tenantId,
+        feeId,
+        kind: FeeAdjustmentKind.PENALTY_ADD,
+        amount,
+        reason,
+        actor,
+      });
       this.logger.log(
         `Penalty +${amount} on fee=${feeId}${reason ? ` (${reason})` : ''}`,
       );
-      return manager.getRepository(Fee).save(fee);
+      return saved;
+    });
+  }
+
+  /**
+   * Waives part or all of a single fee's penalty. If `amount` is
+   * omitted, the entire current penalty is wiped. Skips PAID fees.
+   */
+  async waivePenaltyOnFee(
+    tenantId: string,
+    feeId: string,
+    amount: number | undefined,
+    reason: string | undefined,
+    actor?: AdjustmentActor,
+  ): Promise<Fee> {
+    return this.dataSource.transaction(async (manager) => {
+      const fee = await this.lockFee(manager, tenantId, feeId);
+      if (fee.paymentStatus === PaymentStatus.PAID) {
+        throw new BadRequestException('Cannot waive penalty on a PAID fee.');
+      }
+      const current = Number(fee.totalPenalty);
+      if (current === 0) {
+        throw new BadRequestException('No penalty to waive.');
+      }
+      const waiveAmt = amount ? Math.min(amount, current) : current;
+      fee.totalPenalty = (current - waiveAmt).toFixed(2);
+      this.recomputeDerived(fee);
+      const saved = await manager.getRepository(Fee).save(fee);
+      await this.logAdjustment(manager, {
+        tenantId,
+        feeId,
+        kind: FeeAdjustmentKind.PENALTY_WAIVE,
+        amount: waiveAmt,
+        reason,
+        actor,
+      });
+      this.logger.log(
+        `Penalty waiver −${waiveAmt} on fee=${feeId}${reason ? ` (${reason})` : ''}`,
+      );
+      return saved;
     });
   }
 
@@ -603,6 +752,7 @@ async waivePenaltyForStudents(
     feeId: string,
     amount: number,
     reason: string | undefined,
+    actor?: AdjustmentActor,
   ): Promise<Fee> {
     return this.dataSource.transaction(async (manager) => {
       const fee = await this.lockFee(manager, tenantId, feeId);
@@ -619,10 +769,64 @@ async waivePenaltyForStudents(
 
       fee.totalDiscount = newDiscount.toFixed(2);
       this.recomputeDerived(fee);
+      const saved = await manager.getRepository(Fee).save(fee);
+      await this.logAdjustment(manager, {
+        tenantId,
+        feeId,
+        kind: FeeAdjustmentKind.DISCOUNT_ADD,
+        amount,
+        reason,
+        actor,
+      });
       this.logger.log(
         `Discount +${amount} on fee=${feeId}${reason ? ` (${reason})` : ''}`,
       );
-      return manager.getRepository(Fee).save(fee);
+      return saved;
+    });
+  }
+
+  /**
+   * Waives part or all of a single fee's discount. If `amount` is
+   * omitted, the full discount is wiped. Refuses to push net below
+   * paid amount.
+   */
+  async waiveDiscountOnFee(
+    tenantId: string,
+    feeId: string,
+    amount: number | undefined,
+    reason: string | undefined,
+    actor?: AdjustmentActor,
+  ): Promise<Fee> {
+    return this.dataSource.transaction(async (manager) => {
+      const fee = await this.lockFee(manager, tenantId, feeId);
+      const current = Number(fee.totalDiscount);
+      if (current === 0) {
+        throw new BadRequestException('No discount to waive.');
+      }
+      const waiveAmt = amount ? Math.min(amount, current) : current;
+      const newDiscount = current - waiveAmt;
+      const newNet =
+        Number(fee.originalAmount) + Number(fee.totalPenalty) - newDiscount;
+      if (newNet < Number(fee.paidAmount)) {
+        throw new BadRequestException(
+          'Removing this discount would push net below the amount already paid.',
+        );
+      }
+      fee.totalDiscount = newDiscount.toFixed(2);
+      this.recomputeDerived(fee);
+      const saved = await manager.getRepository(Fee).save(fee);
+      await this.logAdjustment(manager, {
+        tenantId,
+        feeId,
+        kind: FeeAdjustmentKind.DISCOUNT_WAIVE,
+        amount: waiveAmt,
+        reason,
+        actor,
+      });
+      this.logger.log(
+        `Discount waiver −${waiveAmt} on fee=${feeId}${reason ? ` (${reason})` : ''}`,
+      );
+      return saved;
     });
   }
 
