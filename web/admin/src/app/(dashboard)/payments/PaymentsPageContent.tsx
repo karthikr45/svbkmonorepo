@@ -22,6 +22,10 @@ import {
   type PendingClearancePayment,
   type StudentRow,
 } from "@/features/payments/api/payments.api";
+import {
+  addDiscountManualApi,
+  addPenaltyToFeeApi,
+} from "@/features/configuration/api/penalty-rules.api";
 
 export function PaymentsPageContent() {
   return (
@@ -375,6 +379,10 @@ function PaymentDetailsView() {
   const [feeId, setFeeId] = useState("");
   const [history, setHistory] = useState<FeePaymentRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [adjustModal, setAdjustModal] = useState<
+    | { kind: "discount" | "penalty"; fee: FeeRow }
+    | null
+  >(null);
 
   async function lookup() {
     setPickError(null);
@@ -612,22 +620,45 @@ function PaymentDetailsView() {
         if (!f) return null;
         const orig = Number(f.originalAmount);
         const disc = Number(f.totalDiscount);
+        const pen = Number(f.totalPenalty ?? 0);
         const net = Number(f.netAmount);
         const paid = Number(f.paidAmount);
         const balance = Math.max(0, net - paid);
         return (
           <Card padding="tight" className="border-l-4" style={{ borderLeftColor: "var(--app-brand)" }}>
-            <div className="mb-3">
-              <div className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
-                Selected fee
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--app-text-muted)]">
+                  Selected fee
+                </div>
+                <div className="text-base font-bold text-[var(--app-text-primary)]">
+                  {f.term} · {student?.name}
+                </div>
+                <div className="mt-0.5 text-[11px] text-[var(--app-text-muted)] tabular-nums">
+                  Net = Original {pen > 0 ? "+ Penalty " : ""}{disc > 0 ? "− Discount " : ""}= {inr(net)}
+                </div>
               </div>
-              <div className="text-base font-bold text-[var(--app-text-primary)]">
-                {f.term} · {student?.name}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAdjustModal({ kind: "discount", fee: f })}
+                  className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                >
+                  + Discount
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdjustModal({ kind: "penalty", fee: f })}
+                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+                >
+                  + Penalty
+                </button>
               </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
               <SumStat label="Original" value={inr(orig)} />
-              <SumStat label="Discount" value={inr(disc)} />
+              <SumStat label="Discount" value={inr(disc)} tone={disc > 0 ? "green" : "slate"} />
+              <SumStat label="Penalty" value={inr(pen)} tone={pen > 0 ? "amber" : "slate"} />
               <SumStat label="Net" value={inr(net)} bold />
               <SumStat label="Paid till now" value={inr(paid)} />
               <SumStat label="Balance" value={inr(balance)} bold tone={balance > 0 ? "amber" : "green"} />
@@ -635,6 +666,19 @@ function PaymentDetailsView() {
           </Card>
         );
       })()}
+
+      {adjustModal && (
+        <AdjustFeeModal
+          kind={adjustModal.kind}
+          fee={adjustModal.fee}
+          onClose={() => setAdjustModal(null)}
+          onApplied={() => {
+            setAdjustModal(null);
+            // Re-fetch the same lookup so the fee summary refreshes.
+            if (admission.trim()) lookup();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -823,6 +867,142 @@ function Th({
     >
       {children}
     </th>
+  );
+}
+
+/**
+ * Modal used by Payment Details to apply a discount or a penalty to a
+ * single selected fee. Calls the per-fee endpoint, surfaces validation
+ * errors, and triggers a refresh in the caller.
+ */
+function AdjustFeeModal({
+  kind,
+  fee,
+  onClose,
+  onApplied,
+}: {
+  kind: "discount" | "penalty";
+  fee: FeeRow;
+  onClose: () => void;
+  onApplied: () => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+    const num = Number(amount);
+    if (!Number.isFinite(num) || num <= 0) {
+      setErr("Enter a positive amount.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const payload = { amount: num, reason: reason.trim() || undefined };
+      if (kind === "discount") await addDiscountManualApi(fee.id, payload);
+      else await addPenaltyToFeeApi(fee.id, payload);
+      onApplied();
+    } catch (e2) {
+      setErr(getApiErrorMessage(e2, `Could not add ${kind}`));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const isDiscount = kind === "discount";
+  const accent = isDiscount ? "emerald" : "amber";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md bg-white rounded-2xl shadow-xl"
+      >
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-900">
+            Add {isDiscount ? "discount" : "penalty"}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-700"
+          >
+            ✕
+          </button>
+        </div>
+        <form onSubmit={submit} className="px-6 py-5 space-y-4">
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <div>
+              <span className="font-semibold">{fee.term}</span> · {fee.academicYear}
+            </div>
+            <div className="mt-1 tabular-nums text-[11px]">
+              Original {inr(Number(fee.originalAmount))} · Penalty{" "}
+              {inr(Number(fee.totalPenalty ?? 0))} · Discount{" "}
+              {inr(Number(fee.totalDiscount))} · Net {inr(Number(fee.netAmount))}
+            </div>
+          </div>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Amount (₹) *
+            </span>
+            <input
+              type="number"
+              min={0.01}
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+              autoFocus
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Reason (optional)
+            </span>
+            <input
+              type="text"
+              value={reason}
+              maxLength={500}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={
+                isDiscount
+                  ? "e.g. Sibling concession, staff discount"
+                  : "e.g. Late payment, cheque bounce charges"
+              }
+              className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+            />
+          </label>
+
+          {err && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
+              {err}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button variant="secondary" type="button" onClick={onClose} disabled={busy}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit" isLoading={busy}>
+              Add {isDiscount ? "discount" : "penalty"}
+            </Button>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Recorded against this fee and applied to the Net amount.{" "}
+            {isDiscount
+              ? "Cannot drop Net below what's already been paid."
+              : "Disallowed on PAID fees."}
+          </p>
+        </form>
+      </div>
+    </div>
   );
 }
 

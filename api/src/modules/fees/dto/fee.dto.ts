@@ -169,6 +169,112 @@ export class AddDiscountDto {
 }
 
 /**
+ * POST /fees/:id/penalty
+ * Adds a penalty to a single fee. Mirror of AddDiscountDto.
+ */
+export class AddSinglePenaltyDto {
+  @ApiProperty({ example: 100, description: 'Penalty amount (>0, up to 2 decimals)' })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'amount must be a number with up to 2 decimal places' })
+  @IsPositive({ message: 'amount must be greater than 0' })
+  amount: number;
+
+  @ApiPropertyOptional({ example: 'Late payment', maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
+/**
+ * POST /fees/discount/add
+ * Bulk discount across a branch + academic year + term. Mirrors
+ * AddPenaltyDto: applies to listed students, or all non-PAID fees in
+ * scope when applyToAll is true.
+ */
+export class BulkAddDiscountDto {
+  @ApiProperty({ example: '2026-2027' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(20)
+  academicYear: string;
+
+  @ApiProperty({ enum: TermType, example: TermType.FIRST })
+  @IsEnum(TermType)
+  term: TermType;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'When true, applies to every non-PAID fee in scope; admissionNumbers is ignored.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  applyToAll?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['Dummy1', 'Dummy2'],
+    description: 'Required when applyToAll is false. Max 500 per call.',
+  })
+  @ValidateIf((o) => !o.applyToAll)
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  admissionNumbers?: string[];
+
+  @ApiProperty({ example: 500, description: 'Discount amount per fee, in rupees.' })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  amount: number;
+
+  @ApiPropertyOptional({ example: 'Sibling concession' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
+/**
+ * POST /fees/discount/waive
+ * Removes the entire current discount on fees in scope. Mirrors
+ * WaivePenaltyDto. Discount cannot be waived if it would push net
+ * below what has already been paid — those fees are skipped.
+ */
+export class WaiveDiscountDto {
+  @ApiProperty({ example: '2026-2027' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(20)
+  academicYear: string;
+
+  @ApiProperty({ enum: TermType, example: TermType.FIRST })
+  @IsEnum(TermType)
+  term: TermType;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  applyToAll?: boolean;
+
+  @ApiPropertyOptional({ type: [String], example: ['Dummy1', 'Dummy2'] })
+  @ValidateIf((o) => !o.applyToAll)
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  admissionNumbers?: string[];
+
+  @ApiPropertyOptional({ example: 'Discount revoked' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
+/**
  * POST /fees/:id/offline-payment
  * School staff records a cash / cheque / DD / NEFT payment.
  */

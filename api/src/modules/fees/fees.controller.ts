@@ -20,6 +20,9 @@ import { FeesService } from './fees.service';
 import {
   AddPenaltyDto,
   AddDiscountDto,
+  AddSinglePenaltyDto,
+  BulkAddDiscountDto,
+  WaiveDiscountDto,
   RecordOfflinePaymentDto,
   RecordOnlinePaymentDto,
   UpdateClearanceDto,
@@ -72,6 +75,36 @@ export class FeesController {
     return this.feesService.waivePenaltyForStudents(tenantId, { ...dto, branch });
   }
 
+  @Post('discount/add')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Add discount in bulk (single, multiple, or all students)',
+    description:
+      'Applies a per-fee discount across the current branch + year + term. ' +
+      'Use admissionNumbers for selective application (max 500). Use ' +
+      'applyToAll=true to apply to every non-PAID fee in scope. Fees where ' +
+      'the discount would invalidate an already-posted payment are silently ' +
+      'skipped. Branch is taken from JWT.',
+  })
+  async addDiscountBulk(@Body() dto: BulkAddDiscountDto, @Req() req: Request) {
+    const { tenantId, branch } = ctxWithBranch(req);
+    return this.feesService.addDiscountForStudents(tenantId, { ...dto, branch });
+  }
+
+  @Post('discount/waive')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Waive discount in bulk (single, multiple, or all students)',
+    description:
+      'Removes the entire current discount from fees in scope. Skips PAID ' +
+      'fees, fees with no discount, and fees where removing the discount ' +
+      'would invalidate an already-posted payment. Branch is taken from JWT.',
+  })
+  async waiveDiscountBulk(@Body() dto: WaiveDiscountDto, @Req() req: Request) {
+    const { tenantId, branch } = ctxWithBranch(req);
+    return this.feesService.waiveDiscountForStudents(tenantId, { ...dto, branch });
+  }
+
   @Post(':id/discount')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -87,6 +120,23 @@ export class FeesController {
   ) {
     const { tenantId } = ctx(req);
     return this.feesService.addDiscount(tenantId, feeId, dto.amount, dto.reason);
+  }
+
+  @Post(':id/penalty')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Add penalty to a fee',
+    description:
+      'Adds to total_penalty and recomputes net_amount. PAID fees are rejected.',
+  })
+  @ApiParam({ name: 'id', description: 'Fee UUID', example: 'a1b2c3d4-0000-4000-8000-000000000001' })
+  async addPenaltySingle(
+    @Param('id', buildUuidPipe('id')) feeId: string,
+    @Body() dto: AddSinglePenaltyDto,
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    return this.feesService.addPenaltyToFee(tenantId, feeId, dto.amount, dto.reason);
   }
 
   @Post(':id/offline-payment')

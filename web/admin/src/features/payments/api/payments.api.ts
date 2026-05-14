@@ -98,6 +98,7 @@ export interface FeeRow {
   term: string;
   originalAmount: string;
   totalDiscount: string;
+  totalPenalty: string;
   netAmount: string;
   paidAmount: string;
   paymentStatus: "UNPAID" | "PARTIAL" | "PAID";

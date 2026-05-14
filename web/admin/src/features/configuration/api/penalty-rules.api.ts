@@ -76,9 +76,41 @@ export async function waivePenaltyManualApi(body: {
   return post<unknown>("/fees/penalty/waive", body);
 }
 
+// ─── Single-fee adjustments (used by Payment Details per-fee actions) ──────
+
 export async function addDiscountManualApi(
   feeId: string,
   body: { amount: number; reason?: string },
 ): Promise<unknown> {
   return post<unknown>(`/fees/${feeId}/discount`, body);
+}
+
+export async function addPenaltyToFeeApi(
+  feeId: string,
+  body: { amount: number; reason?: string },
+): Promise<unknown> {
+  return post<unknown>(`/fees/${feeId}/penalty`, body);
+}
+
+// ─── Bulk discount (mirror of penalty bulk) ────────────────────────────────
+
+export async function applyDiscountBulkApi(body: {
+  academicYear: string;
+  term: PenaltyTerm;
+  amount: number;
+  applyToAll?: boolean;
+  admissionNumbers?: string[];
+  reason?: string;
+}): Promise<unknown> {
+  return post<unknown>("/fees/discount/add", body);
+}
+
+export async function waiveDiscountBulkApi(body: {
+  academicYear: string;
+  term: PenaltyTerm;
+  applyToAll?: boolean;
+  admissionNumbers?: string[];
+  reason?: string;
+}): Promise<unknown> {
+  return post<unknown>("/fees/discount/waive", body);
 }

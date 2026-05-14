@@ -388,6 +388,213 @@ async waivePenaltyForStudents(
 }
 
   /**
+   * Bulk discount across fees in (branch, academicYear, term). Same
+   * scope semantics as addPenaltyForStudents. Per-fee, the discount is
+   * skipped if it would push net below what has already been paid (we
+   * never silently invalidate a posted payment).
+   */
+  async addDiscountForStudents(
+    tenantId: string,
+    input: {
+      branch: string;
+      academicYear: string;
+      term: TermType;
+      applyToAll?: boolean;
+      admissionNumbers?: string[];
+      amount: number;
+      reason?: string;
+    },
+  ): Promise<{
+    feesAffected: number;
+    feesSkipped: number;
+    totalDiscountApplied: string;
+  }> {
+    if (
+      !input.applyToAll &&
+      (!input.admissionNumbers || !input.admissionNumbers.length)
+    ) {
+      return { feesAffected: 0, feesSkipped: 0, totalDiscountApplied: '0.00' };
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(Fee);
+
+      let qb = repo
+        .createQueryBuilder('fee')
+        .innerJoin('fee.student', 'student')
+        .setLock('pessimistic_write')
+        .where('fee.tenantId = :tenantId', { tenantId })
+        .andWhere('fee.branch = :branch', { branch: input.branch })
+        .andWhere('fee.academicYear = :year', { year: input.academicYear })
+        .andWhere('fee.term = :term', { term: input.term });
+
+      if (!input.applyToAll) {
+        qb = qb.andWhere('student.admissionNumber IN (:...admissions)', {
+          admissions: input.admissionNumbers,
+        });
+      }
+
+      const fees = await qb.getMany();
+
+      let affected = 0;
+      let skipped = 0;
+      const toSave: Fee[] = [];
+
+      for (const fee of fees) {
+        if (fee.paymentStatus === PaymentStatus.PAID) {
+          skipped++;
+          continue;
+        }
+        const newDiscount = Number(fee.totalDiscount) + input.amount;
+        const newNet =
+          Number(fee.originalAmount) + Number(fee.totalPenalty) - newDiscount;
+        if (newNet < Number(fee.paidAmount)) {
+          skipped++;
+          continue;
+        }
+        fee.totalDiscount = newDiscount.toFixed(2);
+        this.recomputeDerived(fee);
+        toSave.push(fee);
+        affected++;
+      }
+
+      if (toSave.length) await repo.save(toSave);
+
+      this.logger.log(
+        `Discount +${input.amount} applied to ${affected} fees, skipped ${skipped} ` +
+          `(branch=${input.branch}, year=${input.academicYear}, term=${input.term}, ` +
+          `applyToAll=${!!input.applyToAll})${
+            input.reason ? `; reason: ${input.reason}` : ''
+          }`,
+      );
+
+      return {
+        feesAffected: affected,
+        feesSkipped: skipped,
+        totalDiscountApplied: (input.amount * affected).toFixed(2),
+      };
+    });
+  }
+
+  /**
+   * Waives the entire current discount on fees in scope. Skips PAID
+   * fees, fees with no discount, and fees where removing the discount
+   * would invalidate an already-posted payment.
+   */
+  async waiveDiscountForStudents(
+    tenantId: string,
+    input: {
+      branch: string;
+      academicYear: string;
+      term: TermType;
+      applyToAll?: boolean;
+      admissionNumbers?: string[];
+      reason?: string;
+    },
+  ): Promise<{
+    feesAffected: number;
+    feesSkipped: number;
+    totalDiscountWaived: string;
+  }> {
+    if (
+      !input.applyToAll &&
+      (!input.admissionNumbers || !input.admissionNumbers.length)
+    ) {
+      return { feesAffected: 0, feesSkipped: 0, totalDiscountWaived: '0.00' };
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(Fee);
+      let qb = repo
+        .createQueryBuilder('fee')
+        .innerJoin('fee.student', 'student')
+        .setLock('pessimistic_write')
+        .where('fee.tenantId = :tenantId', { tenantId })
+        .andWhere('fee.branch = :branch', { branch: input.branch })
+        .andWhere('fee.academicYear = :year', { year: input.academicYear })
+        .andWhere('fee.term = :term', { term: input.term });
+
+      if (!input.applyToAll) {
+        qb = qb.andWhere('student.admissionNumber IN (:...admissions)', {
+          admissions: input.admissionNumbers,
+        });
+      }
+
+      const fees = await qb.getMany();
+
+      let affected = 0;
+      let skipped = 0;
+      let totalWaived = 0;
+      const toSave: Fee[] = [];
+
+      for (const fee of fees) {
+        if (
+          fee.paymentStatus === PaymentStatus.PAID ||
+          Number(fee.totalDiscount) === 0
+        ) {
+          skipped++;
+          continue;
+        }
+        const newNet =
+          Number(fee.originalAmount) + Number(fee.totalPenalty);
+        if (newNet < Number(fee.paidAmount)) {
+          // Removing the discount would push net below paid → skip.
+          skipped++;
+          continue;
+        }
+        totalWaived += Number(fee.totalDiscount);
+        fee.totalDiscount = '0.00';
+        this.recomputeDerived(fee);
+        toSave.push(fee);
+        affected++;
+      }
+
+      if (toSave.length) await repo.save(toSave);
+
+      this.logger.log(
+        `Discount waiver removed ₹${totalWaived.toFixed(2)} from ${affected} fees, ` +
+          `skipped ${skipped} (branch=${input.branch}, year=${input.academicYear}, ` +
+          `term=${input.term}, applyToAll=${!!input.applyToAll})${
+            input.reason ? `; reason: ${input.reason}` : ''
+          }`,
+      );
+
+      return {
+        feesAffected: affected,
+        feesSkipped: skipped,
+        totalDiscountWaived: totalWaived.toFixed(2),
+      };
+    });
+  }
+
+  /**
+   * Adds `amount` to a single fee's total_penalty. PAID fees are
+   * rejected — penalising a fully-paid student would create a phantom
+   * balance and should be done by re-opening the fee instead.
+   */
+  async addPenaltyToFee(
+    tenantId: string,
+    feeId: string,
+    amount: number,
+    reason: string | undefined,
+  ): Promise<Fee> {
+    return this.dataSource.transaction(async (manager) => {
+      const fee = await this.lockFee(manager, tenantId, feeId);
+      if (fee.paymentStatus === PaymentStatus.PAID) {
+        throw new BadRequestException(
+          'Cannot add penalty to a PAID fee. Adjust the underlying payment first.',
+        );
+      }
+      fee.totalPenalty = (Number(fee.totalPenalty) + amount).toFixed(2);
+      this.recomputeDerived(fee);
+      this.logger.log(
+        `Penalty +${amount} on fee=${feeId}${reason ? ` (${reason})` : ''}`,
+      );
+      return manager.getRepository(Fee).save(fee);
+    });
+  }
+
+  /**
    * Adds `amount` to the fee's total_discount. Discount can't exceed
    * what's still owed (net − paid remaining after the discount).
    */
@@ -1113,7 +1320,8 @@ ${body}
       <table>
         <tr><td class="lbl">Term</td><td class="val">${escapeHtml(fee.term)}</td></tr>
         <tr><td class="lbl">Original Amount</td><td class="val">${inr(Number(fee.originalAmount))}</td></tr>
-        <tr><td class="lbl">Discount</td><td class="val">${inr(Number(fee.totalDiscount))}</td></tr>
+        ${Number(fee.totalPenalty) > 0 ? `<tr><td class="lbl">Penalty</td><td class="val">${inr(Number(fee.totalPenalty))}</td></tr>` : ''}
+        ${Number(fee.totalDiscount) > 0 ? `<tr><td class="lbl">Discount</td><td class="val">−${inr(Number(fee.totalDiscount))}</td></tr>` : '<tr><td class="lbl">Discount</td><td class="val">' + inr(0) + '</td></tr>'}
         <tr><td class="lbl">Net Amount</td><td class="val">${inr(Number(fee.netAmount))}</td></tr>
       </table>
 
