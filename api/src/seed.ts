@@ -86,6 +86,7 @@ const TERM_AMOUNTS: { term: TermType; amount: number }[] = [
 ];
 
 async function seed() {
+  await runPreSyncFixes();
   const app = await NestFactory.createApplicationContext(AppModule);
   const get = <T extends ObjectLiteral>(entity: any) =>
     app.get<Repository<T>>(getRepositoryToken(entity));
@@ -427,6 +428,61 @@ async function ensureSystemMetadata(app: any): Promise<void> {
   console.log(
     `${created > 0 ? '✔' : '↩'}  system metadata: ${created} new, ${defaults.length - created} existing`,
   );
+}
+
+/**
+ * One-shot schema fixes that need to run BEFORE TypeORM's synchronize step.
+ * Currently:
+ *  - Convert legacy `admins.role` enum column → varchar(50). TypeORM's
+ *    auto-sync tries to drop+re-add the column on type change, which fails
+ *    with "column contains null values". Doing an in-place ALTER preserves
+ *    existing rows and lets synchronize be a no-op.
+ *
+ * Safe to run repeatedly: every action is idempotent.
+ */
+async function runPreSyncFixes(): Promise<void> {
+  // Lazy-import pg so the script still runs in envs where typeorm pulls a
+  // different driver.
+  const { Client } = await import('pg');
+  const client = new Client({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT ?? '5432', 10) || 5432,
+    user: process.env.DB_USERNAME || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_NAME || 'svbk',
+  });
+  try {
+    await client.connect();
+  } catch (err) {
+    // Connection failure here is fine — NestFactory will surface a clearer
+    // error a moment later. Don't crash the seed for a connect-time problem
+    // that the user will see immediately anyway.
+    console.warn(
+      '↩  pre-sync fixes skipped (could not connect):',
+      (err as Error).message,
+    );
+    return;
+  }
+  try {
+    // Check admins.role current type. udt_name = 'admins_role_enum' (or
+    // similar) when it's still a PG enum; 'varchar' once we've migrated.
+    const r = await client.query<{ udt_name: string }>(
+      `SELECT udt_name FROM information_schema.columns
+         WHERE table_name = 'admins' AND column_name = 'role'`,
+    );
+    if (r.rowCount && r.rows[0].udt_name !== 'varchar') {
+      console.log('▶  converting admins.role from enum → varchar(50)…');
+      await client.query(
+        `ALTER TABLE admins ALTER COLUMN role TYPE varchar(50) USING role::text`,
+      );
+      await client.query(`DROP TYPE IF EXISTS admins_role_enum`);
+      console.log('✔  admins.role migrated');
+    }
+  } catch (err) {
+    console.warn('↩  pre-sync fix failed:', (err as Error).message);
+  } finally {
+    await client.end().catch(() => undefined);
+  }
 }
 
 seed().catch((err) => {
