@@ -127,23 +127,6 @@ export async function getLatestStudentsApi(): Promise<LatestStudent[]> {
   return get<LatestStudent[]>(API_ENDPOINTS.studentsDetails.getLatestStudents);
 }
 
-export interface NextAdmissionNumberResponse {
-  admissionNumber: string | null;
-  pattern: string | null;
-}
-
-export async function getNextAdmissionNumberApi(args: {
-  academicYear: string;
-  branch?: string;
-}): Promise<NextAdmissionNumberResponse> {
-  const params = new URLSearchParams();
-  params.set("academicYear", args.academicYear);
-  if (args.branch) params.set("branch", args.branch);
-  return get<NextAdmissionNumberResponse>(
-    `/students/next-admission-number?${params.toString()}`,
-  );
-}
-
 export interface CreateStudentTermPayload {
   term: string;
   amount: number;

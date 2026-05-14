@@ -57,14 +57,6 @@ export class UpdateTenantDto {
   @IsOptional()
   country?: string;
 
-  @ApiPropertyOptional({
-    description:
-      'Admission-number template. See CreateTenantDto for token reference.',
-  })
-  @IsString()
-  @IsOptional()
-  admissionNumberPattern?: string;
-
   @ApiPropertyOptional()
   @IsBoolean()
   @IsOptional()

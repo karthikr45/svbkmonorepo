@@ -28,7 +28,6 @@ const emptyForm: Omit<Tenant, "id"> = {
   city: "",
   state: "",
   country: "",
-  admissionNumberPattern: "",
 };
 
 /** Auto-generates tenant code from name + optional code + board type.
@@ -194,11 +193,7 @@ function TenantManagement() {
   const validate = () => {
     const errors: Partial<Record<keyof Omit<Tenant, "id">, string>> = {};
     // schoolCode is optional; tenantCode is auto-generated — skip both
-    const optional = new Set<string>([
-      "schoolCode",
-      "tenantCode",
-      "admissionNumberPattern",
-    ]);
+    const optional = new Set<string>(["schoolCode", "tenantCode"]);
     (Object.keys(formData) as Array<keyof typeof formData>).forEach((key) => {
       if (optional.has(key)) return;
       const val = formData[key];
@@ -229,7 +224,6 @@ function TenantManagement() {
       city: tenant.city,
       state: tenant.state,
       country: tenant.country,
-      admissionNumberPattern: tenant.admissionNumberPattern ?? "",
     });
     setFormErrors({});
     setSaveError("");
@@ -498,24 +492,6 @@ function TenantManagement() {
                 error={formErrors.country}
                 fullWidth
               />
-            </div>
-            <div className="mt-4">
-              <Input
-                label="Admission number pattern (optional)"
-                value={formData.admissionNumberPattern ?? ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, admissionNumberPattern: e.target.value })
-                }
-                placeholder="e.g. SVBK/{AYY}/{####}"
-                fullWidth
-              />
-              <p className="mt-1.5 text-xs text-zinc-500">
-                Tokens: <code>{"{TENANT}"}</code>, <code>{"{BRANCH}"}</code>,{" "}
-                <code>{"{YYYY}"}</code>, <code>{"{YY}"}</code>,{" "}
-                <code>{"{AY}"}</code>, <code>{"{AYY}"}</code>,{" "}
-                <code>{"{####}"}</code> (running number). Leave blank to keep
-                admission numbers manual.
-              </p>
             </div>
           </div>
 

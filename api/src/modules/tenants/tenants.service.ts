@@ -59,11 +59,6 @@ export class TenantsService {
     return this.sanitize(await this.tenantsRepository.save(tenant));
   }
 
-  /** Used by the admission-number generator to read the tenant's pattern. */
-  async findRaw(id: string): Promise<Tenant | null> {
-    return this.tenantsRepository.findOne({ where: { id } });
-  }
-
   async remove(_id: string): Promise<void> {
     // TODO: implement
     throw new Error('Not implemented');

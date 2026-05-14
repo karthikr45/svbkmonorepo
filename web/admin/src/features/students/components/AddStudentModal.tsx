@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import {
   createStudentApi,
-  getNextAdmissionNumberApi,
   type CreateStudentPayload,
 } from "@/features/students/api/students.api";
 import { getApiErrorMessage } from "@/lib/api-client";
@@ -69,48 +68,6 @@ export function AddStudentModal({
     section: "",
     rollNo: "",
   });
-  // Last admission number we auto-filled. If the field still matches
-  // this, we'll refresh it when academicYear / branch changes. Once the
-  // user edits the field manually, we stop touching it.
-  const [autoFilled, setAutoFilled] = useState<string>("");
-  const [hasPattern, setHasPattern] = useState(false);
-
-  // Pre-fill admission number from the tenant's pattern whenever the
-  // modal is open AND the academic year / branch are known.
-  useEffect(() => {
-    if (!open) return;
-    if (!form.academicYear?.trim()) return;
-    let cancelled = false;
-    getNextAdmissionNumberApi({
-      academicYear: form.academicYear.trim(),
-      branch: form.branch?.trim() || undefined,
-    })
-      .then((res) => {
-        if (cancelled) return;
-        if (!res?.admissionNumber) {
-          setHasPattern(!!res?.pattern);
-          return;
-        }
-        setHasPattern(true);
-        setForm((prev) => {
-          // Only overwrite if the user hasn't touched it (either empty
-          // or still matches the previous suggestion).
-          if (prev.admissionNumber && prev.admissionNumber !== autoFilled) {
-            return prev;
-          }
-          return { ...prev, admissionNumber: res.admissionNumber as string };
-        });
-        setAutoFilled(res.admissionNumber);
-      })
-      .catch(() => {
-        /* fall back to manual entry silently */
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, form.academicYear, form.branch]);
-
   const [terms, setTerms] = useState<TermInput[]>(
     TERMS.map(() => ({ enabled: false, amount: "", discount: "" })),
   );
@@ -227,17 +184,10 @@ export function AddStudentModal({
               <input
                 value={form.admissionNumber}
                 onChange={(e) => setForm({ ...form, admissionNumber: e.target.value })}
-                placeholder="ADM-2024-001"
+                placeholder="e.g. 1234 or 12345RA"
                 className="form-input"
                 required
               />
-              {hasPattern && (
-                <p className="text-[11px] text-slate-500 mt-1">
-                  {form.admissionNumber && form.admissionNumber === autoFilled
-                    ? "Auto-generated from this school's pattern. Edit to override."
-                    : "Auto-generation is on for this school — clear the field to refill."}
-                </p>
-              )}
             </Field>
             <Field label="Name" required>
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Arjun Kumar" className="form-input" required />
