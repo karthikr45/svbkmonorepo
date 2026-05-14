@@ -12,7 +12,10 @@ import {
   listAllPaymentsApi,
   listFeePaymentsApi,
   listFeeAdjustmentsApi,
+  recordOfflinePaymentApi,
   type FeeAdjustmentRow,
+  type OfflinePaymentType,
+  type RecordOfflinePaymentBody,
   listPendingClearanceApi,
   receiptUrl,
   updateClearanceApi,
@@ -430,6 +433,7 @@ function PaymentDetailsView() {
       }
     | null
   >(null);
+  const [recordPaymentFee, setRecordPaymentFee] = useState<FeeRow | null>(null);
 
   async function lookup() {
     setPickError(null);
@@ -774,6 +778,15 @@ function PaymentDetailsView() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                {balance > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setRecordPaymentFee(f)}
+                    className="rounded-lg bg-[var(--app-brand)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+                  >
+                    Record payment
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setAdjustModal({ kind: "discount", fee: f })}
@@ -829,6 +842,20 @@ function PaymentDetailsView() {
             const id = adjustModal.fee.id;
             setAdjustModal(null);
             // Refresh the fee summary AND the adjustment timeline.
+            if (admission.trim()) lookup();
+            if (id) loadHistory(id);
+          }}
+        />
+      )}
+
+      {recordPaymentFee && (
+        <RecordPaymentModal
+          fee={recordPaymentFee}
+          studentName={student?.name ?? ""}
+          onClose={() => setRecordPaymentFee(null)}
+          onRecorded={() => {
+            const id = recordPaymentFee.id;
+            setRecordPaymentFee(null);
             if (admission.trim()) lookup();
             if (id) loadHistory(id);
           }}
@@ -1220,6 +1247,363 @@ function AdjustFeeModal({
             Recorded against this fee with your name + the time, visible in the
             adjustment history.
           </p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Offline payment recorder used from the Payment Details fee summary.
+ * Supports Cash / Cheque / DD / POS / NEFT — the conditional fields
+ * mirror the legacy student-edit recorder.
+ *
+ * Cheque + DD payments are marked PENDING clearance server-side; the
+ * paid_amount on the fee only moves once clearance is set to CLEARED.
+ */
+function RecordPaymentModal({
+  fee,
+  studentName,
+  onClose,
+  onRecorded,
+}: {
+  fee: FeeRow;
+  studentName: string;
+  onClose: () => void;
+  onRecorded: () => void;
+}) {
+  const balance = Math.max(0, Number(fee.netAmount) - Number(fee.paidAmount));
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [mode, setMode] = useState<OfflinePaymentType>("CASH");
+  const [amount, setAmount] = useState<string>(balance > 0 ? String(balance) : "");
+  const [paidAt, setPaidAt] = useState<string>(today);
+  const [notes, setNotes] = useState("");
+  const [chequeNumber, setChequeNumber] = useState("");
+  const [chequeDate, setChequeDate] = useState("");
+  const [ddNumber, setDdNumber] = useState("");
+  const [ddDate, setDdDate] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [bankBranch, setBankBranch] = useState("");
+  const [drawerName, setDrawerName] = useState("");
+  const [transactionId, setTransactionId] = useState("");
+  const [cardLast4, setCardLast4] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+
+    const num = Number(amount);
+    if (!Number.isFinite(num) || num <= 0) {
+      setErr("Enter a positive amount.");
+      return;
+    }
+    if (num > balance) {
+      setErr(`Amount cannot exceed balance (${inr(balance)}).`);
+      return;
+    }
+    if (!paidAt) {
+      setErr("Payment date is required.");
+      return;
+    }
+    if (mode === "CHEQUE") {
+      if (!chequeNumber.trim() || !chequeDate) {
+        setErr("Cheque number and cheque date are required.");
+        return;
+      }
+    }
+    if (mode === "DD") {
+      if (!ddNumber.trim() || !ddDate) {
+        setErr("DD number and DD date are required.");
+        return;
+      }
+    }
+    if ((mode === "POS" || mode === "NEFT") && !transactionId.trim()) {
+      setErr(`${mode === "POS" ? "POS" : "NEFT"} transaction id is required.`);
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const body: RecordOfflinePaymentBody = {
+        paymentType: mode,
+        amount: num,
+        paidAt: new Date(paidAt).toISOString(),
+        notes: notes.trim() || undefined,
+      };
+      if (mode === "CHEQUE") {
+        body.chequeNumber = chequeNumber.trim();
+        body.chequeDate = chequeDate;
+        if (bankName.trim()) body.bankName = bankName.trim();
+        if (bankBranch.trim()) body.bankBranch = bankBranch.trim();
+        if (drawerName.trim()) body.drawerName = drawerName.trim();
+      }
+      if (mode === "DD") {
+        body.ddNumber = ddNumber.trim();
+        body.ddDate = ddDate;
+        if (bankName.trim()) body.bankName = bankName.trim();
+        if (bankBranch.trim()) body.bankBranch = bankBranch.trim();
+        if (drawerName.trim()) body.drawerName = drawerName.trim();
+      }
+      if (mode === "POS") {
+        body.transactionId = transactionId.trim();
+        if (cardLast4.trim()) body.cardLast4 = cardLast4.trim();
+      }
+      if (mode === "NEFT") {
+        body.transactionId = transactionId.trim();
+        if (bankName.trim()) body.bankName = bankName.trim();
+        if (bankBranch.trim()) body.bankBranch = bankBranch.trim();
+      }
+      await recordOfflinePaymentApi(fee.id, body);
+      onRecorded();
+    } catch (e2) {
+      setErr(getApiErrorMessage(e2, "Could not record payment"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const modes: { value: OfflinePaymentType; label: string }[] = [
+    { value: "CASH", label: "Cash" },
+    { value: "CHEQUE", label: "Cheque" },
+    { value: "DD", label: "DD" },
+    { value: "POS", label: "POS / Card" },
+    { value: "NEFT", label: "NEFT" },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xl bg-white rounded-2xl shadow-xl max-h-[calc(100vh-4rem)] overflow-y-auto"
+      >
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Record payment</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {fee.term} · {studentName} · Balance{" "}
+              <span className="font-semibold tabular-nums">{inr(balance)}</span>
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="px-6 py-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                Mode *
+              </span>
+              <select
+                value={mode}
+                onChange={(e) => setMode(e.target.value as OfflinePaymentType)}
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+              >
+                {modes.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                Amount (₹) *
+              </span>
+              <input
+                type="number"
+                min={0.01}
+                step="0.01"
+                max={balance}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                autoFocus
+              />
+              <span className="text-[10px] text-slate-400">
+                Max {inr(balance)}
+              </span>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                Payment date *
+              </span>
+              <input
+                type="date"
+                max={today}
+                value={paidAt}
+                onChange={(e) => setPaidAt(e.target.value)}
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+              />
+            </label>
+          </div>
+
+          {(mode === "CHEQUE" || mode === "DD") && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                  {mode === "CHEQUE" ? "Cheque number *" : "DD number *"}
+                </span>
+                <input
+                  value={mode === "CHEQUE" ? chequeNumber : ddNumber}
+                  onChange={(e) =>
+                    mode === "CHEQUE"
+                      ? setChequeNumber(e.target.value)
+                      : setDdNumber(e.target.value)
+                  }
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                  {mode === "CHEQUE" ? "Cheque date *" : "DD date *"}
+                </span>
+                <input
+                  type="date"
+                  value={mode === "CHEQUE" ? chequeDate : ddDate}
+                  onChange={(e) =>
+                    mode === "CHEQUE"
+                      ? setChequeDate(e.target.value)
+                      : setDdDate(e.target.value)
+                  }
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                  Drawer name
+                </span>
+                <input
+                  value={drawerName}
+                  onChange={(e) => setDrawerName(e.target.value)}
+                  placeholder="As written on the instrument"
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                  Bank
+                </span>
+                <input
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5 sm:col-span-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                  Branch
+                </span>
+                <input
+                  value={bankBranch}
+                  onChange={(e) => setBankBranch(e.target.value)}
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                />
+              </label>
+              <p className="sm:col-span-2 text-[11px] text-slate-500">
+                Cheque / DD payments start as <strong>Pending clearance</strong>. The
+                paid amount updates only after clearance is marked CLEARED under{" "}
+                <em>Reports → Pending Cheques</em>.
+              </p>
+            </div>
+          )}
+
+          {mode === "POS" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                  Transaction id *
+                </span>
+                <input
+                  value={transactionId}
+                  onChange={(e) => setTransactionId(e.target.value)}
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                  Card last 4
+                </span>
+                <input
+                  maxLength={4}
+                  value={cardLast4}
+                  onChange={(e) => setCardLast4(e.target.value.replace(/\D/g, ""))}
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                />
+              </label>
+            </div>
+          )}
+
+          {mode === "NEFT" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3">
+              <label className="flex flex-col gap-1.5 sm:col-span-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                  UTR / Transaction id *
+                </span>
+                <input
+                  value={transactionId}
+                  onChange={(e) => setTransactionId(e.target.value)}
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                  Bank
+                </span>
+                <input
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+                  Branch
+                </span>
+                <input
+                  value={bankBranch}
+                  onChange={(e) => setBankBranch(e.target.value)}
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                />
+              </label>
+            </div>
+          )}
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+              Notes (optional)
+            </span>
+            <textarea
+              rows={2}
+              value={notes}
+              maxLength={500}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Any extra context for the receipt or audit"
+              className="px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+            />
+          </label>
+
+          {err && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
+              {err}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button variant="secondary" type="button" onClick={onClose} disabled={busy}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit" isLoading={busy}>
+              Record payment
+            </Button>
+          </div>
         </form>
       </div>
     </div>
