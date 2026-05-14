@@ -11,6 +11,12 @@ import {
   UpsertStudentsResult,
   UpdateStudentDto,
 } from './dto/student.dto';
+import { TenantsService } from '../tenants/tenants.service';
+import {
+  resolvePattern,
+  formatWithSequence,
+  extractSequence,
+} from './utils/admission-number.util';
 
 /** Chunk size for batched saves. 500 keeps us under Postgres' param limit. */
 const BATCH_SIZE = 500;
@@ -22,7 +28,48 @@ export class StudentsService {
   constructor(
     @InjectRepository(Student)
     private readonly studentRepo: Repository<Student>,
+    private readonly tenantsService: TenantsService,
   ) {}
+
+  /**
+   * Returns the next admission number for the caller's tenant + branch
+   * + academic year according to the tenant's admission_number_pattern.
+   * Returns null if the tenant has no pattern configured (caller falls
+   * back to manual entry).
+   */
+  async nextAdmissionNumber(
+    tenantId: string,
+    branch: string | null,
+    academicYear: string,
+  ): Promise<{ admissionNumber: string | null; pattern: string | null }> {
+    const tenant = await this.tenantsService.findRaw(tenantId);
+    const pattern = tenant?.admissionNumberPattern?.trim() || null;
+    if (!pattern) return { admissionNumber: null, pattern: null };
+
+    const res = resolvePattern(pattern, {
+      tenantCode: tenant?.code ?? tenant?.tenantCode ?? null,
+      branch,
+      academicYear,
+    });
+    if (!res) return { admissionNumber: null, pattern };
+
+    // Pull existing admission numbers for this scope and find the max
+    // sequence that matches the resolved pattern.
+    const rows = await this.studentRepo.find({
+      where: {
+        tenantId,
+        ...(branch ? { branch } : {}),
+        academicYear,
+      },
+      select: { admissionNumber: true },
+    });
+    let max = 0;
+    for (const r of rows) {
+      const seq = extractSequence(res, r.admissionNumber);
+      if (seq !== null && seq > max) max = seq;
+    }
+    return { admissionNumber: formatWithSequence(res, max + 1), pattern };
+  }
 
   /**
    * Find one student by id, scoped to tenant. Throws 404 if not found

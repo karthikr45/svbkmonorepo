@@ -52,9 +52,16 @@ export class TenantsService {
     return this.sanitize(tenant);
   }
 
-  async update(_id: string, _dto: UpdateTenantDto): Promise<Tenant> {
-    // TODO: implement
-    throw new Error('Not implemented');
+  async update(id: string, dto: UpdateTenantDto): Promise<SafeTenant> {
+    const tenant = await this.tenantsRepository.findOne({ where: { id } });
+    if (!tenant) throw new NotFoundException(`Tenant ${id} not found`);
+    Object.assign(tenant, dto);
+    return this.sanitize(await this.tenantsRepository.save(tenant));
+  }
+
+  /** Used by the admission-number generator to read the tenant's pattern. */
+  async findRaw(id: string): Promise<Tenant | null> {
+    return this.tenantsRepository.findOne({ where: { id } });
   }
 
   async remove(_id: string): Promise<void> {

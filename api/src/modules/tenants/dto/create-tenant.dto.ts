@@ -56,4 +56,15 @@ export class CreateTenantDto {
   @IsString()
   @IsOptional()
   country?: string;
+
+  @ApiPropertyOptional({
+    example: 'SVBK/{AYY}/{####}',
+    description:
+      'Admission-number template. Tokens: {TENANT}, {BRANCH}, {YYYY}, {YY}, ' +
+      '{AY} (academic year), {AYY} (short), {###} (running sequence). ' +
+      'Empty disables auto-generation.',
+  })
+  @IsString()
+  @IsOptional()
+  admissionNumberPattern?: string;
 }

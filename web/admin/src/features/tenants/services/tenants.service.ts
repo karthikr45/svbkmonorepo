@@ -19,6 +19,8 @@ function normalizeTenant(raw: Tenant, fallback: Partial<Tenant> = {}): Tenant {
     city: raw?.city ?? fallback.city ?? "",
     state: raw?.state ?? fallback.state ?? "",
     country: raw?.country ?? fallback.country ?? "",
+    admissionNumberPattern:
+      raw?.admissionNumberPattern ?? fallback.admissionNumberPattern ?? "",
   };
 }
 

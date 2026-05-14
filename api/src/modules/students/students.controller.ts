@@ -284,6 +284,27 @@ export class StudentsController {
     return this.studentsService.getLatest(tenantId);
   }
 
+  @Get('next-admission-number')
+  @ApiOperation({
+    summary: 'Preview the next admission number per tenant pattern',
+    description:
+      'Returns the next admission number for (tenant, branch, academicYear) ' +
+      'based on the tenant\'s admissionNumberPattern. Returns null when the ' +
+      'tenant has no pattern configured — caller falls back to manual entry.',
+  })
+  async getNextAdmissionNumber(
+    @Query('branch') branch: string | undefined,
+    @Query('academicYear') academicYear: string,
+    @Req() req: Request,
+  ): Promise<{ admissionNumber: string | null; pattern: string | null }> {
+    const { tenantId, branch: jwtBranch } = ctxWithBranch(req);
+    return this.studentsService.nextAdmissionNumber(
+      tenantId,
+      branch || jwtBranch,
+      academicYear,
+    );
+  }
+
   @Get(':id/with-fees')
   @ApiOperation({ summary: 'Get student + fees by UUID' })
   @ApiParam({ name: 'id', description: 'Student UUID', example: 'd6f2e8a0-1c5b-4f2a-9c3b-2e8a6f1c5b4f' })
