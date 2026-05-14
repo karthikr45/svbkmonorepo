@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Payment, PaymentGateway, PaymentStatus, PaymentType } from './entities/payment.entity';
@@ -8,6 +13,8 @@ import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
 import { PaymentAuditService } from './payment-audit.service';
 import { AuditAction } from './entities/payment-audit-log.entity';
+import { TenantConfigsService } from '../tenant-configs/tenant-configs.service';
+import { GatewayCredentials } from './gateways/payment-gateway.interface';
 
 @Injectable()
 export class PaymentsService {
@@ -18,7 +25,24 @@ export class PaymentsService {
     private readonly transactionsRepository: Repository<Transaction>,
     private readonly gatewayFactory: PaymentGatewayFactory,
     private readonly auditService: PaymentAuditService,
+    private readonly tenantConfigsService: TenantConfigsService,
   ) {}
+
+  /**
+   * Resolves the gateway credentials for a tenant. Reads the active
+   * TenantConfig — refuses to proceed if missing rather than silently
+   * falling back to a wrong key.
+   */
+  private async credsForTenant(tenantId: string): Promise<GatewayCredentials> {
+    const cfg = await this.tenantConfigsService.findActiveForTenant(tenantId);
+    if (!cfg || !cfg.paymentClientId || !cfg.paymentSecretKey) {
+      throw new InternalServerErrorException(
+        'Payment gateway is not configured for this tenant. Add the ' +
+          'gateway credentials under the tenant\'s Configuration tab.',
+      );
+    }
+    return { clientId: cfg.paymentClientId, secretKey: cfg.paymentSecretKey };
+  }
 
   async createOrder(tenantId: string, dto: CreateOrderDto): Promise<{ payment: Payment; transaction: Transaction; gatewayResponse: Record<string, any> }> {
     const notes = {
@@ -90,9 +114,10 @@ export class PaymentsService {
       return { payment, transaction, gatewayResponse: {} };
     }
 
-    // Online payment — call the gateway
+    // Online payment — call the gateway using THIS tenant's credentials.
     const gateway = this.gatewayFactory.get(dto.gateway!);
-    const result = await gateway.createOrder(dto.amount, dto.currency, notes);
+    const creds = await this.credsForTenant(tenantId);
+    const result = await gateway.createOrder(creds, dto.amount, dto.currency, notes);
 
     const payment = await this.paymentsRepository.save(
       this.paymentsRepository.create({
@@ -176,7 +201,8 @@ export class PaymentsService {
     }
 
     const gateway = this.gatewayFactory.get(resolvedGateway);
-    const result = await gateway.verifyPayment({
+    const creds = await this.credsForTenant(tenantId);
+    const result = await gateway.verifyPayment(creds, {
       gatewayOrderId: orderId,
       gatewayPaymentId: paymentId,
       signature,

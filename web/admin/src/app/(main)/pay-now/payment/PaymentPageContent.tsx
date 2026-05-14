@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { get, getApiErrorMessage } from "@/lib/api-client";
 import type { StudentFeeRow, TermFeeItem } from "@/features/students/types";
 import { createOrder, verifyPayment } from "@/features/students/services/students.service";
 import type { CreateOrderResponse } from "@/features/students/api/students.api";
@@ -34,6 +34,32 @@ export function PaymentPageContent() {
   const [partialAmount, setPartialAmount] = useState("");
   const [partialAmountError, setPartialAmountError] = useState<string | null>(null);
   const [paidAmount, setPaidAmount] = useState(0);
+  // Public payment config for the caller's tenant — loaded on mount.
+  // Holds the gateway public key (no secret); used to mount Razorpay.
+  const [activePayment, setActivePayment] = useState<{
+    gatewayType: string | null;
+    paymentClientId: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    get<{ gatewayType: string | null; paymentClientId: string | null }>(
+      "/tenant-configs/active-payment",
+    )
+      .then((res) => {
+        if (cancelled) return;
+        // Backend may wrap in { data: ... } depending on interceptor.
+        const payload =
+          (res as { data?: typeof res })?.data ?? (res as typeof res);
+        setActivePayment(payload);
+      })
+      .catch(() => {
+        if (!cancelled) setActivePayment({ gatewayType: null, paymentClientId: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!admissionNumber || !academicYear || !termName) {
@@ -73,10 +99,11 @@ export function PaymentPageContent() {
   }
 
   function openRazorpayCheckout(order: CreateOrderResponse, paymentDetails: any) {
-    if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) {
+    const tenantPublicKey = activePayment?.paymentClientId;
+    if (!tenantPublicKey) {
       setError(
-        "Online payment is not configured (NEXT_PUBLIC_RAZORPAY_KEY_ID is missing). " +
-          "Ask the administrator to set the Razorpay key in the env.",
+        "Online payment is not configured for this tenant. Ask your " +
+          "tenant admin to add the Razorpay credentials under Configuration.",
       );
       return;
     }
@@ -89,9 +116,9 @@ export function PaymentPageContent() {
     ) ? paymentDetails.discountedAmount : paymentDetails.amount;
 
     const options = {
-      // Razorpay public key — must come from env so we never check in secrets.
-      // Set NEXT_PUBLIC_RAZORPAY_KEY_ID for the deployed environment.
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+      // Per-tenant public key — fetched from /tenant-configs/active-payment.
+      // The matching secret never leaves the server.
+      key: tenantPublicKey,
 
       amount: effectiveAmount * 100, // paise
       order_id: order.orderId,

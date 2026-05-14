@@ -14,9 +14,13 @@ import { WebhookVerificationService } from './webhooks/webhook-verification.serv
 import { WebhookHandlerService } from './webhooks/webhook-handler.service';
 import { WebhookGatewayDetectorService } from './webhooks/webhook-gateway-detector.service';
 import { UnifiedWebhookService } from './webhooks/unified-webhook.service';
+import { TenantConfigsModule } from '../tenant-configs/tenant-configs.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Payment, Transaction, PaymentAuditLog, Fee])],
+  imports: [
+    TypeOrmModule.forFeature([Payment, Transaction, PaymentAuditLog, Fee]),
+    TenantConfigsModule,
+  ],
   controllers: [PaymentsController],
   providers: [
     PaymentsService,

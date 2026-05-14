@@ -1,50 +1,46 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import Razorpay from 'razorpay';
 import { createHmac } from 'crypto';
 import {
   IPaymentGateway,
+  GatewayCredentials,
   GatewayOrderResult,
   OrderNotes,
   VerifyPaymentInput,
   VerifyPaymentResult,
 } from './payment-gateway.interface';
 
+/**
+ * Stateless wrapper around the Razorpay SDK. Credentials are passed
+ * per call so a single instance can serve every tenant — keys live in
+ * the tenant's TenantConfig, not in process env.
+ */
 @Injectable()
 export class RazorpayGateway implements IPaymentGateway {
   private readonly logger = new Logger(RazorpayGateway.name);
-  private readonly keyId: string;
-  private readonly keySecret: string;
-  private clientInstance: Razorpay | null = null;
 
-  constructor(private readonly configService: ConfigService) {
-    this.keyId = this.configService.get<string>('razorpay.keyId') ?? '';
-    this.keySecret = this.configService.get<string>('razorpay.keySecret') ?? '';
-  }
-
-  /**
-   * Lazy: only build the Razorpay client when an actual call needs it.
-   * Lets the API boot without RAZORPAY_KEY_ID configured (e.g. in dev
-   * when only Cashfree or offline payments are used).
-   */
-  private get client(): Razorpay {
-    if (!this.clientInstance) {
-      if (!this.keyId || !this.keySecret) {
-        throw new InternalServerErrorException(
-          'Razorpay is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.',
-        );
-      }
-      this.clientInstance = new Razorpay({
-        key_id: this.keyId,
-        key_secret: this.keySecret,
-      });
+  private buildClient(creds: GatewayCredentials): Razorpay {
+    if (!creds.clientId || !creds.secretKey) {
+      throw new InternalServerErrorException(
+        'Razorpay credentials are not configured for this tenant. ' +
+          'Add them under the tenant\'s Configuration tab.',
+      );
     }
-    return this.clientInstance;
+    return new Razorpay({
+      key_id: creds.clientId,
+      key_secret: creds.secretKey,
+    });
   }
 
-  async createOrder(amount: number, currency: string, notes?: OrderNotes): Promise<GatewayOrderResult> {
+  async createOrder(
+    creds: GatewayCredentials,
+    amount: number,
+    currency: string,
+    notes?: OrderNotes,
+  ): Promise<GatewayOrderResult> {
     try {
-      const order = await (this.client.orders.create({
+      const client = this.buildClient(creds);
+      const order = await (client.orders.create({
         amount: amount * 100, // Razorpay expects paise
         currency,
         notes: notes as unknown as Record<string, string | number>,
@@ -62,21 +58,24 @@ export class RazorpayGateway implements IPaymentGateway {
     }
   }
 
-  async verifyPayment(input: VerifyPaymentInput): Promise<VerifyPaymentResult> {
+  async verifyPayment(
+    creds: GatewayCredentials,
+    input: VerifyPaymentInput,
+  ): Promise<VerifyPaymentResult> {
     try {
       const body = `${input.gatewayOrderId}|${input.gatewayPaymentId}`;
-      const expectedSignature = createHmac('sha256', this.keySecret)
+      const expectedSignature = createHmac('sha256', creds.secretKey)
         .update(body)
         .digest('hex');
 
       const isProduction = process.env.NODE_ENV === 'production';
-      // In dev/test, skip signature check so you can test with real Razorpay test keys
       const success = isProduction ? expectedSignature === input.signature : true;
 
       if (isProduction && !success) {
-        this.logger.warn(`Razorpay signature mismatch for order ${input.gatewayOrderId}`);
+        this.logger.warn(
+          `Razorpay signature mismatch for order ${input.gatewayOrderId}`,
+        );
       }
-
       return { success, gatewayPaymentId: input.gatewayPaymentId };
     } catch (err) {
       this.logger.error('Razorpay verifyPayment failed', err);

@@ -24,7 +24,27 @@ export interface VerifyPaymentResult {
   gatewayPaymentId: string;
 }
 
+/**
+ * Per-tenant credentials for a payment gateway. Loaded from the
+ * tenant's active TenantConfig and passed in for every call so the
+ * gateway stays stateless and tenant-agnostic.
+ */
+export interface GatewayCredentials {
+  /** Public key / app id — shown to the browser. */
+  clientId: string;
+  /** Server-side secret — used to create orders and verify signatures. */
+  secretKey: string;
+}
+
 export interface IPaymentGateway {
-  createOrder(amount: number, currency: string, notes: OrderNotes): Promise<GatewayOrderResult>;
-  verifyPayment(input: VerifyPaymentInput): Promise<VerifyPaymentResult>;
+  createOrder(
+    creds: GatewayCredentials,
+    amount: number,
+    currency: string,
+    notes: OrderNotes,
+  ): Promise<GatewayOrderResult>;
+  verifyPayment(
+    creds: GatewayCredentials,
+    input: VerifyPaymentInput,
+  ): Promise<VerifyPaymentResult>;
 }

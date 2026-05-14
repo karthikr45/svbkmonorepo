@@ -45,14 +45,9 @@ export default () => ({
     allowInsecure: process.env.SMTP_ALLOW_INSECURE === 'true',
   },
   demoMode: process.env.DEMO_MODE === 'true',
-  razorpay: {
-    keyId: process.env.RAZORPAY_KEY_ID || '',
-    keySecret: process.env.RAZORPAY_KEY_SECRET || '',
-  },
-  cashfree: {
-    appId: process.env.CASHFREE_APP_ID || '',
-    secretKey: process.env.CASHFREE_SECRET_KEY || '',
-  },
+  // NOTE: Razorpay and Cashfree credentials are NOT platform-level any more —
+  // each tenant stores its own gateway keys in TenantConfig. See
+  // PaymentsService.credsForTenant + GET /tenant-configs/active-payment.
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
     apiKey: process.env.CLOUDINARY_API_KEY || '',

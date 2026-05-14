@@ -1,57 +1,52 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Cashfree, CFEnvironment } from 'cashfree-pg';
 import {
   IPaymentGateway,
+  GatewayCredentials,
   GatewayOrderResult,
   OrderNotes,
   VerifyPaymentInput,
   VerifyPaymentResult,
 } from './payment-gateway.interface';
 
+/**
+ * Stateless wrapper around the Cashfree SDK. Credentials are passed
+ * per call so a single instance can serve every tenant.
+ */
 @Injectable()
 export class CashfreeGateway implements IPaymentGateway {
   private readonly logger = new Logger(CashfreeGateway.name);
-  private readonly appId: string;
-  private readonly secretKey: string;
-  private clientInstance: Cashfree | null = null;
 
-  constructor(private readonly configService: ConfigService) {
-    this.appId = this.configService.get<string>('cashfree.appId') ?? '';
-    this.secretKey = this.configService.get<string>('cashfree.secretKey') ?? '';
-  }
-
-  /**
-   * Lazy: only build the SDK client when an actual call needs it. Lets
-   * the API boot without Cashfree creds in dev when only Razorpay or
-   * offline payments are used.
-   */
-  private get client(): Cashfree {
-    if (!this.clientInstance) {
-      if (!this.appId || !this.secretKey) {
-        throw new InternalServerErrorException(
-          'Cashfree is not configured. Set CASHFREE_APP_ID and CASHFREE_SECRET_KEY.',
-        );
-      }
-      const env =
-        process.env.NODE_ENV === 'production'
-          ? CFEnvironment.PRODUCTION
-          : CFEnvironment.SANDBOX;
-      this.clientInstance = new Cashfree(env, this.appId, this.secretKey);
+  private buildClient(creds: GatewayCredentials): Cashfree {
+    if (!creds.clientId || !creds.secretKey) {
+      throw new InternalServerErrorException(
+        'Cashfree credentials are not configured for this tenant. ' +
+          'Add them under the tenant\'s Configuration tab.',
+      );
     }
-    return this.clientInstance;
+    const env =
+      process.env.NODE_ENV === 'production'
+        ? CFEnvironment.PRODUCTION
+        : CFEnvironment.SANDBOX;
+    return new Cashfree(env, creds.clientId, creds.secretKey);
   }
 
-  async createOrder(amount: number, currency: string, notes?: OrderNotes): Promise<GatewayOrderResult> {
+  async createOrder(
+    creds: GatewayCredentials,
+    amount: number,
+    currency: string,
+    notes?: OrderNotes,
+  ): Promise<GatewayOrderResult> {
     try {
+      const client = this.buildClient(creds);
       const orderId = `order_${Date.now()}`;
       const orderNote = notes
         ? `${notes.studentName} | ${notes.admission} | ${notes.term} | ${notes.academicYear}`
         : undefined;
 
-      const response = await this.client.PGCreateOrder({
+      const response = await client.PGCreateOrder({
         order_id: orderId,
-        order_amount: amount, // Cashfree expects rupees directly
+        order_amount: amount,
         order_currency: currency,
         order_note: orderNote,
         customer_details: {
@@ -75,23 +70,32 @@ export class CashfreeGateway implements IPaymentGateway {
     }
   }
 
-  async verifyPayment(input: VerifyPaymentInput): Promise<VerifyPaymentResult> {
+  async verifyPayment(
+    creds: GatewayCredentials,
+    input: VerifyPaymentInput,
+  ): Promise<VerifyPaymentResult> {
     try {
-      // Step 1: confirm order is PAID
-      const orderResponse = await this.client.PGFetchOrder(input.gatewayOrderId);
+      const client = this.buildClient(creds);
+      const orderResponse = await client.PGFetchOrder(input.gatewayOrderId);
       const order = orderResponse.data;
       const success = order.order_status === 'PAID';
 
       if (!success) {
-        this.logger.warn(`Cashfree order ${input.gatewayOrderId} status: ${order.order_status}`);
+        this.logger.warn(
+          `Cashfree order ${input.gatewayOrderId} status: ${order.order_status}`,
+        );
         return { success: false, gatewayPaymentId: input.gatewayPaymentId };
       }
 
-      // Step 2: fetch actual cf_payment_id from payments list
-      const paymentsResponse = await this.client.PGOrderFetchPayments(input.gatewayOrderId);
+      const paymentsResponse = await client.PGOrderFetchPayments(
+        input.gatewayOrderId,
+      );
       const payments = paymentsResponse.data;
-      const successfulPayment = payments.find((p) => p.payment_status === 'SUCCESS');
-      const gatewayPaymentId = successfulPayment?.cf_payment_id ?? input.gatewayPaymentId;
+      const successfulPayment = payments.find(
+        (p: any) => p.payment_status === 'SUCCESS',
+      );
+      const gatewayPaymentId =
+        successfulPayment?.cf_payment_id ?? input.gatewayPaymentId;
 
       return { success: true, gatewayPaymentId };
     } catch (err) {

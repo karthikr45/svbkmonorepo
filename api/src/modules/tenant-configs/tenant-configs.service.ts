@@ -74,6 +74,19 @@ export class TenantConfigsService {
     });
   }
 
+  /**
+   * Returns the most recent active config for a tenant, used by the
+   * payments flow to pick the right gateway credentials. Returns null
+   * if the tenant has no active config (caller decides whether to fall
+   * back to platform defaults or refuse the operation).
+   */
+  async findActiveForTenant(tenantId: string): Promise<TenantConfig | null> {
+    return this.repo.findOne({
+      where: { tenantId, isActive: true },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   async findOne(id: string): Promise<TenantConfig> {
     const config = await this.repo.findOne({ where: { id } });
     if (!config) {

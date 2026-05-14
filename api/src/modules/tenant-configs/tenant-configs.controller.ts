@@ -20,6 +20,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { TenantConfig } from './entities/tenant-config.entity';
 import { Role } from '../../common/enums/roles.enum';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('tenant-configs')
 @ApiBearerAuth()
@@ -27,6 +28,29 @@ import { Roles } from '../../common/decorators/roles.decorator';
 @Controller('tenant-configs')
 export class TenantConfigsController {
   constructor(private readonly tenantConfigsService: TenantConfigsService) {}
+
+  /**
+   * Public-safe view of the caller's tenant's active payment gateway —
+   * only `{ gatewayType, paymentClientId }`. Used by the checkout page
+   * to mount the gateway widget. Never returns the secret key.
+   */
+  @Get('active-payment')
+  @UseGuards(JwtAuthGuard)
+  async activePayment(
+    @CurrentUser() user: any,
+  ): Promise<{
+    gatewayType: string | null;
+    paymentClientId: string | null;
+  }> {
+    if (!user?.tenantId) {
+      return { gatewayType: null, paymentClientId: null };
+    }
+    const cfg = await this.tenantConfigsService.findActiveForTenant(user.tenantId);
+    return {
+      gatewayType: cfg?.gatewayType ?? null,
+      paymentClientId: cfg?.paymentClientId ?? null,
+    };
+  }
 
   // POST /tenant-configs
   @Post()
