@@ -102,3 +102,51 @@ export async function updatePostApi(
 export async function deletePostApi(id: string): Promise<void> {
   await del(`/social/${id}`);
 }
+
+/**
+ * Upload a single image to the tenant's Azure container. The API
+ * client we use here is fetch-based because the global axios instance
+ * stringifies bodies — multipart needs the raw FormData.
+ */
+export async function uploadSocialImageApi(file: File): Promise<{ url: string }> {
+  const { getApiBaseUrl } = await import("@/lib/env");
+  const { getStoredToken } = await import("@/features/auth/services");
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${getApiBaseUrl()}/social/upload-image`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getStoredToken() ?? ""}` },
+    body: form,
+  });
+  if (!res.ok) {
+    let msg = `Upload failed (${res.status})`;
+    try {
+      const body = await res.json();
+      msg = body?.message || body?.data?.message || msg;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  const body = await res.json();
+  return unwrap<{ url: string }>(body);
+}
+
+export async function listCommentsApi(
+  postId: string,
+): Promise<Array<{ id: string; authorName: string | null; body: string; createdAt: string }>> {
+  return unwrap(await get(`/social/${postId}/comments`));
+}
+
+export async function addCommentApi(
+  postId: string,
+  body: { body: string; authorName?: string },
+): Promise<{ id: string }> {
+  return unwrap(await post(`/social/${postId}/comments`, body));
+}
+
+export async function toggleLikeApi(
+  postId: string,
+): Promise<{ liked: boolean; total: number }> {
+  return unwrap(await post(`/social/${postId}/like`, {}));
+}

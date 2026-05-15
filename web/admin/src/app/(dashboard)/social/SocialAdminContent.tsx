@@ -11,6 +11,7 @@ import {
   deletePostApi,
   listAdminPostsApi,
   updatePostApi,
+  uploadSocialImageApi,
   type SocialImage,
   type SocialPost,
   type SocialPostKind,
@@ -136,20 +137,26 @@ export function SocialAdminContent() {
     }
   }
 
-  function onFiles(files: FileList | null) {
+  const [uploading, setUploading] = useState(false);
+
+  async function onFiles(files: FileList | null) {
     if (!files?.length) return;
-    Array.from(files).forEach((f) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const url = String(reader.result ?? "");
-        if (!url) return;
+    setUploading(true);
+    setError(null);
+    try {
+      for (const f of Array.from(files)) {
+        if (!/^image\//.test(f.type)) continue;
+        const { url } = await uploadSocialImageApi(f);
         setForm((prev) => ({
           ...prev,
           images: [...prev.images, { url, alt: f.name }],
         }));
-      };
-      reader.readAsDataURL(f);
-    });
+      }
+    } catch (e) {
+      setError(getApiErrorMessage(e, "Upload failed. Check the tenant Azure storage settings."));
+    } finally {
+      setUploading(false);
+    }
   }
 
   function moveImage(idx: number, dir: -1 | 1) {
@@ -378,9 +385,10 @@ export function SocialAdminContent() {
                   <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
-                    className="text-xs font-semibold text-[#0b54ab] hover:underline"
+                    disabled={uploading}
+                    className="text-xs font-semibold text-[#0b54ab] hover:underline disabled:opacity-50"
                   >
-                    + Add images
+                    {uploading ? "Uploading…" : "+ Add images"}
                   </button>
                   <input
                     ref={fileRef}

@@ -228,6 +228,12 @@ export default function DashboardPage() {
               <h1 className="font-bold text-slate-800 text-base">Dashboard</h1>
             )}
           </div>
+          <a
+            href="/feed"
+            className="ml-auto text-sm font-semibold text-[#0b54ab] hover:underline"
+          >
+            School feed →
+          </a>
         </header>
 
         <main className="flex-1 p-4 sm:p-6 overflow-auto">

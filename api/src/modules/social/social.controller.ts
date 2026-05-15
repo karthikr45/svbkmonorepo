@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -11,9 +12,12 @@ import {
   Query,
   Req,
   UnauthorizedException,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -53,6 +57,12 @@ export class SocialController {
   @ApiOperation({ summary: 'View one public post' })
   publicPost(@Param('id') id: string) {
     return this.social.findOnePublic(id);
+  }
+
+  @Get('public/posts/:id/comments')
+  @ApiOperation({ summary: 'List comments on a public post' })
+  publicComments(@Param('id') id: string) {
+    return this.social.listComments(id);
   }
 
   // ─── Authed reads — caller's tenant ──────────────────────────────
@@ -125,6 +135,93 @@ export class SocialController {
   remove(@Req() req: Request, @Param('id') id: string) {
     return this.social.remove(tenantOf(req), id);
   }
+
+  // ─── Image upload to tenant Azure Blob ──────────────────────────
+
+  @Post('upload-image')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.FIN_ADMIN, Role.OPS_ADMIN)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Upload a single image to the tenant\'s Azure blob container',
+    description:
+      'Returns { url } — the public blob URL. Credentials are read from the ' +
+      'tenant\'s active TenantConfig (storageConnectionString or accountName + accessKey).',
+  })
+  async upload(
+    @Req() req: Request,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file) throw new BadRequestException('file is required');
+    const tenantId = tenantOf(req);
+    return this.social.uploadImage(tenantId, file);
+  }
+
+  // ─── Comments + reactions ───────────────────────────────────────
+
+  @Get(':id/comments')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List comments on a post (auth)' })
+  comments(@Param('id') id: string) {
+    return this.social.listComments(id);
+  }
+
+  @Post(':id/comments')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Comment on a post as an authenticated user (admin or parent)',
+  })
+  async addComment(
+    @Req() req: Request,
+    @Param('id') postId: string,
+    @Body() body: { body: string; authorName?: string },
+  ) {
+    const me = anyActor(req);
+    return this.social.addComment({
+      postId,
+      tenantId: me.kind === 'admin' ? me.tenantId : undefined,
+      authorKind: me.kind,
+      authorId: me.userId,
+      authorName: body.authorName ?? me.email,
+      body: body.body,
+    });
+  }
+
+  @Post(':id/like')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Toggle a like on a post (admin or parent)' })
+  async toggleLike(@Req() req: Request, @Param('id') postId: string) {
+    const me = anyActor(req);
+    return this.social.toggleReaction({
+      postId,
+      authorKind: me.kind,
+      authorId: me.userId,
+    });
+  }
+}
+
+function anyActor(req: Request): {
+  kind: 'admin' | 'parent';
+  userId: string;
+  tenantId?: string;
+  email: string | null;
+} {
+  const user = (req as any).user ?? {};
+  if (!user.userId) {
+    throw new UnauthorizedException('Authentication required.');
+  }
+  const isParent = String(user.role ?? '').toLowerCase() === 'parent';
+  return {
+    kind: isParent ? 'parent' : 'admin',
+    userId: user.userId,
+    tenantId: user.tenantId ?? undefined,
+    email: typeof user.email === 'string' ? user.email : null,
+  };
 }
 
 function tenantOf(req: Request): string {

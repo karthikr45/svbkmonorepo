@@ -7,12 +7,15 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { SocialPost, SocialPostKind } from './entities/social-post.entity';
 import { SocialPostImage } from './entities/social-post-image.entity';
+import { SocialComment } from './entities/social-comment.entity';
+import { SocialReaction } from './entities/social-reaction.entity';
 import {
   CreateSocialPostDto,
   UpdateSocialPostDto,
 } from './dto/social.dto';
 import { Admin } from '../admins/entities/admin.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
+import { AzureStorageService } from '../storage/azure-storage.service';
 
 export interface SocialAuthor {
   adminId: string;
@@ -23,6 +26,18 @@ export interface SocialAuthor {
 export interface FeedItem extends SocialPost {
   images: SocialPostImage[];
   tenantName: string | null;
+  commentCount: number;
+  reactionCount: number;
+}
+
+export interface CommentRow {
+  id: string;
+  postId: string;
+  authorKind: 'admin' | 'parent';
+  authorId: string;
+  authorName: string | null;
+  body: string;
+  createdAt: Date;
 }
 
 @Injectable()
@@ -32,12 +47,33 @@ export class SocialService {
     private readonly postRepo: Repository<SocialPost>,
     @InjectRepository(SocialPostImage)
     private readonly imageRepo: Repository<SocialPostImage>,
+    @InjectRepository(SocialComment)
+    private readonly commentRepo: Repository<SocialComment>,
+    @InjectRepository(SocialReaction)
+    private readonly reactionRepo: Repository<SocialReaction>,
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(Admin)
     private readonly adminRepo: Repository<Admin>,
     @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly storage: AzureStorageService,
   ) {}
+
+  // ─── Image uploads (Azure Blob, per-tenant credentials) ─────────
+
+  async uploadImage(
+    tenantId: string,
+    file: { buffer: Buffer; mimetype: string; originalname?: string },
+  ): Promise<{ url: string }> {
+    const { url } = await this.storage.uploadImage({
+      tenantId,
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+      originalName: file.originalname,
+      folder: 'social',
+    });
+    return { url };
+  }
 
   // ─── Authoring (admin only, scoped to caller's tenant) ──────────
 
@@ -135,10 +171,93 @@ export class SocialService {
       where: { id: postId, tenantId },
     });
     if (!post) throw new NotFoundException(`Post ${postId} not found`);
+    const images = await this.imageRepo.find({ where: { postId } });
     await this.dataSource.transaction(async (m) => {
       await m.getRepository(SocialPostImage).delete({ postId });
+      await m.getRepository(SocialComment).delete({ postId });
+      await m.getRepository(SocialReaction).delete({ postId });
       await m.getRepository(SocialPost).remove(post);
     });
+    // Best-effort blob cleanup — runs outside the txn so a flaky
+    // Azure call doesn't block the delete.
+    for (const img of images) {
+      void this.storage.deleteByUrl(tenantId, img.url).catch(() => undefined);
+    }
+  }
+
+  // ─── Comments + reactions ───────────────────────────────────────
+
+  async addComment(args: {
+    postId: string;
+    tenantId?: string; // when caller is admin — for tenant-scoped post lookup
+    authorKind: 'admin' | 'parent';
+    authorId: string;
+    authorName: string | null;
+    body: string;
+  }): Promise<CommentRow> {
+    const trimmed = args.body?.trim();
+    if (!trimmed) throw new NotFoundException('Empty comment'); // covered by DTO normally
+    // Make sure the post exists + is published+public OR belongs to caller's tenant.
+    const post = await this.postRepo.findOne({ where: { id: args.postId } });
+    if (!post) throw new NotFoundException(`Post ${args.postId} not found`);
+    if (args.authorKind === 'admin') {
+      if (!args.tenantId || post.tenantId !== args.tenantId) {
+        throw new ForbiddenException('Cannot comment on this post.');
+      }
+    } else {
+      // Parent: must be public + published.
+      if (!post.isPublic || !post.isPublished) {
+        throw new ForbiddenException('Cannot comment on this post.');
+      }
+    }
+    const saved = await this.commentRepo.save(
+      this.commentRepo.create({
+        postId: args.postId,
+        authorKind: args.authorKind,
+        authorId: args.authorId,
+        authorName: args.authorName?.trim() || null,
+        body: trimmed.slice(0, 1000),
+      }),
+    );
+    return { ...saved };
+  }
+
+  async listComments(postId: string): Promise<CommentRow[]> {
+    return this.commentRepo.find({
+      where: { postId },
+      order: { createdAt: 'ASC' },
+      take: 200,
+    });
+  }
+
+  async toggleReaction(args: {
+    postId: string;
+    authorKind: 'admin' | 'parent';
+    authorId: string;
+  }): Promise<{ liked: boolean; total: number }> {
+    const post = await this.postRepo.findOne({ where: { id: args.postId } });
+    if (!post) throw new NotFoundException(`Post ${args.postId} not found`);
+
+    const existing = await this.reactionRepo.findOne({
+      where: {
+        postId: args.postId,
+        authorKind: args.authorKind,
+        authorId: args.authorId,
+      },
+    });
+    if (existing) {
+      await this.reactionRepo.remove(existing);
+    } else {
+      await this.reactionRepo.save(
+        this.reactionRepo.create({
+          postId: args.postId,
+          authorKind: args.authorKind,
+          authorId: args.authorId,
+        }),
+      );
+    }
+    const total = await this.reactionRepo.count({ where: { postId: args.postId } });
+    return { liked: !existing, total };
   }
 
   // ─── Reads ───────────────────────────────────────────────────────
@@ -215,35 +334,63 @@ export class SocialService {
   private async attachExtras(posts: SocialPost[]): Promise<FeedItem[]> {
     if (posts.length === 0) return [];
     const ids = posts.map((p) => p.id);
-    const images = await this.imageRepo.find({
-      where: { postId: In(ids) },
-      order: { order: 'ASC', createdAt: 'ASC' },
-    });
-    const tenantIds = Array.from(new Set(posts.map((p) => p.tenantId)));
-    const tenants = await this.tenantRepo.find({
-      where: { id: In(tenantIds) },
-    });
+    const [images, tenants, commentRows, reactionRows] = await Promise.all([
+      this.imageRepo.find({
+        where: { postId: In(ids) },
+        order: { order: 'ASC', createdAt: 'ASC' },
+      }),
+      this.tenantRepo.find({
+        where: { id: In(Array.from(new Set(posts.map((p) => p.tenantId)))) },
+      }),
+      this.commentRepo
+        .createQueryBuilder('c')
+        .select('c.postId', 'postId')
+        .addSelect('COUNT(*)::int', 'count')
+        .where('c.postId IN (:...ids)', { ids })
+        .groupBy('c.postId')
+        .getRawMany<{ postId: string; count: number }>(),
+      this.reactionRepo
+        .createQueryBuilder('r')
+        .select('r.postId', 'postId')
+        .addSelect('COUNT(*)::int', 'count')
+        .where('r.postId IN (:...ids)', { ids })
+        .groupBy('r.postId')
+        .getRawMany<{ postId: string; count: number }>(),
+    ]);
+
     const nameByTenant = new Map(
       tenants.map((t) => [t.id, t.tenantName ?? t.name ?? null]),
+    );
+    const commentByPost = new Map(commentRows.map((c) => [c.postId, Number(c.count)]));
+    const reactionByPost = new Map(
+      reactionRows.map((r) => [r.postId, Number(r.count)]),
     );
 
     return posts.map((p) => ({
       ...p,
       images: images.filter((i) => i.postId === p.id),
       tenantName: nameByTenant.get(p.tenantId) ?? null,
+      commentCount: commentByPost.get(p.id) ?? 0,
+      reactionCount: reactionByPost.get(p.id) ?? 0,
     }));
   }
 
   private async composeFeedItem(post: SocialPost): Promise<FeedItem> {
-    const images = await this.imageRepo.find({
-      where: { postId: post.id },
-      order: { order: 'ASC', createdAt: 'ASC' },
-    });
-    const tenant = await this.tenantRepo.findOne({ where: { id: post.tenantId } });
+    const [images, tenant, commentCount, reactionCount] = await Promise.all([
+      this.imageRepo.find({
+        where: { postId: post.id },
+        order: { order: 'ASC', createdAt: 'ASC' },
+      }),
+      this.tenantRepo.findOne({ where: { id: post.tenantId } }),
+      this.commentRepo.count({ where: { postId: post.id } }),
+      this.reactionRepo.count({ where: { postId: post.id } }),
+    ]);
     return {
       ...post,
       images,
       tenantName: tenant?.tenantName ?? tenant?.name ?? null,
+      commentCount,
+      reactionCount,
     };
   }
 }

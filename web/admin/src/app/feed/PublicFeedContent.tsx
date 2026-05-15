@@ -125,8 +125,9 @@ function FeedCard({ post, featured }: { post: SocialPost; featured?: boolean }) 
   const cover = post.images[0];
   const isEvent = post.kind === "EVENT";
   return (
-    <article
-      className={`group rounded-3xl overflow-hidden bg-white border border-slate-200 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 ${
+    <Link
+      href={`/feed/${post.id}`}
+      className={`group rounded-3xl overflow-hidden bg-white border border-slate-200 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 block ${
         featured ? "md:col-span-2 lg:col-span-2 lg:row-span-2" : ""
       }`}
     >
@@ -188,6 +189,6 @@ function FeedCard({ post, featured }: { post: SocialPost; featured?: boolean }) 
           </span>
         </div>
       </div>
-    </article>
+    </Link>
   );
 }
