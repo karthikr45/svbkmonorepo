@@ -27,6 +27,7 @@ import { Student } from './modules/students/entities/student.entity';
 import { Fee, PaymentStatus, TermType } from './modules/fees/entities/fee.entity';
 import { Parent } from './modules/parents/entities/parent.entity';
 import { SystemMetadata } from './modules/system-metadata/entities/system-metadata.entity';
+import { ReceiptTemplatesService } from './modules/receipt-templates/receipt-templates.service';
 import {
   ParentStudent,
   Relationship,
@@ -382,10 +383,7 @@ async function ensureParent(
  * that pre-dates the receipt-template feature.
  */
 async function ensureReceiptTemplatePerTenant(app: any): Promise<void> {
-  const { ReceiptTemplatesService } = await import(
-    './modules/receipt-templates/receipt-templates.service'
-  );
-  const svc = app.get(ReceiptTemplatesService) as InstanceType<typeof ReceiptTemplatesService>;
+  const svc = app.get(ReceiptTemplatesService) as ReceiptTemplatesService;
   const tenantsRepo = app.get(getRepositoryToken(Tenant)) as Repository<Tenant>;
   const all = await tenantsRepo.find();
   let created = 0;
