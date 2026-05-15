@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   ActionBar,
   DataTableCard,
@@ -272,6 +273,14 @@ function EditIcon() {
   );
 }
 
+function ProfileIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+  );
+}
+
 type StudentSelectOption = { admissionNumber: string; label: string };
 
 function StudentMultiSelect({
@@ -387,6 +396,7 @@ type ViewPageContentProps = {
 };
 
 export function ViewPageContent({ onNavigateUpload }: ViewPageContentProps) {
+  const router = useRouter();
   const classMeta = useMetadata("class", {
     fallback: FALLBACK_CLASS_FILTER.map((v, i) => ({
       value: v, label: v, displayOrder: i, isActive: true,
@@ -1095,6 +1105,17 @@ export function ViewPageContent({ onNavigateUpload }: ViewPageContentProps) {
                   <IconActions
                     actions={[
                       { label: "Edit", onClick: () => { void handleEditClick(row); }, icon: <EditIcon /> },
+                      {
+                        label: "Profile / Issue TC",
+                        onClick: () => {
+                          if (row.admissionNumber) {
+                            router.push(
+                              `/students/by-admission/${encodeURIComponent(row.admissionNumber)}`,
+                            );
+                          }
+                        },
+                        icon: <ProfileIcon />,
+                      },
                     ]}
                   />
                 </div>

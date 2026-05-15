@@ -24,6 +24,7 @@ export interface EnrollmentSummary {
   rollNo: string;
   tcIssuedAt: string | null;
   createdAt: string;
+  identityId?: string | null;
 }
 
 export interface IdentityMatch {
