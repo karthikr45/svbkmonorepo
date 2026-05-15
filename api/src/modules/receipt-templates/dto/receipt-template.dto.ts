@@ -48,11 +48,42 @@ export class CreateReceiptTemplateDto {
   isActive?: boolean;
 }
 
-export class UpdateReceiptTemplateDto extends CreateReceiptTemplateDto {
+export class UpdateReceiptTemplateDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   name?: string;
+
+  @ApiPropertyOptional({ enum: ReceiptTemplateKind })
+  @IsOptional()
+  @IsEnum(ReceiptTemplateKind)
+  kind?: ReceiptTemplateKind;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  headerHtml?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bodyHtml?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  footerHtml?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class RenderTemplateDto {

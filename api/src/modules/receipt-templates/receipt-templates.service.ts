@@ -15,6 +15,7 @@ import {
   UpdateReceiptTemplateDto,
 } from './dto/receipt-template.dto';
 import { Fee } from '../fees/entities/fee.entity';
+import { TermType } from '../fees/entities/fee.entity';
 import {
   FeePayment,
   PaymentType,
@@ -329,7 +330,7 @@ export class ReceiptTemplatesService {
 
   private sampleContext(tenant: Tenant | null): TemplateContext {
     const fakeFee: Partial<Fee> = {
-      term: '1st Term Fee',
+      term: TermType.FIRST,
       academicYear: '2025-2026',
       originalAmount: '25000.00',
       totalPenalty: '0.00',
