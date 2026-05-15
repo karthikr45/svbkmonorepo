@@ -183,6 +183,12 @@ export function ChatPageContent() {
           />
         </div>
 
+        {error && (
+          <div className="m-3 p-2 rounded-lg bg-red-50 border border-red-100 text-xs text-red-700">
+            {error}
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto">
           {conversations.length > 0 && (
             <div>
@@ -226,11 +232,23 @@ export function ChatPageContent() {
           <div>
             <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-[0.06em] text-slate-400">
               {conversations.length > 0 ? "Start new chat" : "Contacts"}
+              <span className="ml-2 text-slate-400/70 normal-case font-normal">
+                {!loading && `(${contacts.length})`}
+              </span>
             </div>
             {loading ? (
               <p className="px-4 py-3 text-xs text-slate-500">Loading…</p>
+            ) : contacts.length === 0 ? (
+              <p className="px-4 py-3 text-xs text-slate-500">
+                No one to chat with yet.{" "}
+                {isSuperAdmin
+                  ? "Create a tenant admin first."
+                  : "Ask your super-admin to add team members."}
+              </p>
             ) : filteredContacts.length === 0 ? (
-              <p className="px-4 py-3 text-xs text-slate-500">No contacts.</p>
+              <p className="px-4 py-3 text-xs text-slate-500">
+                No contacts match "{search}". Try a different search or clear it.
+              </p>
             ) : (
               filteredContacts
                 .filter((c) => !conversationContactIds.has(c.adminId))
@@ -251,6 +269,8 @@ export function ChatPageContent() {
                       c.tenantName
                         ? ` · ${c.tenantName}`
                         : ""}
+                      {" · "}
+                      {c.email}
                     </p>
                   </button>
                 ))

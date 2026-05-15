@@ -73,29 +73,49 @@ export class ChatService {
    * belongs to).
    */
   async listContacts(caller: ChatCaller): Promise<ContactRow[]> {
-    const qb = this.adminRepo
+    // Two simple queries are more reliable than a uuid<->varchar join.
+    // Get admin rows first, then look up tenant names in a separate query.
+    const where = this.adminRepo
       .createQueryBuilder('a')
-      .leftJoin(Tenant, 't', 't.id = a.tenantId')
-      .select('a.id', 'adminId')
-      .addSelect('a.email', 'email')
-      .addSelect('a.firstName', 'firstName')
-      .addSelect('a.lastName', 'lastName')
-      .addSelect('a.role', 'role')
-      .addSelect('a.tenantId', 'tenantId')
-      .addSelect('COALESCE(t.tenantName, t.name)', 'tenantName')
       .where('a.id != :me', { me: caller.userId })
       .andWhere('a.isActive = TRUE');
 
     if (caller.role !== Role.SUPER_ADMIN) {
-      // Same-tenant peers OR any super-admin.
-      qb.andWhere(
+      where.andWhere(
         '(a.tenantId = :tid OR a.role = :superRole)',
-        { tid: caller.tenantId, superRole: Role.SUPER_ADMIN },
+        { tid: caller.tenantId ?? '', superRole: Role.SUPER_ADMIN },
       );
     }
-    qb.orderBy('"tenantName"', 'ASC', 'NULLS FIRST').addOrderBy('a.firstName', 'ASC');
+    const admins = await where
+      .orderBy('a.firstName', 'ASC')
+      .getMany();
 
-    return qb.getRawMany();
+    const tenantIds = Array.from(
+      new Set(admins.map((a) => a.tenantId).filter((t): t is string => !!t)),
+    );
+    const tenants = tenantIds.length
+      ? await this.tenantRepo.find({ where: { id: In(tenantIds) } })
+      : [];
+    const nameByTenant = new Map(
+      tenants.map((t) => [t.id, t.tenantName ?? t.name ?? null]),
+    );
+
+    return admins
+      .map((a) => ({
+        adminId: a.id,
+        email: a.email,
+        firstName: a.firstName,
+        lastName: a.lastName,
+        role: a.role as string,
+        tenantId: a.tenantId ?? null,
+        tenantName: a.tenantId ? nameByTenant.get(a.tenantId) ?? null : null,
+      }))
+      .sort((x, y) => {
+        const an = x.tenantName ?? '';
+        const bn = y.tenantName ?? '';
+        if (an !== bn) return an.localeCompare(bn);
+        return (x.firstName ?? '').localeCompare(y.firstName ?? '');
+      });
   }
 
   // ─── Conversations ───────────────────────────────────────────────
@@ -129,20 +149,29 @@ export class ChatService {
       .getMany();
 
     const adminIds = Array.from(new Set(otherParts.map((p) => p.adminId)));
-    const admins = adminIds.length
-      ? await this.adminRepo
-          .createQueryBuilder('a')
-          .leftJoin(Tenant, 't', 't.id = a.tenantId')
-          .select('a.id', 'adminId')
-          .addSelect('a.email', 'email')
-          .addSelect('a.firstName', 'firstName')
-          .addSelect('a.lastName', 'lastName')
-          .addSelect('a.role', 'role')
-          .addSelect('a.tenantId', 'tenantId')
-          .addSelect('COALESCE(t.tenantName, t.name)', 'tenantName')
-          .where('a.id IN (:...ids)', { ids: adminIds })
-          .getRawMany<ContactRow>()
+    const adminRows = adminIds.length
+      ? await this.adminRepo.find({ where: { id: In(adminIds) } })
       : [];
+    const tenantIds = Array.from(
+      new Set(
+        adminRows.map((a) => a.tenantId).filter((t): t is string => !!t),
+      ),
+    );
+    const tenants = tenantIds.length
+      ? await this.tenantRepo.find({ where: { id: In(tenantIds) } })
+      : [];
+    const nameByTenant = new Map(
+      tenants.map((t) => [t.id, t.tenantName ?? t.name ?? null]),
+    );
+    const admins: ContactRow[] = adminRows.map((a) => ({
+      adminId: a.id,
+      email: a.email,
+      firstName: a.firstName,
+      lastName: a.lastName,
+      role: a.role as string,
+      tenantId: a.tenantId ?? null,
+      tenantName: a.tenantId ? nameByTenant.get(a.tenantId) ?? null : null,
+    }));
     const adminById = new Map(admins.map((a) => [a.adminId, a]));
 
     // Unread counts: for each of my conversations, count messages
