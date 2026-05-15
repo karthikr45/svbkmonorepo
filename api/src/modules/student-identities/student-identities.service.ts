@@ -3,6 +3,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, ILike, In, Repository } from 'typeorm';
 import { StudentIdentity } from './entities/student-identity.entity';
 import { Student } from '../students/entities/student.entity';
+import { Fee, PaymentStatus } from '../fees/entities/fee.entity';
 
 export interface IdentityMatch {
   identity: StudentIdentity;
@@ -82,6 +83,85 @@ export class StudentIdentitiesService {
     if (!identity) throw new NotFoundException(`Identity ${id} not found`);
     const [withEnrollments] = await this.attachEnrollments([identity]);
     return withEnrollments;
+  }
+
+  /**
+   * Per-enrollment outstanding totals for one identity. Used by the
+   * identity page to show "₹X unpaid" beside alumni rows, and by the
+   * re-admission banner.
+   */
+  async outstandingForIdentity(
+    tenantId: string,
+    identityId: string,
+  ): Promise<{
+    identityId: string;
+    totalOutstanding: string;
+    perEnrollment: Array<{
+      studentId: string;
+      admissionNumber: string;
+      academicYear: string;
+      branch: string;
+      tcIssuedAt: Date | null;
+      totalOutstanding: string;
+      unpaidFees: Array<{ feeId: string; term: string; remaining: string }>;
+    }>;
+  }> {
+    const identity = await this.idRepo.findOne({
+      where: { id: identityId, tenantId },
+    });
+    if (!identity) throw new NotFoundException(`Identity ${identityId} not found`);
+
+    const students = await this.studentRepo.find({
+      where: { tenantId, identityId },
+      order: { createdAt: 'DESC' },
+    });
+    if (students.length === 0) {
+      return { identityId, totalOutstanding: '0.00', perEnrollment: [] };
+    }
+    const studentIds = students.map((s) => s.id);
+    const feeRepo = this.dataSource.getRepository(Fee);
+    const fees = await feeRepo.find({
+      where: { tenantId, studentId: In(studentIds) },
+    });
+
+    let totalOutstanding = 0;
+    const perEnrollment = students.map((s) => {
+      const feesForRow = fees.filter((f) => f.studentId === s.id);
+      const unpaidFees = feesForRow
+        .map((f) => {
+          const remaining = Math.max(
+            0,
+            Number(f.netAmount) - Number(f.paidAmount),
+          );
+          return { fee: f, remaining };
+        })
+        .filter(({ remaining }) => remaining > 0)
+        .map(({ fee, remaining }) => ({
+          feeId: fee.id,
+          term: fee.term,
+          remaining: remaining.toFixed(2),
+        }));
+      const rowTotal = unpaidFees.reduce(
+        (sum, f) => sum + Number(f.remaining),
+        0,
+      );
+      totalOutstanding += rowTotal;
+      return {
+        studentId: s.id,
+        admissionNumber: s.admissionNumber,
+        academicYear: s.academicYear,
+        branch: s.branch,
+        tcIssuedAt: s.tcIssuedAt,
+        totalOutstanding: rowTotal.toFixed(2),
+        unpaidFees,
+      };
+    });
+
+    return {
+      identityId,
+      totalOutstanding: totalOutstanding.toFixed(2),
+      perEnrollment,
+    };
   }
 
   async create(

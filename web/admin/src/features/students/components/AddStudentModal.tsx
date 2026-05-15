@@ -9,9 +9,20 @@ import {
 import { getApiErrorMessage } from "@/lib/api-client";
 import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
 import {
+  getOutstandingApi,
   searchIdentitiesApi,
   type IdentityMatch,
+  type IdentityOutstanding,
 } from "@/features/student-identities/api/student-identities.api";
+
+function inr(n: number): string {
+  if (!Number.isFinite(n)) return "₹0";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
 
 // Fallback so the modal still works on a fresh DB before the seed runs.
 const FALLBACK_TERMS = [
@@ -84,6 +95,7 @@ export function AddStudentModal({
   // When linked, this is the identity_id sent on save. The card on top
   // displays the past enrollment so the admin sees it during data entry.
   const [linkedIdentity, setLinkedIdentity] = useState<IdentityMatch | null>(null);
+  const [outstanding, setOutstanding] = useState<IdentityOutstanding | null>(null);
 
   async function runIdentitySearch() {
     if (
@@ -110,7 +122,7 @@ export function AddStudentModal({
     }
   }
 
-  function linkIdentity(m: IdentityMatch) {
+  async function linkIdentity(m: IdentityMatch) {
     setLinkedIdentity(m);
     // Pre-fill name / email / phone from the identity to save typing.
     setForm((prev) => ({
@@ -120,10 +132,18 @@ export function AddStudentModal({
       phoneNumber: m.identity.primaryPhone ?? prev.phoneNumber,
     }));
     setIdentityResults([]);
+    setOutstanding(null);
+    try {
+      const o = await getOutstandingApi(m.identity.id);
+      setOutstanding(o);
+    } catch {
+      /* non-fatal — banner just won't show */
+    }
   }
 
   function unlinkIdentity() {
     setLinkedIdentity(null);
+    setOutstanding(null);
   }
   const [terms, setTerms] = useState<TermInput[]>(
     TERMS.map(() => ({ enabled: false, amount: "", discount: "" })),
@@ -145,6 +165,7 @@ export function AddStudentModal({
     });
     setTerms(TERMS.map(() => ({ enabled: false, amount: "", discount: "" })));
     setLinkedIdentity(null);
+    setOutstanding(null);
     setIdentitySearch({ name: "", phone: "", email: "" });
     setIdentityResults([]);
     setError(null);
@@ -279,6 +300,38 @@ export function AddStudentModal({
                   Unlink
                 </button>
               </div>
+
+              {outstanding && Number(outstanding.totalOutstanding) > 0 && (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+                  <p className="font-bold text-amber-800 mb-1">
+                    ⚠ {inr(Number(outstanding.totalOutstanding))} pending from previous enrollment(s)
+                  </p>
+                  <ul className="space-y-0.5 text-amber-900 mb-2">
+                    {outstanding.perEnrollment
+                      .filter((e) => Number(e.totalOutstanding) > 0)
+                      .map((e) => (
+                        <li key={e.studentId} className="tabular-nums">
+                          • Adm {e.admissionNumber} · {e.academicYear} —{" "}
+                          {inr(Number(e.totalOutstanding))}
+                          {" · "}
+                          <a
+                            href={`/payments?admission=${encodeURIComponent(e.admissionNumber)}&academicYear=${encodeURIComponent(e.academicYear)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-semibold text-amber-800 hover:underline"
+                          >
+                            Open old payments →
+                          </a>
+                        </li>
+                      ))}
+                  </ul>
+                  <p className="text-amber-700 text-[11px]">
+                    These dues stay on the previous enrollment(s). Settle or
+                    waive them there; nothing is carried forward to the new
+                    admission automatically.
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <details className="mb-6 rounded-xl border border-slate-200 bg-slate-50/40 p-4 group">

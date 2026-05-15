@@ -55,6 +55,19 @@ export class StudentIdentitiesController {
     return this.svc.findOne(tenantOf(req), id);
   }
 
+  @Get(':id/outstanding')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.FIN_ADMIN, Role.OPS_ADMIN)
+  @ApiOperation({
+    summary: 'Per-enrollment outstanding fees for this person',
+    description:
+      'Returns each enrollment under the identity with the sum of ' +
+      'unpaid fees (netAmount − paidAmount where > 0). Used by the ' +
+      'identity page balance column and the re-admission banner.',
+  })
+  outstanding(@Req() req: Request, @Param('id') id: string) {
+    return this.svc.outstandingForIdentity(tenantOf(req), id);
+  }
+
   @Post()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.OPS_ADMIN)
   @ApiOperation({ summary: 'Create a new identity (used when no match was found)' })

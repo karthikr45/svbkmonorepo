@@ -110,3 +110,25 @@ export async function listEnrollmentsByAdmissionApi(
     await get(`/students/by-admission/enrollments?${params.toString()}`),
   );
 }
+
+export interface EnrollmentOutstanding {
+  studentId: string;
+  admissionNumber: string;
+  academicYear: string;
+  branch: string;
+  tcIssuedAt: string | null;
+  totalOutstanding: string;
+  unpaidFees: { feeId: string; term: string; remaining: string }[];
+}
+
+export interface IdentityOutstanding {
+  identityId: string;
+  totalOutstanding: string;
+  perEnrollment: EnrollmentOutstanding[];
+}
+
+export async function getOutstandingApi(identityId: string): Promise<IdentityOutstanding> {
+  return unwrap<IdentityOutstanding>(
+    await get(`/student-identities/${identityId}/outstanding`),
+  );
+}

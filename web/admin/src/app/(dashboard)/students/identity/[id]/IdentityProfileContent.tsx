@@ -7,11 +7,23 @@ import { Card } from "@/components/ui/Card";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
   getIdentityApi,
+  getOutstandingApi,
   issueTcApi,
   revokeTcApi,
+  type EnrollmentOutstanding,
   type EnrollmentSummary,
   type IdentityMatch,
+  type IdentityOutstanding,
 } from "@/features/student-identities/api/student-identities.api";
+
+function inr(n: number): string {
+  if (!Number.isFinite(n)) return "₹0";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
 
 /**
  * "Person view" — every enrollment row this identity has, newest
@@ -21,6 +33,7 @@ import {
  */
 export function IdentityProfileContent({ identityId }: { identityId: string }) {
   const [match, setMatch] = useState<IdentityMatch | null>(null);
+  const [outstanding, setOutstanding] = useState<IdentityOutstanding | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tcDialog, setTcDialog] = useState<EnrollmentSummary | null>(null);
@@ -29,13 +42,23 @@ export function IdentityProfileContent({ identityId }: { identityId: string }) {
     setLoading(true);
     setError(null);
     try {
-      setMatch(await getIdentityApi(identityId));
+      const [m, o] = await Promise.all([
+        getIdentityApi(identityId),
+        getOutstandingApi(identityId).catch(() => null),
+      ]);
+      setMatch(m);
+      setOutstanding(o);
     } catch (e) {
       setError(getApiErrorMessage(e, "Could not load identity"));
     } finally {
       setLoading(false);
     }
   }, [identityId]);
+
+  const balanceByStudent = new Map<string, EnrollmentOutstanding>();
+  for (const e of outstanding?.perEnrollment ?? []) {
+    balanceByStudent.set(e.studentId, e);
+  }
 
   useEffect(() => {
     load();
@@ -114,7 +137,12 @@ export function IdentityProfileContent({ identityId }: { identityId: string }) {
             No active enrollment. The student has not been re-admitted yet.
           </p>
         ) : (
-          <EnrollmentTable rows={active} onIssueTc={setTcDialog} onRevokeTc={revoke} />
+          <EnrollmentTable
+            rows={active}
+            balances={balanceByStudent}
+            onIssueTc={setTcDialog}
+            onRevokeTc={revoke}
+          />
         )}
       </Section>
 
@@ -122,13 +150,19 @@ export function IdentityProfileContent({ identityId }: { identityId: string }) {
         {alumni.length === 0 ? (
           <p className="text-sm text-slate-500 px-1 py-3">No past enrollments yet.</p>
         ) : (
-          <EnrollmentTable rows={alumni} onIssueTc={setTcDialog} onRevokeTc={revoke} />
+          <EnrollmentTable
+            rows={alumni}
+            balances={balanceByStudent}
+            onIssueTc={setTcDialog}
+            onRevokeTc={revoke}
+          />
         )}
       </Section>
 
       {tcDialog && (
         <TcDialog
           enrollment={tcDialog}
+          outstanding={balanceByStudent.get(tcDialog.id) ?? null}
           onClose={() => setTcDialog(null)}
           onIssued={() => {
             setTcDialog(null);
@@ -159,10 +193,12 @@ function Section({
 
 function EnrollmentTable({
   rows,
+  balances,
   onIssueTc,
   onRevokeTc,
 }: {
   rows: EnrollmentSummary[];
+  balances: Map<string, EnrollmentOutstanding>;
   onIssueTc: (e: EnrollmentSummary) => void;
   onRevokeTc: (e: EnrollmentSummary) => void;
 }) {
@@ -174,61 +210,81 @@ function EnrollmentTable({
           <Th>Year</Th>
           <Th>Class / Section / Roll</Th>
           <Th>Status</Th>
+          <Th align="right">Balance</Th>
           <Th align="right">{""}</Th>
         </tr>
       </thead>
       <tbody>
-        {rows.map((e, i) => (
-          <tr
-            key={e.id}
-            className={`hover:bg-slate-50 ${i !== rows.length - 1 ? "border-b border-slate-50" : ""}`}
-          >
-            <td className="px-5 py-3 font-mono font-semibold text-slate-900">
-              {e.admissionNumber}
-            </td>
-            <td className="px-5 py-3 tabular-nums text-slate-600">{e.academicYear}</td>
-            <td className="px-5 py-3 text-slate-600">
-              {e.class}-{e.section} · Roll {e.rollNo} · {e.branch}
-            </td>
-            <td className="px-5 py-3">
-              {e.tcIssuedAt ? (
-                <span
-                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-slate-100 text-slate-700"
-                  title={`Issued ${new Date(e.tcIssuedAt).toLocaleDateString("en-IN")}`}
+        {rows.map((e, i) => {
+          const bal = balances.get(e.id);
+          const balanceNum = Number(bal?.totalOutstanding ?? 0);
+          return (
+            <tr
+              key={e.id}
+              className={`hover:bg-slate-50 ${i !== rows.length - 1 ? "border-b border-slate-50" : ""}`}
+            >
+              <td className="px-5 py-3 font-mono font-semibold text-slate-900">
+                {e.admissionNumber}
+              </td>
+              <td className="px-5 py-3 tabular-nums text-slate-600">{e.academicYear}</td>
+              <td className="px-5 py-3 text-slate-600">
+                {e.class}-{e.section} · Roll {e.rollNo} · {e.branch}
+              </td>
+              <td className="px-5 py-3">
+                {e.tcIssuedAt ? (
+                  <span
+                    className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-slate-100 text-slate-700"
+                    title={`Issued ${new Date(e.tcIssuedAt).toLocaleDateString("en-IN")}`}
+                  >
+                    TC issued
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-emerald-50 text-emerald-700">
+                    Active
+                  </span>
+                )}
+              </td>
+              <td className="px-5 py-3 text-right tabular-nums">
+                {balanceNum > 0 ? (
+                  <span className="font-bold text-amber-700">{inr(balanceNum)}</span>
+                ) : (
+                  <span className="text-slate-400">—</span>
+                )}
+              </td>
+              <td className="px-5 py-3 text-right space-x-3 text-xs">
+                {balanceNum > 0 && (
+                  <Link
+                    href={`/payments?admission=${encodeURIComponent(e.admissionNumber)}&academicYear=${encodeURIComponent(e.academicYear)}`}
+                    className="font-semibold text-amber-700 hover:underline"
+                  >
+                    Settle →
+                  </Link>
+                )}
+                <Link
+                  href={`/payments?admission=${encodeURIComponent(e.admissionNumber)}&academicYear=${encodeURIComponent(e.academicYear)}`}
+                  className="font-semibold text-[#0b54ab] hover:underline"
                 >
-                  TC issued
-                </span>
-              ) : (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-emerald-50 text-emerald-700">
-                  Active
-                </span>
-              )}
-            </td>
-            <td className="px-5 py-3 text-right space-x-3 text-xs">
-              <Link
-                href={`/payments?admission=${encodeURIComponent(e.admissionNumber)}&academicYear=${encodeURIComponent(e.academicYear)}`}
-                className="font-semibold text-[#0b54ab] hover:underline"
-              >
-                Payments
-              </Link>
-              {e.tcIssuedAt ? (
-                <button
-                  onClick={() => onRevokeTc(e)}
-                  className="font-semibold text-amber-600 hover:underline"
-                >
-                  Revoke TC
-                </button>
-              ) : (
-                <button
-                  onClick={() => onIssueTc(e)}
-                  className="font-semibold text-red-600 hover:underline"
-                >
-                  Issue TC
-                </button>
-              )}
-            </td>
-          </tr>
-        ))}
+                  Payments
+                </Link>
+                {e.tcIssuedAt ? (
+                  <button
+                    onClick={() => onRevokeTc(e)}
+                    className="font-semibold text-amber-600 hover:underline"
+                  >
+                    Revoke TC
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => onIssueTc(e)}
+                    className="font-semibold text-red-600 hover:underline"
+                  >
+                    Issue TC
+                  </button>
+                )}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
@@ -236,10 +292,12 @@ function EnrollmentTable({
 
 function TcDialog({
   enrollment,
+  outstanding,
   onClose,
   onIssued,
 }: {
   enrollment: EnrollmentSummary;
+  outstanding: EnrollmentOutstanding | null;
   onClose: () => void;
   onIssued: () => void;
 }) {
@@ -292,6 +350,32 @@ function TcDialog({
               Class {enrollment.class}-{enrollment.section} · Roll {enrollment.rollNo}
             </p>
           </div>
+
+          {outstanding && Number(outstanding.totalOutstanding) > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs">
+              <p className="font-bold text-amber-800 mb-1">
+                ⚠ {inr(Number(outstanding.totalOutstanding))} unpaid on this enrollment
+              </p>
+              <ul className="space-y-0.5 text-amber-900">
+                {outstanding.unpaidFees.map((f) => (
+                  <li key={f.feeId} className="tabular-nums">
+                    • {f.term} — {inr(Number(f.remaining))}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href={`/payments?admission=${encodeURIComponent(enrollment.admissionNumber)}&academicYear=${encodeURIComponent(enrollment.academicYear)}`}
+                target="_blank"
+                className="mt-2 inline-block font-semibold text-amber-800 hover:underline"
+              >
+                Settle / waive in Payment Details →
+              </Link>
+              <p className="mt-2 text-amber-700 text-[11px]">
+                You can issue TC anyway. The unpaid fees stay on this enrollment
+                and can be collected later from Payment Details.
+              </p>
+            </div>
+          )}
 
           <Field label="Date of TC">
             <input
