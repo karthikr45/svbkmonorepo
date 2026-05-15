@@ -1073,8 +1073,7 @@ function FeeGroupSection({
                 key={f.id}
                 type="button"
                 onClick={() => onPick(f.id)}
-                disabled={f.paymentStatus === "PAID"}
-                className={`text-left flex flex-wrap items-center gap-3 px-3 py-2.5 border-l-4 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${i !== group.fees.length - 1 ? "border-b border-slate-50" : ""}`}
+                className={`text-left flex flex-wrap items-center gap-3 px-3 py-2.5 border-l-4 transition-all hover:bg-slate-50 cursor-pointer ${i !== group.fees.length - 1 ? "border-b border-slate-50" : ""}`}
                 style={{
                   borderLeftColor: selected ? "var(--app-brand)" : "transparent",
                   backgroundColor: selected ? "var(--app-brand-soft)" : "transparent",
