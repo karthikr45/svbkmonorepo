@@ -191,6 +191,62 @@ export class AddSinglePenaltyDto {
  * Waives part or all of a single fee's penalty/discount. Omit `amount`
  * to waive everything currently applied.
  */
+/**
+ * PATCH /fees/receipt-config — admin + super-admin can edit the
+ * caller's tenant receipt config (prefix / reset policy / start).
+ */
+export class UpdateReceiptConfigDto {
+  @ApiPropertyOptional({ example: 'SVBK', description: 'Short prefix for new receipts.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  receiptPrefix?: string;
+
+  @ApiPropertyOptional({
+    description: 'How the running sequence resets.',
+    enum: ['NEVER', 'YEARLY', 'ACADEMIC_YEAR', 'MONTHLY', 'DAILY'],
+  })
+  @IsOptional()
+  @IsString()
+  receiptResetPolicy?:
+    | 'NEVER'
+    | 'YEARLY'
+    | 'ACADEMIC_YEAR'
+    | 'MONTHLY'
+    | 'DAILY';
+
+  @ApiPropertyOptional({ example: 1, description: 'First number issued in a fresh period.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  receiptStartNumber?: number;
+}
+
+/**
+ * PATCH /fees/receipt-sequence — admin + super-admin can correct the
+ * running counter for the current period (or a specific period).
+ */
+export class CorrectReceiptSequenceDto {
+  @ApiProperty({
+    example: 42,
+    description:
+      'New current value. The next receipt issued will be currentValue + 1.',
+  })
+  @Type(() => Number)
+  @IsNumber()
+  currentValue: number;
+
+  @ApiPropertyOptional({
+    example: '2025-26',
+    description: 'Period key to update. Defaults to the current period.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  periodKey?: string;
+}
+
 export class WaiveSingleDto {
   @ApiPropertyOptional({
     example: 50,

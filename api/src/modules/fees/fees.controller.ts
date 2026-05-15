@@ -24,6 +24,8 @@ import {
   BulkAddDiscountDto,
   WaiveDiscountDto,
   WaiveSingleDto,
+  UpdateReceiptConfigDto,
+  CorrectReceiptSequenceDto,
   RecordOfflinePaymentDto,
   RecordOnlinePaymentDto,
   UpdateClearanceDto,
@@ -62,6 +64,50 @@ export class FeesController {
   async getReceiptStatus(@Req() req: Request) {
     const { tenantId } = ctx(req);
     return this.feesService.getReceiptStatus(tenantId);
+  }
+
+  @Patch('receipt-config')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({
+    summary: 'Update receipt prefix / reset policy / start number',
+    description:
+      'Tenant admin can edit their own tenant\'s receipt configuration; ' +
+      'super-admin can target any tenant via the existing Tenant PATCH. ' +
+      'Existing receipts keep their format; only future receipts use the ' +
+      'updated config.',
+  })
+  async updateReceiptConfig(
+    @Body() dto: UpdateReceiptConfigDto,
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    return this.feesService.updateReceiptConfig(tenantId, {
+      receiptPrefix: dto.receiptPrefix,
+      receiptResetPolicy: dto.receiptResetPolicy as any,
+      receiptStartNumber: dto.receiptStartNumber,
+    });
+  }
+
+  @Patch('receipt-sequence')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @ApiOperation({
+    summary: 'Manually correct the receipt running number',
+    description:
+      'Admin/super-admin sets the current value of the receipt sequence ' +
+      'for the active period (or any periodKey passed in). The next ' +
+      'receipt issued will be currentValue + 1. Use when a receipt was ' +
+      'issued incorrectly or you need to roll back. Existing receipt ' +
+      'numbers on already-posted payments are not changed.',
+  })
+  async correctReceiptSequence(
+    @Body() dto: CorrectReceiptSequenceDto,
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    return this.feesService.correctReceiptSequence(tenantId, {
+      currentValue: dto.currentValue,
+      periodKey: dto.periodKey,
+    });
   }
 
  @Post('penalty/add')

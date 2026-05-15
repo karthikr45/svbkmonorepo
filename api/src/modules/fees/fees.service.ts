@@ -14,11 +14,14 @@ import { Tenant, ReceiptResetPolicy } from '../tenants/entities/tenant.entity';
 import { Student } from '../students/entities/student.entity';
 import { CreateFeeInput, ExistingFeeRecord } from './dto/fee.dto';
 
-/** Indian academic years start in June. */
+/**
+ * Indian academic year boundary: April 1 — March 31. Months 0-2 (Jan/
+ * Feb/Mar) belong to the *previous* academic year.
+ */
 function guessAcademicYear(d: Date): string {
   const year = d.getFullYear();
-  const monthIdx = d.getMonth(); // 0-based
-  const startYear = monthIdx >= 5 ? year : year - 1;
+  const monthIdx = d.getMonth(); // 0-based; April = 3
+  const startYear = monthIdx >= 3 ? year : year - 1;
   return `${startYear}-${startYear + 1}`;
 }
 
@@ -1690,7 +1693,7 @@ ${receiptFragment}
     const padded = String(nextSeq).padStart(4, '0');
     const periodSegment =
       policy === ReceiptResetPolicy.NEVER ? '' : `-${periodKey}`;
-    return `${prefix}${periodSegment}/${padded}`;
+    return `${prefix}${periodSegment}-${padded}`;
   }
 
   /**
@@ -1742,7 +1745,7 @@ ${receiptFragment}
     const padded = String(nextValue).padStart(4, '0');
     const periodSegment =
       policy === ReceiptResetPolicy.NEVER ? '' : `-${currentPeriod}`;
-    const nextPreview = `${prefix}${periodSegment}/${padded}`;
+    const nextPreview = `${prefix}${periodSegment}-${padded}`;
 
     return {
       prefix,
@@ -1755,6 +1758,121 @@ ${receiptFragment}
         currentValue: r.currentValue,
         lastIssuedAt: r.lastIssuedAt,
       })),
+    };
+  }
+
+  /**
+   * Update the receipt config (prefix / reset policy / start number) for
+   * the caller's tenant. Tenant admin can run this for their own tenant;
+   * super-admin can run it for any tenant via the existing PATCH on the
+   * Tenant entity.
+   */
+  async updateReceiptConfig(
+    tenantId: string,
+    input: {
+      receiptPrefix?: string | null;
+      receiptResetPolicy?: ReceiptResetPolicy;
+      receiptStartNumber?: number;
+    },
+  ): Promise<{ prefix: string; resetPolicy: ReceiptResetPolicy; startNumber: number }> {
+    const tenantRepo = this.dataSource.getRepository(Tenant);
+    const tenant = await tenantRepo.findOne({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found`);
+    if (input.receiptPrefix !== undefined) {
+      tenant.receiptPrefix = (input.receiptPrefix ?? '').trim() || null;
+    }
+    if (input.receiptResetPolicy !== undefined) {
+      tenant.receiptResetPolicy = input.receiptResetPolicy;
+    }
+    if (input.receiptStartNumber !== undefined) {
+      tenant.receiptStartNumber = Math.max(1, Math.floor(input.receiptStartNumber));
+    }
+    await tenantRepo.save(tenant);
+    return {
+      prefix:
+        (tenant.receiptPrefix ?? tenant.code ?? tenant.tenantCode ?? 'RCP')
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, ''),
+      resetPolicy: tenant.receiptResetPolicy ?? ReceiptResetPolicy.ACADEMIC_YEAR,
+      startNumber: tenant.receiptStartNumber ?? 1,
+    };
+  }
+
+  /**
+   * Manually correct the receipt sequence counter for the caller's
+   * tenant. Use cases: a receipt was issued by mistake and you need to
+   * roll back, or the school wants to start fresh from a different
+   * number. `periodKey` defaults to the current period (computed from
+   * the tenant's reset policy + today's date + the current academic
+   * year). The next receipt issued will be `currentValue + 1`.
+   */
+  async correctReceiptSequence(
+    tenantId: string,
+    input: {
+      periodKey?: string;
+      currentValue: number;
+    },
+  ): Promise<{ periodKey: string; currentValue: number; nextPreview: string }> {
+    if (
+      !Number.isFinite(input.currentValue) ||
+      input.currentValue < 0 ||
+      input.currentValue > 999999
+    ) {
+      throw new BadRequestException(
+        'currentValue must be between 0 and 999999.',
+      );
+    }
+    const tenant = await this.dataSource
+      .getRepository(Tenant)
+      .findOne({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found`);
+
+    const policy = tenant.receiptResetPolicy ?? ReceiptResetPolicy.ACADEMIC_YEAR;
+    const today = new Date();
+    const periodKey =
+      input.periodKey?.trim() ||
+      this.computePeriodKey(policy, today, guessAcademicYear(today));
+
+    const seqRepo = this.dataSource.getRepository(ReceiptSequence);
+    const existing = await seqRepo.findOne({
+      where: { tenantId, periodKey },
+    });
+    if (existing) {
+      existing.currentValue = Math.floor(input.currentValue);
+      existing.lastIssuedAt = new Date();
+      await seqRepo.save(existing);
+    } else {
+      await seqRepo.save(
+        seqRepo.create({
+          tenantId,
+          periodKey,
+          currentValue: Math.floor(input.currentValue),
+          lastIssuedAt: new Date(),
+        }),
+      );
+    }
+    this.logger.warn(
+      `Receipt sequence manually corrected for tenant=${tenantId}, ` +
+        `period=${periodKey}, currentValue=${input.currentValue}`,
+    );
+
+    const prefix = (
+      tenant.receiptPrefix ??
+      tenant.code ??
+      tenant.tenantCode ??
+      'RCP'
+    )
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '');
+    const padded = String(Math.floor(input.currentValue) + 1).padStart(4, '0');
+    const periodSegment =
+      policy === ReceiptResetPolicy.NEVER ? '' : `-${periodKey}`;
+    return {
+      periodKey,
+      currentValue: Math.floor(input.currentValue),
+      nextPreview: `${prefix}${periodSegment}-${padded}`,
     };
   }
 

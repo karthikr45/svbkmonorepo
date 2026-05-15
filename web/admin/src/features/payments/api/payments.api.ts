@@ -219,6 +219,21 @@ export async function getReceiptStatusApi(): Promise<ReceiptStatusResponse> {
   return get<ReceiptStatusResponse>("/fees/receipt-status");
 }
 
+export async function updateReceiptConfigApi(body: {
+  receiptPrefix?: string;
+  receiptResetPolicy?: ReceiptResetPolicy;
+  receiptStartNumber?: number;
+}): Promise<unknown> {
+  return patch<unknown>("/fees/receipt-config", body);
+}
+
+export async function correctReceiptSequenceApi(body: {
+  currentValue: number;
+  periodKey?: string;
+}): Promise<unknown> {
+  return patch<unknown>("/fees/receipt-sequence", body);
+}
+
 /** Bucket the raw paymentType into "Gateway" (online) vs "Manual" (offline). */
 export function paymentSourceOf(paymentType: string): "Gateway" | "Manual" {
   const t = paymentType?.toUpperCase();
