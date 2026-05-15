@@ -24,6 +24,7 @@ import { ParentAuthModule } from './modules/parent-auth/parent-auth.module';
 import { ParentPortalModule } from './modules/parent-portal/parent-portal.module';
 import { SystemMetadataModule } from './modules/system-metadata/system-metadata.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { ReceiptTemplatesModule } from './modules/receipt-templates/receipt-templates.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { ChatModule } from './modules/chat/chat.module';
     ParentPortalModule,
     SystemMetadataModule,
     ChatModule,
+    ReceiptTemplatesModule,
   ],
 })
 export class AppModule {}

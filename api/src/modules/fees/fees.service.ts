@@ -13,6 +13,7 @@ import { ReceiptSequence } from './entities/receipt-sequence.entity';
 import { Tenant, ReceiptResetPolicy } from '../tenants/entities/tenant.entity';
 import { Student } from '../students/entities/student.entity';
 import { CreateFeeInput, ExistingFeeRecord } from './dto/fee.dto';
+import { ReceiptTemplatesService } from '../receipt-templates/receipt-templates.service';
 
 /**
  * Indian academic year boundary: April 1 — March 31. Months 0-2 (Jan/
@@ -58,6 +59,7 @@ export class FeesService {
     @InjectRepository(FeeAdjustment)
     private readonly adjustmentRepo: Repository<FeeAdjustment>,
     @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly receiptTemplates: ReceiptTemplatesService,
   ) {}
 
   /**
@@ -1431,6 +1433,17 @@ ${body}
       .getOne();
     if (!fp) throw new NotFoundException(`fee_payment ${paymentId} not found`);
     const fee = (fp as any).fee as Fee;
+
+    // If the tenant has a default receipt template configured, use it
+    // instead of the built-in HTML below.
+    const tplKind = ReceiptTemplatesService.kindForPayment(fp);
+    const tpl = await this.receiptTemplates.pickDefault(tenantId, tplKind);
+    if (tpl) {
+      const rendered = await this.receiptTemplates.renderById(tenantId, tpl.id, {
+        paymentId,
+      });
+      return rendered.html;
+    }
 
     const student = await this.dataSource
       .getRepository('students')

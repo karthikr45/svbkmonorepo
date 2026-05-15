@@ -8,10 +8,12 @@ import { Tenant } from '../tenants/entities/tenant.entity';
 import { FeesService } from './fees.service';
 import { StudentFeesService } from './student-fees.service';
 import { FeesController } from './fees.controller';
+import { ReceiptTemplatesModule } from '../receipt-templates/receipt-templates.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Fee, FeePayment, FeeAdjustment, ReceiptSequence, Tenant]),
+    ReceiptTemplatesModule,
   ],
   controllers: [FeesController],
   providers: [FeesService, StudentFeesService],
