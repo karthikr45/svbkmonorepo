@@ -648,9 +648,46 @@ function PaymentDetailsView() {
           </div>
         )}
 
+        {student && student.tcIssuedAt && (
+          <div className="mt-5 p-3 rounded-xl border border-slate-300 bg-slate-100 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-slate-700 text-white">
+              TC issued
+            </span>
+            <span className="text-sm text-slate-700">
+              This enrollment was closed on{" "}
+              <strong>
+                {new Date(student.tcIssuedAt).toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </strong>
+              {student.tcCertificateNo ? ` · TC ${student.tcCertificateNo}` : ""}
+              {student.tcReason ? ` · ${student.tcReason}` : ""}
+              . Outstanding fees can still be collected below.
+            </span>
+            {student.identityId && (
+              <a
+                href={`/students/identity/${student.identityId}`}
+                className="ml-auto text-sm font-semibold text-[#0b54ab] hover:underline"
+              >
+                Full history →
+              </a>
+            )}
+          </div>
+        )}
+
         {student && (
           <div className="mt-5 p-4 rounded-xl border bg-slate-50/60" style={{ borderColor: "var(--app-card-border)" }}>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-1 mb-3">
+              {student.identityId && !student.tcIssuedAt && (
+                <a
+                  href={`/students/identity/${student.identityId}`}
+                  className="order-last ml-auto text-xs font-semibold text-[#0b54ab] hover:underline"
+                >
+                  Full history →
+                </a>
+              )}
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wider text-[var(--app-text-muted)]">Student</div>
                 <div className="text-sm font-bold text-[var(--app-text-primary)]">{student.name}</div>

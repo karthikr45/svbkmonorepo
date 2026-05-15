@@ -1093,8 +1093,13 @@ export function ViewPageContent({ onNavigateUpload }: ViewPageContentProps) {
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-base font-semibold" style={{ color: "var(--app-text-primary)" }}>
+                  <p className="truncate text-base font-semibold flex items-center gap-2" style={{ color: "var(--app-text-primary)" }}>
                     {row.name || "—"}
+                    {row.tcIssuedAt && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-200 text-slate-700">
+                        TC
+                      </span>
+                    )}
                   </p>
                   <p className="mt-0.5 truncate text-xs" style={{ color: "var(--app-text-secondary)" }}>
                     {row.admissionNumber || "—"}
@@ -1248,8 +1253,16 @@ export function ViewPageContent({ onNavigateUpload }: ViewPageContentProps) {
                 style={{ borderColor: "var(--app-divider)" }}
               >
                 <td className="px-3 py-3 sm:px-6 sm:py-4">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium" style={{ color: "var(--app-text-primary)" }}>{row.name || "—"}</span>
+                    {row.tcIssuedAt && (
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-[0.05em] bg-slate-200 text-slate-700"
+                        title={`TC issued on ${new Date(row.tcIssuedAt).toLocaleDateString("en-IN")}`}
+                      >
+                        TC issued
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td className="px-3 py-3 sm:px-6 sm:py-4" style={{ color: "var(--app-text-secondary)" }}>{row.email || "—"}</td>

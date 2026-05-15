@@ -113,6 +113,10 @@ export interface StudentRow {
   class: string;
   section: string;
   rollNo: string;
+  tcIssuedAt?: string | null;
+  tcReason?: string | null;
+  tcCertificateNo?: string | null;
+  identityId?: string | null;
 }
 
 export async function findStudentWithFeesApi(

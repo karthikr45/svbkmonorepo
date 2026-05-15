@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnApplicationBootstrap,
+} from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, ILike, In, Repository } from 'typeorm';
 import { StudentIdentity } from './entities/student-identity.entity';
@@ -27,7 +32,9 @@ export interface IdentityMatch {
  * plus the backfill that gives every existing student row an identity.
  */
 @Injectable()
-export class StudentIdentitiesService {
+export class StudentIdentitiesService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(StudentIdentitiesService.name);
+
   constructor(
     @InjectRepository(StudentIdentity)
     private readonly idRepo: Repository<StudentIdentity>,
@@ -35,6 +42,31 @@ export class StudentIdentitiesService {
     private readonly studentRepo: Repository<Student>,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Auto-backfill on boot so the office never has to call an API.
+   * Idempotent — only touches rows whose identity_id is null. On a
+   * fully-migrated DB this is a single COUNT and returns immediately.
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    try {
+      const missing = await this.studentRepo
+        .createQueryBuilder('s')
+        .where('s.identityId IS NULL')
+        .getCount();
+      if (missing === 0) return;
+      const { rowsBackfilled, identitiesCreated } =
+        await this.ensureIdentitiesForExisting();
+      this.logger.log(
+        `Identity backfill: ${identitiesCreated} identities created, ` +
+          `${rowsBackfilled} student rows linked.`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Identity auto-backfill skipped: ${(err as Error).message}`,
+      );
+    }
+  }
 
   /**
    * Find candidates likely to be the same person as the query. Used
@@ -229,14 +261,12 @@ export class StudentIdentitiesService {
     rowsBackfilled: number;
     identitiesCreated: number;
   }> {
-    const orphans = await this.studentRepo.find({
-      where: { identityId: undefined } as any, // will match null
-    });
-    // The where above doesn't filter properly with TypeORM 0.3 — pull
-    // everything and filter in JS. Cheaper than complex SQL since this
-    // runs once.
-    const allStudents = await this.studentRepo.find();
-    const needsIdentity = allStudents.filter((s) => !s.identityId);
+    // Pull only rows missing an identity, then group in JS so the
+    // same person across academic years lands on one identity.
+    const needsIdentity = await this.studentRepo
+      .createQueryBuilder('s')
+      .where('s.identityId IS NULL')
+      .getMany();
     let created = 0;
     let backfilled = 0;
 

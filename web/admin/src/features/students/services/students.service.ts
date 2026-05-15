@@ -107,6 +107,14 @@ function mapApiResultToRow(item: Record<string, unknown>, index: number): Studen
   const status = (item.status === "Paid" || item.status === "Pending" ? item.status : "Pending") as "Paid" | "Pending";
   const termFees = parseTermFees(item.termFee ?? item.termFees ?? []);
   const feesArrayMap = parseFeesArray(item.fees);
+  const tcIssuedAt =
+    (base.tcIssuedAt as string | null | undefined) ??
+    (base.tc_issued_at as string | null | undefined) ??
+    null;
+  const identityId =
+    (base.identityId as string | null | undefined) ??
+    (base.identity_id as string | null | undefined) ??
+    null;
   return {
     _id,
     id,
@@ -119,6 +127,8 @@ function mapApiResultToRow(item: Record<string, unknown>, index: number): Studen
     email,
     amount,
     status,
+    tcIssuedAt,
+    identityId,
     termFees: Object.keys(termFees).length > 0 ? termFees : feesArrayMap,
   };
 }

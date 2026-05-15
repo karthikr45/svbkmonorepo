@@ -35,6 +35,10 @@ export type StudentFeeRow = {
   amount: string;
   status: "Paid" | "Pending";
   feeId?: string;
+  /** Set when this enrollment has had a TC issued. */
+  tcIssuedAt?: string | null;
+  /** Canonical person identity (for the full-history view). */
+  identityId?: string | null;
   /** Term-wise fee: "1st Term Fee" -> { amount, paymentStatus } */
   termFees: Record<string, TermFeeItem>;
 };
