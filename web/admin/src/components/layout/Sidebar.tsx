@@ -23,6 +23,7 @@ const tenantAdminNav: NavItem[] = [
   { type: "item", href: "/payments", label: "Payment Details", icon: "payment" },
   { type: "item", href: "/pay-now", label: "Pay Now", icon: "payment" },
   { type: "item", href: "/chat", label: "Chat", icon: "megaphone" },
+  { type: "item", href: "/social", label: "Social Feed", icon: "megaphone" },
   {
     type: "group",
     key: "communications",

@@ -218,6 +218,14 @@ export function LoginForm({ showBackLink = true }: { showBackLink?: boolean }) {
         <p className="text-center text-xs text-slate-400 mt-2">
           Protected by SVBK · By signing in you agree to the terms of service.
         </p>
+        <p className="text-center text-xs mt-3">
+          <a
+            href="/feed"
+            className="font-semibold text-[#0b54ab] hover:underline"
+          >
+            Browse the public school feed →
+          </a>
+        </p>
       </form>
     </div>
   );
