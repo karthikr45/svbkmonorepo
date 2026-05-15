@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { Card } from "@/components/ui/Card";
+import { RichTextEditor } from "@/components/common/RichTextEditor";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
   createTemplateApi,
@@ -43,10 +44,8 @@ export function ReceiptTemplateEditor({ templateId }: { templateId?: string }) {
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [previewing, setPreviewing] = useState(false);
 
-  const headerRef = useRef<HTMLTextAreaElement | null>(null);
-  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
-  const footerRef = useRef<HTMLTextAreaElement | null>(null);
   const [activeSection, setActiveSection] = useState<Section>("body");
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Load template + key list on mount.
   useEffect(() => {
@@ -106,29 +105,30 @@ export function ReceiptTemplateEditor({ templateId }: { templateId?: string }) {
     return () => window.clearTimeout(id);
   }, [refreshPreview]);
 
-  // Insert a key at the cursor position in the active section.
-  function insertKey(key: string) {
-    const ref =
-      activeSection === "header"
-        ? headerRef.current
-        : activeSection === "body"
-          ? bodyRef.current
-          : footerRef.current;
-    if (!ref) return;
+  // Copy a placeholder to clipboard — admin pastes it into the rich-text
+  // editor wherever they want. Quill doesn't expose a stable cursor API
+  // without ref plumbing, so clipboard is the most reliable approach.
+  async function copyKey(key: string) {
     const value = `{{${key}}}`;
-    const start = ref.selectionStart ?? ref.value.length;
-    const end = ref.selectionEnd ?? ref.value.length;
-    const before = ref.value.slice(0, start);
-    const after = ref.value.slice(end);
-    const next = before + value + after;
-    if (activeSection === "header") setHeaderHtml(next);
-    else if (activeSection === "body") setBodyHtml(next);
-    else setFooterHtml(next);
-    setTimeout(() => {
-      ref.focus();
-      const pos = start + value.length;
-      ref.setSelectionRange(pos, pos);
-    }, 0);
+    try {
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.clipboard?.writeText
+      ) {
+        await navigator.clipboard.writeText(value);
+      } else if (typeof document !== "undefined") {
+        const el = document.createElement("textarea");
+        el.value = value;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+      }
+      setCopiedKey(key);
+      window.setTimeout(() => setCopiedKey(null), 1500);
+    } catch {
+      /* ignore */
+    }
   }
 
   async function save() {
@@ -255,66 +255,68 @@ export function ReceiptTemplateEditor({ templateId }: { templateId?: string }) {
 
             <div className="p-3">
               {activeSection === "header" && (
-                <textarea
-                  ref={headerRef}
+                <RichTextEditor
                   value={headerHtml}
-                  onChange={(e) => setHeaderHtml(e.target.value)}
-                  rows={12}
-                  placeholder="Header HTML — school logo / address / receipt title"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono leading-relaxed outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  onChange={setHeaderHtml}
+                  placeholder="Header — school logo (Insert → image), name, address"
                 />
               )}
               {activeSection === "body" && (
-                <textarea
-                  ref={bodyRef}
+                <RichTextEditor
                   value={bodyHtml}
-                  onChange={(e) => setBodyHtml(e.target.value)}
-                  rows={18}
-                  placeholder="Body HTML — student / fee / payment block"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono leading-relaxed outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  onChange={setBodyHtml}
+                  placeholder="Body — student, fee and payment details with {{placeholders}}"
                 />
               )}
               {activeSection === "footer" && (
-                <textarea
-                  ref={footerRef}
+                <RichTextEditor
                   value={footerHtml}
-                  onChange={(e) => setFooterHtml(e.target.value)}
-                  rows={8}
-                  placeholder="Footer HTML — signature / disclaimer"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono leading-relaxed outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  onChange={setFooterHtml}
+                  placeholder="Footer — signature, watermark, disclaimer"
                 />
               )}
+              <p className="mt-2 text-[11px] text-slate-500">
+                Tip: use the image button in the toolbar to add a logo. Paste
+                placeholders like <code className="font-mono">{"{{student.name}}"}</code>{" "}
+                anywhere — they get replaced with real values when the receipt is rendered.
+              </p>
             </div>
           </Card>
 
           {/* Insert key palette */}
           <Card padding="default">
-            <h3 className="text-sm font-bold text-slate-900 mb-1">Insert placeholder</h3>
+            <h3 className="text-sm font-bold text-slate-900 mb-1">Placeholders</h3>
             <p className="text-xs text-slate-500 mb-3">
-              Click a key to insert <code className="font-mono">{"{{key}}"}</code> at
-              the cursor in the active{" "}
-              <span className="font-bold">{activeSection}</span> section.
+              Click any placeholder to copy it. Paste it into the editor where
+              you want the real value to appear in the printed receipt.
             </p>
-            <div className="space-y-3 max-h-[280px] overflow-y-auto">
+            <div className="space-y-3 max-h-[320px] overflow-y-auto">
               {keyGroups.map((g) => (
                 <div key={g.group}>
                   <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-400 mb-1">
                     {g.group}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {g.keys.map((k) => (
-                      <button
-                        key={k.key}
-                        type="button"
-                        onClick={() => insertKey(k.key)}
-                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono bg-slate-50 border border-slate-200 hover:bg-blue-50 hover:border-[#0b54ab]"
-                        title={k.label}
-                      >
-                        <span className="text-slate-700">{`{{${k.key}}}`}</span>
-                        <span className="text-slate-400">·</span>
-                        <span className="text-slate-500">{k.label}</span>
-                      </button>
-                    ))}
+                    {g.keys.map((k) => {
+                      const just = copiedKey === k.key;
+                      return (
+                        <button
+                          key={k.key}
+                          type="button"
+                          onClick={() => copyKey(k.key)}
+                          className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono border transition-colors ${
+                            just
+                              ? "bg-emerald-50 border-emerald-300 text-emerald-700"
+                              : "bg-slate-50 border-slate-200 hover:bg-blue-50 hover:border-[#0b54ab]"
+                          }`}
+                          title={`${k.label} — click to copy`}
+                        >
+                          <span>{just ? "✓ copied" : `{{${k.key}}}`}</span>
+                          <span className="text-slate-400">·</span>
+                          <span className="text-slate-500 font-sans">{k.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ))}

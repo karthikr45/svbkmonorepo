@@ -7,6 +7,7 @@ import { Fee } from '../fees/entities/fee.entity';
 import { FeePayment } from '../fees/entities/fee-payment.entity';
 import { Student } from '../students/entities/student.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
+import { SystemMetadata } from '../system-metadata/entities/system-metadata.entity';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Tenant } from '../tenants/entities/tenant.entity';
       FeePayment,
       Student,
       Tenant,
+      SystemMetadata,
     ]),
   ],
   controllers: [ReceiptTemplatesController],

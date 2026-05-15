@@ -1,10 +1,17 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { Tenant } from './entities/tenant.entity';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { ReceiptTemplatesService } from '../receipt-templates/receipt-templates.service';
 
 export type SafeTenant = Omit<Tenant, 'clientId' | 'secretKey'>;
 
@@ -13,6 +20,8 @@ export class TenantsService {
   constructor(
     @InjectRepository(Tenant)
     private readonly tenantsRepository: Repository<Tenant>,
+    @Inject(forwardRef(() => ReceiptTemplatesService))
+    private readonly receiptTemplates: ReceiptTemplatesService,
   ) {}
 
   private sanitize(tenant: Tenant): SafeTenant {
@@ -38,7 +47,16 @@ export class TenantsService {
     const secretKey = randomBytes(32).toString('hex');
 
     const tenant = this.tenantsRepository.create({ ...dto, clientId, secretKey });
-    return this.sanitize(await this.tenantsRepository.save(tenant));
+    const saved = await this.tenantsRepository.save(tenant);
+    // Seed a starter receipt template so the school can issue receipts
+    // immediately. Pulled from system_metadata so the starter HTML
+    // itself stays in the database, not in code.
+    try {
+      await this.receiptTemplates.ensureStarterForTenant(saved.id);
+    } catch {
+      /* non-fatal — admin can create one manually later */
+    }
+    return this.sanitize(saved);
   }
 
   async findAll(): Promise<SafeTenant[]> {

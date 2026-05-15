@@ -22,6 +22,7 @@ import {
 } from '../fees/entities/fee-payment.entity';
 import { Student } from '../students/entities/student.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
+import { SystemMetadata } from '../system-metadata/entities/system-metadata.entity';
 import {
   formatINR,
   numberToINRWords,
@@ -37,43 +38,17 @@ const ONLINE_TYPES = new Set<PaymentType>([
   PaymentType.CARD,
 ]);
 
-const DEFAULT_HEADER = `
-<div style="text-align:center;border-bottom:2px solid #0b54ab;padding-bottom:12px;margin-bottom:16px">
-  <h1 style="margin:0;font-size:22px;color:#0b54ab">{{tenant.tenantName}}</h1>
-  <p style="margin:4px 0 0;color:#475569;font-size:13px">
-    {{tenant.address}}, {{tenant.city}}, {{tenant.state}}
-  </p>
-  <h2 style="margin:10px 0 0;font-size:14px;color:#334155;letter-spacing:.15em">FEE RECEIPT</h2>
-</div>`.trim();
-
-const DEFAULT_BODY = `
-<table style="width:100%;font-size:14px;border-collapse:collapse">
-  <tr><td style="padding:4px 8px;color:#64748b">Receipt No.</td><td style="padding:4px 8px;font-weight:600">{{payment.receiptNumber}}</td></tr>
-  <tr><td style="padding:4px 8px;color:#64748b">Date</td><td style="padding:4px 8px">{{payment.paidAtFormatted}}</td></tr>
-  <tr><td style="padding:4px 8px;color:#64748b">Student</td><td style="padding:4px 8px">{{student.name}} ({{student.admissionNumber}})</td></tr>
-  <tr><td style="padding:4px 8px;color:#64748b">Class</td><td style="padding:4px 8px">{{student.class}}-{{student.section}} · Roll {{student.rollNo}}</td></tr>
-  <tr><td style="padding:4px 8px;color:#64748b">Academic Year</td><td style="padding:4px 8px">{{fee.academicYear}}</td></tr>
-  <tr><td style="padding:4px 8px;color:#64748b">Term</td><td style="padding:4px 8px">{{fee.term}}</td></tr>
-</table>
-
-<table style="width:100%;font-size:14px;border-collapse:collapse;margin-top:14px;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0">
-  <tr><td style="padding:6px 8px;color:#64748b">Original Amount</td><td style="padding:6px 8px;text-align:right">{{fee.originalAmountInr}}</td></tr>
-  <tr><td style="padding:6px 8px;color:#64748b">Penalty</td><td style="padding:6px 8px;text-align:right">{{fee.totalPenaltyInr}}</td></tr>
-  <tr><td style="padding:6px 8px;color:#64748b">Discount</td><td style="padding:6px 8px;text-align:right">−{{fee.totalDiscountInr}}</td></tr>
-  <tr><td style="padding:6px 8px;color:#64748b;font-weight:700">Net Amount</td><td style="padding:6px 8px;text-align:right;font-weight:700">{{fee.netAmountInr}}</td></tr>
-</table>
-
-<div style="margin-top:14px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
-  <div style="font-size:12px;color:#64748b">Amount received via {{payment.source}} ({{payment.paymentType}})</div>
-  <div style="font-size:22px;font-weight:700;margin-top:2px">{{payment.amountInr}}</div>
-  <div style="font-size:12px;color:#475569;margin-top:6px">In words: {{payment.amountInWords}}</div>
-</div>`.trim();
-
-const DEFAULT_FOOTER = `
-<div style="margin-top:24px;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8">
-  <span>This is a computer-generated receipt.</span>
-  <span>Generated on {{date.now}}</span>
-</div>`.trim();
+/**
+ * Section keys used to look up starter HTML in system_metadata.
+ * The starter rows live as:
+ *   system_metadata (type='receipt_template_starter',
+ *                    value='header' | 'body' | 'footer',
+ *                    description=<the HTML>)
+ * Super-admin can edit those rows from the System Metadata UI, so
+ * the per-school "starter" experience stays DB-driven.
+ */
+const STARTER_TYPE = 'receipt_template_starter';
+type StarterKey = 'header' | 'body' | 'footer';
 
 @Injectable()
 export class ReceiptTemplatesService {
@@ -88,8 +63,53 @@ export class ReceiptTemplatesService {
     private readonly studentRepo: Repository<Student>,
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
+    @InjectRepository(SystemMetadata)
+    private readonly metaRepo: Repository<SystemMetadata>,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Read the starter HTML for each section from system_metadata. Returns
+   * the empty string when a section row isn't present — the admin can
+   * always start blank and fill in their own. Super-admin can edit these
+   * rows from System Metadata → receipt_template_starter.
+   */
+  async readStarterSections(): Promise<Record<StarterKey, string>> {
+    const rows = await this.metaRepo.find({
+      where: { type: STARTER_TYPE, isActive: true },
+    });
+    const out: Record<StarterKey, string> = { header: '', body: '', footer: '' };
+    for (const r of rows) {
+      const key = r.value as StarterKey;
+      if (key === 'header' || key === 'body' || key === 'footer') {
+        out[key] = r.description ?? '';
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Ensures a tenant has at least one receipt template. Called by
+   * TenantsService.create + the seed script. Idempotent — if the
+   * tenant already has any template, returns it; otherwise clones the
+   * starter sections from system_metadata into a new default.
+   */
+  async ensureStarterForTenant(tenantId: string): Promise<ReceiptTemplate> {
+    const existing = await this.tplRepo.findOne({ where: { tenantId } });
+    if (existing) return existing;
+    const starter = await this.readStarterSections();
+    const tpl = this.tplRepo.create({
+      tenantId,
+      name: 'Default School Receipt',
+      kind: ReceiptTemplateKind.BOTH,
+      headerHtml: starter.header,
+      bodyHtml: starter.body,
+      footerHtml: starter.footer,
+      isDefault: true,
+      isActive: true,
+    });
+    return this.tplRepo.save(tpl);
+  }
 
   // ─── CRUD ────────────────────────────────────────────────────────
 
@@ -118,13 +138,16 @@ export class ReceiptTemplatesService {
         `A template named "${dto.name}" already exists.`,
       );
     }
+    // When the admin omits a section, fall back to the starter HTML from
+    // system_metadata — never to a code constant.
+    const starter = await this.readStarterSections();
     const tpl = this.tplRepo.create({
       tenantId,
       name: dto.name,
       kind: dto.kind ?? ReceiptTemplateKind.BOTH,
-      headerHtml: dto.headerHtml ?? DEFAULT_HEADER,
-      bodyHtml: dto.bodyHtml ?? DEFAULT_BODY,
-      footerHtml: dto.footerHtml ?? DEFAULT_FOOTER,
+      headerHtml: dto.headerHtml ?? starter.header,
+      bodyHtml: dto.bodyHtml ?? starter.body,
+      footerHtml: dto.footerHtml ?? starter.footer,
       isDefault: !!dto.isDefault,
       isActive: dto.isActive ?? true,
     });

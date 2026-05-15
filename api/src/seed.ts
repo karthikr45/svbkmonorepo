@@ -127,6 +127,9 @@ async function seed() {
   // 8. System metadata (super-admin curated, available to all tenants)
   await ensureSystemMetadata(app);
 
+  // 9. Backfill: every tenant gets a starter receipt template if none yet.
+  await ensureReceiptTemplatePerTenant(app);
+
   console.log('━'.repeat(60));
   console.log('  ✔ Seed complete');
   console.log('━'.repeat(60));
@@ -373,6 +376,38 @@ async function ensureParent(
   return parent;
 }
 
+/**
+ * Make sure every tenant has at least one receipt template. New
+ * tenants get one automatically on creation; this catches anything
+ * that pre-dates the receipt-template feature.
+ */
+async function ensureReceiptTemplatePerTenant(app: any): Promise<void> {
+  const { ReceiptTemplatesService } = await import(
+    './modules/receipt-templates/receipt-templates.service'
+  );
+  const svc = app.get(ReceiptTemplatesService) as InstanceType<typeof ReceiptTemplatesService>;
+  const tenantsRepo = app.get(getRepositoryToken(Tenant)) as Repository<Tenant>;
+  const all = await tenantsRepo.find();
+  let created = 0;
+  for (const t of all) {
+    try {
+      const before = await svc.list(t.id);
+      if (before.length === 0) {
+        await svc.ensureStarterForTenant(t.id);
+        created++;
+      }
+    } catch (err) {
+      console.warn(
+        `↩  could not seed starter template for tenant ${t.id}:`,
+        (err as Error).message,
+      );
+    }
+  }
+  console.log(
+    `${created > 0 ? '✔' : '↩'}  receipt templates: ${created} new, ${all.length - created} existing`,
+  );
+}
+
 async function ensureSystemMetadata(app: any): Promise<void> {
   const repo = app.get(getRepositoryToken(SystemMetadata)) as Repository<SystemMetadata>;
 
@@ -445,6 +480,63 @@ async function ensureSystemMetadata(app: any): Promise<void> {
     if (!existing) {
       await repo.save(
         repo.create({ ...d, isActive: true, label: null, description: null }),
+      );
+      created++;
+    }
+  }
+
+  // ── Starter receipt template HTML, stored in system_metadata so the
+  // sections are editable from the System Metadata UI rather than code.
+  // Each row uses `value` for the section key and `description` for the
+  // HTML body of that section.
+  const starterTemplate: Record<'header' | 'body' | 'footer', string> = {
+    header: `
+<div style="text-align:center;border-bottom:2px solid #0b54ab;padding-bottom:12px;margin-bottom:16px">
+  <h1 style="margin:0;font-size:22px;color:#0b54ab">{{tenant.tenantName}}</h1>
+  <p style="margin:4px 0 0;color:#475569;font-size:13px">{{tenant.address}}, {{tenant.city}}, {{tenant.state}}</p>
+  <h2 style="margin:10px 0 0;font-size:14px;color:#334155;letter-spacing:.15em">FEE RECEIPT</h2>
+</div>`.trim(),
+    body: `
+<table style="width:100%;font-size:14px;border-collapse:collapse">
+  <tr><td style="padding:4px 8px;color:#64748b">Receipt No.</td><td style="padding:4px 8px;font-weight:600">{{payment.receiptNumber}}</td></tr>
+  <tr><td style="padding:4px 8px;color:#64748b">Date</td><td style="padding:4px 8px">{{payment.paidAtFormatted}}</td></tr>
+  <tr><td style="padding:4px 8px;color:#64748b">Student</td><td style="padding:4px 8px">{{student.name}} ({{student.admissionNumber}})</td></tr>
+  <tr><td style="padding:4px 8px;color:#64748b">Class</td><td style="padding:4px 8px">{{student.class}}-{{student.section}} · Roll {{student.rollNo}}</td></tr>
+  <tr><td style="padding:4px 8px;color:#64748b">Academic Year</td><td style="padding:4px 8px">{{fee.academicYear}}</td></tr>
+  <tr><td style="padding:4px 8px;color:#64748b">Term</td><td style="padding:4px 8px">{{fee.term}}</td></tr>
+</table>
+<table style="width:100%;font-size:14px;border-collapse:collapse;margin-top:14px;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0">
+  <tr><td style="padding:6px 8px;color:#64748b">Original Amount</td><td style="padding:6px 8px;text-align:right">{{fee.originalAmountInr}}</td></tr>
+  <tr><td style="padding:6px 8px;color:#64748b">Penalty</td><td style="padding:6px 8px;text-align:right">{{fee.totalPenaltyInr}}</td></tr>
+  <tr><td style="padding:6px 8px;color:#64748b">Discount</td><td style="padding:6px 8px;text-align:right">−{{fee.totalDiscountInr}}</td></tr>
+  <tr><td style="padding:6px 8px;color:#64748b;font-weight:700">Net Amount</td><td style="padding:6px 8px;text-align:right;font-weight:700">{{fee.netAmountInr}}</td></tr>
+</table>
+<div style="margin-top:14px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+  <div style="font-size:12px;color:#64748b">Amount received via {{payment.source}} ({{payment.paymentType}})</div>
+  <div style="font-size:22px;font-weight:700;margin-top:2px">{{payment.amountInr}}</div>
+  <div style="font-size:12px;color:#475569;margin-top:6px">In words: {{payment.amountInWords}}</div>
+</div>`.trim(),
+    footer: `
+<div style="margin-top:24px;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8">
+  <span>This is a computer-generated receipt.</span>
+  <span>Generated on {{date.now}}</span>
+</div>`.trim(),
+  };
+
+  for (const [section, html] of Object.entries(starterTemplate)) {
+    const existing = await repo.findOne({
+      where: { type: 'receipt_template_starter', value: section },
+    });
+    if (!existing) {
+      await repo.save(
+        repo.create({
+          type: 'receipt_template_starter',
+          value: section,
+          isActive: true,
+          label: `Receipt template starter — ${section}`,
+          description: html,
+          displayOrder: section === 'header' ? 1 : section === 'body' ? 2 : 3,
+        }),
       );
       created++;
     }
