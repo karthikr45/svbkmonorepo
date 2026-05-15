@@ -20,6 +20,7 @@ type NavItem =
 const tenantAdminNav: NavItem[] = [
   { type: "item", href: "/dashboard", label: "Dashboard", icon: "grid" },
   { type: "item", href: "/students", label: "Students", icon: "students" },
+  { type: "item", href: "/transfer-certificate", label: "Transfer Certificate", icon: "document" },
   { type: "item", href: "/payments", label: "Payment Details", icon: "payment" },
   { type: "item", href: "/pay-now", label: "Pay Now", icon: "payment" },
   { type: "item", href: "/chat", label: "Chat", icon: "megaphone" },
