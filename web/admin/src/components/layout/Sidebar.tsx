@@ -17,7 +17,7 @@ type NavItem =
       children: { href: string; label: string }[];
     };
 
-const navItems: NavItem[] = [
+const tenantAdminNav: NavItem[] = [
   { type: "item", href: "/dashboard", label: "Dashboard", icon: "grid" },
   { type: "item", href: "/students", label: "Students", icon: "students" },
   { type: "item", href: "/payments", label: "Payment Details", icon: "payment" },
@@ -58,6 +58,18 @@ const navItems: NavItem[] = [
     ],
   },
 ];
+
+const superAdminNav: NavItem[] = [
+  { type: "item", href: "/super-admin", label: "Dashboard", icon: "grid" },
+  { type: "item", href: "/tenants", label: "Tenants", icon: "students" },
+  { type: "item", href: "/system-metadata", label: "System Metadata", icon: "save" },
+  { type: "item", href: "/chat", label: "Chat", icon: "megaphone" },
+];
+
+function navItemsFor(role: string | undefined): NavItem[] {
+  if (role === "super_admin") return superAdminNav;
+  return tenantAdminNav;
+}
 
 const transitionClass = "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]";
 
@@ -130,7 +142,8 @@ function NavIcon({ name }: { name: string }) {
 export function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen } = useUi();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const navItems = useMemo(() => navItemsFor(user?.role), [user?.role]);
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
@@ -147,7 +160,7 @@ export function Sidebar() {
     }
     return open;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [pathname, navItems]);
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(initialOpenGroups);
 

@@ -15,7 +15,7 @@ const ROLE_HOME: Record<string, string> = {
   admin: "/dashboard",
   fin_admin: "/dashboard",
   ops_admin: "/dashboard",
-  super_admin: "/tenants",
+  super_admin: "/super-admin",
 };
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {

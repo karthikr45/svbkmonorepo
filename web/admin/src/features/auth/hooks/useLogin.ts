@@ -29,8 +29,9 @@ export function useLogin() {
     setToken(getStoredToken());
     const user = getStoredUser();
     setUser(user);
-    // super-admins land on the tenants list; everyone else on the dashboard.
-    router.push(user?.role === "super_admin" ? "/tenants" : "/dashboard");
+    // super-admins land on the platform dashboard; everyone else on
+    // the tenant dashboard.
+    router.push(user?.role === "super_admin" ? "/super-admin" : "/dashboard");
   };
 
   const handleLogin = async (credentials: LoginCredentials) => {
