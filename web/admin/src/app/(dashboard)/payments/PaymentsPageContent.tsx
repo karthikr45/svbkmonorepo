@@ -10,11 +10,14 @@ import {
   batchReceiptsUrl,
   findPaymentDetailsApi,
   listAllPaymentsApi,
+  getReceiptStatusApi,
   listFeePaymentsApi,
   listFeeAdjustmentsApi,
+  paymentSourceOf,
   recordOfflinePaymentApi,
   type FeeAdjustmentRow,
   type OfflinePaymentType,
+  type ReceiptStatusResponse,
   type RecordOfflinePaymentBody,
   listPendingClearanceApi,
   receiptUrl,
@@ -78,9 +81,67 @@ export function PaymentsPageContent() {
     <div>
       <PageHeader
         title="Payment Details"
-        subtitle="Look up a student by admission number and see their complete fee history across School, Hostel and Transport tenants. Record payments via the legacy Students view; clear pending cheques and print batches under Reports."
+        subtitle="Look up a student by admission number and see their complete fee history across School, Hostel and Transport tenants."
       />
+      <ReceiptStatusBanner />
       <PaymentDetailsView />
+    </div>
+  );
+}
+
+/**
+ * Small banner above Payment Details showing this tenant's receipt
+ * prefix, the current period, and what the next issued number will be.
+ * Tells admins at a glance "we're at receipt 0042 for 2025-26".
+ */
+function ReceiptStatusBanner() {
+  const [status, setStatus] = useState<ReceiptStatusResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getReceiptStatusApi()
+      .then((res) => {
+        if (cancelled) return;
+        const payload = ((res as any)?.data ?? res) as ReceiptStatusResponse;
+        setStatus(payload ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!status) return null;
+  const current = status.history.find((h) => h.periodKey === status.currentPeriod);
+  return (
+    <div className="mb-5 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white px-4 py-3 text-sm flex flex-wrap items-center gap-x-6 gap-y-2">
+      <div>
+        <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">Receipt prefix</span>
+        <div className="font-mono font-bold text-slate-900">{status.prefix}</div>
+      </div>
+      <div>
+        <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">Current period</span>
+        <div className="font-semibold text-slate-900">{status.currentPeriod}</div>
+      </div>
+      <div>
+        <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">Issued so far</span>
+        <div className="tabular-nums font-semibold text-slate-900">
+          {current?.currentValue ?? status.startNumber - 1}
+        </div>
+      </div>
+      <div>
+        <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">Next receipt</span>
+        <div className="font-mono font-bold text-[var(--app-brand)]">{status.nextPreview}</div>
+      </div>
+      <div className="ml-auto text-[11px] text-slate-400">
+        Reset policy:{" "}
+        <span className="font-semibold text-slate-600">
+          {status.resetPolicy.replace("_", " ").toLowerCase()}
+        </span>{" "}
+        · Configurable by super-admin per tenant.
+      </div>
     </div>
   );
 }
@@ -644,32 +705,47 @@ function PaymentDetailsView() {
                 <tr className="bg-slate-50/60 border-b border-slate-100">
                   <Th>Receipt</Th>
                   <Th>Date</Th>
+                  <Th>Source</Th>
                   <Th>Mode</Th>
                   <Th>Status</Th>
                   <Th align="right">Amount</Th>
-                  <Th align="right"></Th>
+                  <Th align="right">{""}</Th>
                 </tr>
               </thead>
               <tbody>
-                {history.map((h, i) => (
-                  <tr key={h.id} className={`hover:bg-slate-50 ${i !== history.length - 1 ? "border-b border-slate-50" : ""}`}>
-                    <td className="px-5 py-3 text-[var(--app-text-secondary)] tabular-nums">{h.receiptNumber ?? h.id.slice(0, 8)}</td>
-                    <td className="px-5 py-3 text-[var(--app-text-secondary)]">
-                      {new Date(h.paidAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                    </td>
-                    <td className="px-5 py-3 font-semibold text-[var(--app-text-primary)]">{h.paymentType}</td>
-                    <td className="px-5 py-3"><ClearancePill status={h.clearanceStatus} /></td>
-                    <td className="px-5 py-3 text-right font-bold text-[var(--app-text-primary)] tabular-nums">{inr(Number(h.amount))}</td>
-                    <td className="px-5 py-3 text-right">
-                      <button
-                        onClick={() => printReceipt(h.id)}
-                        className="text-xs font-semibold text-[var(--app-brand)] hover:underline"
-                      >
-                        Print →
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {history.map((h, i) => {
+                  const source = paymentSourceOf(h.paymentType);
+                  return (
+                    <tr key={h.id} className={`hover:bg-slate-50 ${i !== history.length - 1 ? "border-b border-slate-50" : ""}`}>
+                      <td className="px-5 py-3 text-[var(--app-text-secondary)] tabular-nums">{h.receiptNumber ?? h.id.slice(0, 8)}</td>
+                      <td className="px-5 py-3 text-[var(--app-text-secondary)]">
+                        {new Date(h.paidAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                            source === "Gateway"
+                              ? "bg-violet-50 text-violet-700"
+                              : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {source}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 font-semibold text-[var(--app-text-primary)]">{h.paymentType}</td>
+                      <td className="px-5 py-3"><ClearancePill status={h.clearanceStatus} /></td>
+                      <td className="px-5 py-3 text-right font-bold text-[var(--app-text-primary)] tabular-nums">{inr(Number(h.amount))}</td>
+                      <td className="px-5 py-3 text-right">
+                        <button
+                          onClick={() => printReceipt(h.id)}
+                          className="text-xs font-semibold text-[var(--app-brand)] hover:underline"
+                        >
+                          Print →
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

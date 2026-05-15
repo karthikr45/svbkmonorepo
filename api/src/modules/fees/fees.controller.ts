@@ -52,6 +52,18 @@ export class FeesController {
     return this.feesService.getFeeStats(tenantId);
   }
 
+  @Get('receipt-status')
+  @ApiOperation({
+    summary: 'Show the current running receipt sequence for the caller\'s tenant',
+    description:
+      'Returns prefix, reset policy, current period key (e.g. "2025-26"), ' +
+      'the next receipt number that would be issued, and the last 12 periods\' counters.',
+  })
+  async getReceiptStatus(@Req() req: Request) {
+    const { tenantId } = ctx(req);
+    return this.feesService.getReceiptStatus(tenantId);
+  }
+
  @Post('penalty/add')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

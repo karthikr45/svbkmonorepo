@@ -9,8 +9,18 @@ import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Fee, PaymentStatus, TermType } from './entities/fee.entity';
 import { FeePayment, ClearanceStatus, PaymentType } from './entities/fee-payment.entity';
 import { FeeAdjustment, FeeAdjustmentKind } from './entities/fee-adjustment.entity';
+import { ReceiptSequence } from './entities/receipt-sequence.entity';
+import { Tenant, ReceiptResetPolicy } from '../tenants/entities/tenant.entity';
 import { Student } from '../students/entities/student.entity';
 import { CreateFeeInput, ExistingFeeRecord } from './dto/fee.dto';
+
+/** Indian academic years start in June. */
+function guessAcademicYear(d: Date): string {
+  const year = d.getFullYear();
+  const monthIdx = d.getMonth(); // 0-based
+  const startYear = monthIdx >= 5 ? year : year - 1;
+  return `${startYear}-${startYear + 1}`;
+}
 
 /** Snapshot of who triggered a penalty/discount mutation. */
 export interface AdjustmentActor {
@@ -943,6 +953,7 @@ async waivePenaltyForStudents(
         manager,
         tenantId,
         input.paidAt ? new Date(input.paidAt) : new Date(),
+        fee.academicYear,
       );
 
       const payment = manager.getRepository(FeePayment).create({
@@ -1531,6 +1542,7 @@ ${body}
 
       <h3>Payment</h3>
       <table>
+        <tr><td class="lbl">Source</td><td class="val">${ONLINE_TYPES.has(fp.paymentType) ? 'Gateway' : 'Manual record'}</td></tr>
         <tr><td class="lbl">Mode</td><td class="val">${escapeHtml(humanType(fp.paymentType))}</td></tr>
         ${typeDetails.join('\n        ')}
         ${detailRow('Notes', fp.notes)}
@@ -1590,35 +1602,185 @@ ${receiptFragment}
   }
 
   /**
-   * Generate a unique receipt number for a payment. Format:
-   *   RCP-{tenant short}-{YYYYMMDD}-{NNNN}
-   * Where NNNN is a per-day per-tenant sequence. Uses a row-level
-   * lock by reading the max existing seq for the day.
+   * Generate a unique receipt number for a payment.
+   *
+   * Format: `{prefix}-{period}/{####}`  (period omitted for NEVER policy)
+   *   e.g. "SVBK-2025-26/0042"  with ACADEMIC_YEAR policy
+   *        "SVBK-202510/0042"   with MONTHLY policy
+   *        "SVBK/0042"          with NEVER policy
+   *
+   * The counter lives in receipt_sequences with a row-level lock so
+   * concurrent payments serialise on the (tenantId, periodKey) row.
    */
   private async generateReceiptNumber(
     manager: EntityManager,
     tenantId: string,
     paidAt: Date,
+    academicYear: string | null = null,
   ): Promise<string> {
-    const yyyy = paidAt.getFullYear();
-    const mm = String(paidAt.getMonth() + 1).padStart(2, '0');
-    const dd = String(paidAt.getDate()).padStart(2, '0');
-    const datePart = `${yyyy}${mm}${dd}`;
-    const prefix = `RCP-${tenantId.slice(0, 4).toUpperCase()}-${datePart}-`;
-    const last = await manager
-      .getRepository(FeePayment)
-      .createQueryBuilder('fp')
-      .select('fp.receipt_number', 'receipt_number')
-      .where('fp.tenant_id = :tenantId', { tenantId })
-      .andWhere('fp.receipt_number LIKE :prefix', { prefix: `${prefix}%` })
-      .orderBy('fp.receipt_number', 'DESC')
-      .limit(1)
-      .getRawOne<{ receipt_number: string }>();
-    const lastSeq = last?.receipt_number
-      ? Number(last.receipt_number.slice(prefix.length))
-      : 0;
-    const nextSeq = String(lastSeq + 1).padStart(4, '0');
-    return `${prefix}${nextSeq}`;
+    const tenantRepo = manager.getRepository(Tenant);
+    const tenant = await tenantRepo.findOne({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException(`Tenant ${tenantId} not found`);
+    }
+
+    const prefix = (
+      tenant.receiptPrefix ??
+      tenant.code ??
+      tenant.tenantCode ??
+      'RCP'
+    )
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '');
+    const policy = tenant.receiptResetPolicy ?? ReceiptResetPolicy.ACADEMIC_YEAR;
+    const start = Math.max(1, tenant.receiptStartNumber ?? 1);
+
+    const periodKey = this.computePeriodKey(policy, paidAt, academicYear);
+
+    const seqRepo = manager.getRepository(ReceiptSequence);
+
+    // Lock the existing row; if none, insert a fresh one. We retry the
+    // insert path once on unique-violation since two concurrent payments
+    // can both miss the SELECT and race to INSERT.
+    let row = await seqRepo
+      .createQueryBuilder('s')
+      .setLock('pessimistic_write')
+      .where('s.tenant_id = :tid AND s.period_key = :pk', {
+        tid: tenantId,
+        pk: periodKey,
+      })
+      .getOne();
+
+    let nextSeq: number;
+    if (!row) {
+      nextSeq = start;
+      try {
+        await seqRepo.save(
+          seqRepo.create({
+            tenantId,
+            periodKey,
+            currentValue: nextSeq,
+            lastIssuedAt: paidAt,
+          }),
+        );
+      } catch {
+        // Lost the race — re-read and increment.
+        row = await seqRepo
+          .createQueryBuilder('s')
+          .setLock('pessimistic_write')
+          .where('s.tenant_id = :tid AND s.period_key = :pk', {
+            tid: tenantId,
+            pk: periodKey,
+          })
+          .getOne();
+        if (!row) throw new Error('Receipt sequence row could not be created.');
+        nextSeq = row.currentValue + 1;
+        row.currentValue = nextSeq;
+        row.lastIssuedAt = paidAt;
+        await seqRepo.save(row);
+      }
+    } else {
+      nextSeq = row.currentValue + 1;
+      row.currentValue = nextSeq;
+      row.lastIssuedAt = paidAt;
+      await seqRepo.save(row);
+    }
+
+    const padded = String(nextSeq).padStart(4, '0');
+    const periodSegment =
+      policy === ReceiptResetPolicy.NEVER ? '' : `-${periodKey}`;
+    return `${prefix}${periodSegment}/${padded}`;
+  }
+
+  /**
+   * Returns the running counter per active period for a tenant. Used by
+   * the super-admin "Receipt sequence" panel so they can see "we're at
+   * #0042 for 2025-26" without poking the DB directly.
+   */
+  async getReceiptStatus(tenantId: string): Promise<{
+    prefix: string;
+    resetPolicy: ReceiptResetPolicy;
+    startNumber: number;
+    currentPeriod: string;
+    nextPreview: string;
+    history: { periodKey: string; currentValue: number; lastIssuedAt: Date | null }[];
+  }> {
+    const tenant = await this.dataSource
+      .getRepository(Tenant)
+      .findOne({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found`);
+
+    const prefix = (
+      tenant.receiptPrefix ??
+      tenant.code ??
+      tenant.tenantCode ??
+      'RCP'
+    )
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '');
+    const policy = tenant.receiptResetPolicy ?? ReceiptResetPolicy.ACADEMIC_YEAR;
+    const start = Math.max(1, tenant.receiptStartNumber ?? 1);
+
+    // For ACADEMIC_YEAR we don't know the year context at status-time;
+    // fall back to "guess the current academic year from today's month".
+    const today = new Date();
+    const guessedAY = guessAcademicYear(today);
+    const currentPeriod = this.computePeriodKey(policy, today, guessedAY);
+
+    const history = await this.dataSource
+      .getRepository(ReceiptSequence)
+      .find({
+        where: { tenantId },
+        order: { lastIssuedAt: 'DESC' },
+        take: 12,
+      });
+
+    const currentRow = history.find((r) => r.periodKey === currentPeriod);
+    const nextValue = (currentRow?.currentValue ?? start - 1) + 1;
+    const padded = String(nextValue).padStart(4, '0');
+    const periodSegment =
+      policy === ReceiptResetPolicy.NEVER ? '' : `-${currentPeriod}`;
+    const nextPreview = `${prefix}${periodSegment}/${padded}`;
+
+    return {
+      prefix,
+      resetPolicy: policy,
+      startNumber: start,
+      currentPeriod,
+      nextPreview,
+      history: history.map((r) => ({
+        periodKey: r.periodKey,
+        currentValue: r.currentValue,
+        lastIssuedAt: r.lastIssuedAt,
+      })),
+    };
+  }
+
+  /** Maps a reset policy + date (+ optional academic year) to a period key. */
+  private computePeriodKey(
+    policy: ReceiptResetPolicy,
+    when: Date,
+    academicYear: string | null,
+  ): string {
+    if (policy === ReceiptResetPolicy.NEVER) return 'GLOBAL';
+    if (policy === ReceiptResetPolicy.YEARLY) return String(when.getFullYear());
+    if (policy === ReceiptResetPolicy.MONTHLY) {
+      const mm = String(when.getMonth() + 1).padStart(2, '0');
+      return `${when.getFullYear()}-${mm}`;
+    }
+    if (policy === ReceiptResetPolicy.DAILY) {
+      const mm = String(when.getMonth() + 1).padStart(2, '0');
+      const dd = String(when.getDate()).padStart(2, '0');
+      return `${when.getFullYear()}${mm}${dd}`;
+    }
+    // ACADEMIC_YEAR — prefer the explicit AY from the fee row; fall back
+    // to a calendar guess. Short-form "2025-26" reads better on receipts.
+    const ay = academicYear ?? guessAcademicYear(when);
+    const m = ay.match(/^(\d{4})\D+(\d{4})$/);
+    if (!m) return ay;
+    return `${m[1]}-${m[2].slice(2)}`;
   }
 
   // ──────────────── Internals ────────────────

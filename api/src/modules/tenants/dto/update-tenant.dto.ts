@@ -1,5 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { ReceiptResetPolicy } from '../entities/tenant.entity';
 
 export class UpdateTenantDto {
   @ApiPropertyOptional()
@@ -56,6 +66,24 @@ export class UpdateTenantDto {
   @IsString()
   @IsOptional()
   country?: string;
+
+  @ApiPropertyOptional({ description: 'Short prefix shown on receipts.' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  receiptPrefix?: string;
+
+  @ApiPropertyOptional({ enum: ReceiptResetPolicy })
+  @IsEnum(ReceiptResetPolicy)
+  @IsOptional()
+  receiptResetPolicy?: ReceiptResetPolicy;
+
+  @ApiPropertyOptional({ description: 'First number issued in any fresh period.' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  receiptStartNumber?: number;
 
   @ApiPropertyOptional()
   @IsBoolean()

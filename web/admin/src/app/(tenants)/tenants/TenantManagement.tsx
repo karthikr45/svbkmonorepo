@@ -28,7 +28,18 @@ const emptyForm: Omit<Tenant, "id"> = {
   city: "",
   state: "",
   country: "",
+  receiptPrefix: "",
+  receiptResetPolicy: "ACADEMIC_YEAR",
+  receiptStartNumber: 1,
 };
+
+const RESET_POLICY_OPTIONS = [
+  { value: "ACADEMIC_YEAR", label: "Reset per academic year" },
+  { value: "YEARLY", label: "Reset per calendar year" },
+  { value: "MONTHLY", label: "Reset per month" },
+  { value: "DAILY", label: "Reset per day" },
+  { value: "NEVER", label: "Never reset (single global sequence)" },
+] as const;
 
 /** Auto-generates tenant code from name + optional code + board type.
  *  Example: "Ushodaya" + code "Alpha" + "CBSE" → "UACBSE"
@@ -193,7 +204,13 @@ function TenantManagement() {
   const validate = () => {
     const errors: Partial<Record<keyof Omit<Tenant, "id">, string>> = {};
     // schoolCode is optional; tenantCode is auto-generated — skip both
-    const optional = new Set<string>(["schoolCode", "tenantCode"]);
+    const optional = new Set<string>([
+      "schoolCode",
+      "tenantCode",
+      "receiptPrefix",
+      "receiptResetPolicy",
+      "receiptStartNumber",
+    ]);
     (Object.keys(formData) as Array<keyof typeof formData>).forEach((key) => {
       if (optional.has(key)) return;
       const val = formData[key];
@@ -224,6 +241,9 @@ function TenantManagement() {
       city: tenant.city,
       state: tenant.state,
       country: tenant.country,
+      receiptPrefix: tenant.receiptPrefix ?? "",
+      receiptResetPolicy: tenant.receiptResetPolicy ?? "ACADEMIC_YEAR",
+      receiptStartNumber: tenant.receiptStartNumber ?? 1,
     });
     setFormErrors({});
     setSaveError("");
@@ -492,6 +512,58 @@ function TenantManagement() {
                 error={formErrors.country}
                 fullWidth
               />
+            </div>
+            <div className="mt-6 rounded-xl border border-zinc-200 p-4 bg-zinc-50/50">
+              <h3 className="text-sm font-bold text-zinc-700 mb-1">Receipt numbering</h3>
+              <p className="text-xs text-zinc-500 mb-3">
+                Controls the running receipt numbers issued by this tenant.
+                Existing receipts keep their old format.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Input
+                  label="Receipt prefix"
+                  value={formData.receiptPrefix ?? ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, receiptPrefix: e.target.value })
+                  }
+                  placeholder="e.g. SVBK"
+                  fullWidth
+                />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-zinc-700">Reset policy</label>
+                  <select
+                    value={formData.receiptResetPolicy ?? "ACADEMIC_YEAR"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        receiptResetPolicy: e.target.value as Tenant["receiptResetPolicy"],
+                      })
+                    }
+                    className="h-10 px-3 rounded-lg border border-zinc-200 bg-white text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  >
+                    {RESET_POLICY_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Input
+                  label="Start number"
+                  type="number"
+                  value={String(formData.receiptStartNumber ?? 1)}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      receiptStartNumber: Math.max(1, Number(e.target.value) || 1),
+                    })
+                  }
+                  fullWidth
+                />
+              </div>
+              <p className="text-[11px] text-zinc-500 mt-2">
+                Sample: <code className="font-mono">{(formData.receiptPrefix || "RCP").toUpperCase()}-2025-26/0001</code>
+              </p>
             </div>
           </div>
 

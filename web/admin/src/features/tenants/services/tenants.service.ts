@@ -19,6 +19,11 @@ function normalizeTenant(raw: Tenant, fallback: Partial<Tenant> = {}): Tenant {
     city: raw?.city ?? fallback.city ?? "",
     state: raw?.state ?? fallback.state ?? "",
     country: raw?.country ?? fallback.country ?? "",
+    receiptPrefix: raw?.receiptPrefix ?? fallback.receiptPrefix ?? null,
+    receiptResetPolicy:
+      raw?.receiptResetPolicy ?? fallback.receiptResetPolicy ?? "ACADEMIC_YEAR",
+    receiptStartNumber:
+      raw?.receiptStartNumber ?? fallback.receiptStartNumber ?? 1,
   };
 }
 

@@ -1,5 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Min,
+  MaxLength,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { ReceiptResetPolicy } from '../entities/tenant.entity';
 
 export class CreateTenantDto {
   @ApiProperty({ example: 'Sunrise High School' })
@@ -56,4 +66,36 @@ export class CreateTenantDto {
   @IsString()
   @IsOptional()
   country?: string;
+
+  @ApiPropertyOptional({
+    example: 'SVBK',
+    description:
+      'Short prefix shown on every receipt issued for this tenant ' +
+      '(letters / digits only). Defaults to the tenant code if omitted.',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  receiptPrefix?: string;
+
+  @ApiPropertyOptional({
+    enum: ReceiptResetPolicy,
+    example: ReceiptResetPolicy.ACADEMIC_YEAR,
+    description:
+      'How often the receipt sequence rolls back to the start number. ' +
+      'Default is ACADEMIC_YEAR (most Indian schools).',
+  })
+  @IsEnum(ReceiptResetPolicy)
+  @IsOptional()
+  receiptResetPolicy?: ReceiptResetPolicy;
+
+  @ApiPropertyOptional({
+    example: 1,
+    description: 'First receipt number to issue in any fresh period.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  receiptStartNumber?: number;
 }

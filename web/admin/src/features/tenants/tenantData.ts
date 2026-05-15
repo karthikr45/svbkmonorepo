@@ -1,3 +1,10 @@
+export type ReceiptResetPolicy =
+  | "NEVER"
+  | "YEARLY"
+  | "ACADEMIC_YEAR"
+  | "MONTHLY"
+  | "DAILY";
+
 export type Tenant = {
   id: string;
   type: string;
@@ -11,6 +18,9 @@ export type Tenant = {
   city: string;
   state: string;
   country: string;
+  receiptPrefix?: string | null;
+  receiptResetPolicy?: ReceiptResetPolicy | null;
+  receiptStartNumber?: number | null;
 };
 
 export const initialTenants: Tenant[] = [

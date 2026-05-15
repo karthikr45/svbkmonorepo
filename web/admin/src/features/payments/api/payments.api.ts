@@ -199,6 +199,41 @@ export async function listFeeAdjustmentsApi(feeId: string): Promise<FeeAdjustmen
   return get<FeeAdjustmentRow[]>(`/fees/${feeId}/adjustments`);
 }
 
+export type ReceiptResetPolicy =
+  | "NEVER"
+  | "YEARLY"
+  | "ACADEMIC_YEAR"
+  | "MONTHLY"
+  | "DAILY";
+
+export interface ReceiptStatusResponse {
+  prefix: string;
+  resetPolicy: ReceiptResetPolicy;
+  startNumber: number;
+  currentPeriod: string;
+  nextPreview: string;
+  history: { periodKey: string; currentValue: number; lastIssuedAt: string | null }[];
+}
+
+export async function getReceiptStatusApi(): Promise<ReceiptStatusResponse> {
+  return get<ReceiptStatusResponse>("/fees/receipt-status");
+}
+
+/** Bucket the raw paymentType into "Gateway" (online) vs "Manual" (offline). */
+export function paymentSourceOf(paymentType: string): "Gateway" | "Manual" {
+  const t = paymentType?.toUpperCase();
+  if (
+    t === "RAZORPAY" ||
+    t === "CASHFREE" ||
+    t === "UPI" ||
+    t === "NETBANKING" ||
+    t === "CARD"
+  ) {
+    return "Gateway";
+  }
+  return "Manual";
+}
+
 export interface PaymentLogFilters {
   type?: "online" | "offline";
   clearance?: "PENDING" | "CLEARED" | "BOUNCED" | "NA";
