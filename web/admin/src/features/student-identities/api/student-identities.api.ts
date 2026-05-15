@@ -1,0 +1,112 @@
+import { get, patch, post } from "@/lib/api-client";
+
+export interface StudentIdentity {
+  id: string;
+  tenantId: string;
+  displayName: string;
+  dateOfBirth: string | null;
+  gender: string | null;
+  primaryPhone: string | null;
+  primaryEmail: string | null;
+  photoUrl: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EnrollmentSummary {
+  id: string;
+  admissionNumber: string;
+  academicYear: string;
+  branch: string;
+  class: string;
+  section: string;
+  rollNo: string;
+  tcIssuedAt: string | null;
+  createdAt: string;
+}
+
+export interface IdentityMatch {
+  identity: StudentIdentity;
+  enrollments: EnrollmentSummary[];
+  latestAdmissionNumber: string | null;
+}
+
+function unwrap<T>(res: unknown): T {
+  if (res && typeof res === "object" && "data" in res) {
+    return (res as { data: T }).data;
+  }
+  return res as T;
+}
+
+export async function searchIdentitiesApi(query: {
+  name?: string;
+  phone?: string;
+  email?: string;
+}): Promise<IdentityMatch[]> {
+  const params = new URLSearchParams();
+  if (query.name) params.set("name", query.name);
+  if (query.phone) params.set("phone", query.phone);
+  if (query.email) params.set("email", query.email);
+  return unwrap<IdentityMatch[]>(
+    await get(`/student-identities/search?${params.toString()}`),
+  );
+}
+
+export async function getIdentityApi(id: string): Promise<IdentityMatch> {
+  return unwrap<IdentityMatch>(await get(`/student-identities/${id}`));
+}
+
+export async function createIdentityApi(body: {
+  displayName: string;
+  primaryPhone?: string;
+  primaryEmail?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  notes?: string;
+}): Promise<StudentIdentity> {
+  return unwrap<StudentIdentity>(await post("/student-identities", body));
+}
+
+export async function updateIdentityApi(
+  id: string,
+  body: Partial<{
+    displayName: string;
+    primaryPhone: string | null;
+    primaryEmail: string | null;
+    dateOfBirth: string | null;
+    gender: string | null;
+    notes: string | null;
+  }>,
+): Promise<StudentIdentity> {
+  return unwrap<StudentIdentity>(await patch(`/student-identities/${id}`, body));
+}
+
+export async function backfillIdentitiesApi(): Promise<{
+  rowsBackfilled: number;
+  identitiesCreated: number;
+}> {
+  return unwrap(await post("/student-identities/backfill", {}));
+}
+
+// ─── TC on a student row ───────────────────────────────────────────
+
+export async function issueTcApi(
+  studentRowId: string,
+  body: { reason?: string; certificateNo?: string; issuedAt?: string },
+): Promise<unknown> {
+  return unwrap(await post(`/students/${studentRowId}/issue-tc`, body));
+}
+
+export async function revokeTcApi(studentRowId: string): Promise<unknown> {
+  return unwrap(await post(`/students/${studentRowId}/revoke-tc`, {}));
+}
+
+export async function listEnrollmentsByAdmissionApi(
+  admissionNumber: string,
+): Promise<{ admissionNumber: string; enrollments: EnrollmentSummary[] }> {
+  const params = new URLSearchParams({ admissionNumber });
+  return unwrap(
+    await get(`/students/by-admission/enrollments?${params.toString()}`),
+  );
+}

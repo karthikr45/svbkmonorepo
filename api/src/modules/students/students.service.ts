@@ -83,6 +83,68 @@ export class StudentsService {
     return saved;
   }
 
+  /**
+   * Stamp TC fields on an enrollment row. The row is not deleted —
+   * active-roster queries should filter `tcIssuedAt IS NULL`. Existing
+   * fee/payment/receipt history is preserved verbatim.
+   */
+  async issueTc(
+    tenantId: string,
+    id: string,
+    input: { reason?: string; certificateNo?: string; issuedAt?: string },
+  ): Promise<Student> {
+    const student = await this.findOneOrFail(tenantId, id);
+    if (student.tcIssuedAt) {
+      this.logger.warn(
+        `TC re-issued for ${student.admissionNumber} (was ${student.tcIssuedAt.toISOString()})`,
+      );
+    }
+    student.tcIssuedAt = input.issuedAt ? new Date(input.issuedAt) : new Date();
+    student.tcReason = input.reason?.trim() || null;
+    student.tcCertificateNo = input.certificateNo?.trim() || null;
+    return this.studentRepo.save(student);
+  }
+
+  /**
+   * Revoke a TC (e.g. issued by mistake). Clears all three TC fields.
+   */
+  async revokeTc(tenantId: string, id: string): Promise<Student> {
+    const student = await this.findOneOrFail(tenantId, id);
+    student.tcIssuedAt = null;
+    student.tcReason = null;
+    student.tcCertificateNo = null;
+    return this.studentRepo.save(student);
+  }
+
+  /**
+   * Return every enrollment row sharing the identity of the given
+   * student, newest first. Used by the "all-time / by-person" view
+   * in Payment Details and reports.
+   */
+  async listByIdentity(tenantId: string, identityId: string): Promise<Student[]> {
+    return this.studentRepo.find({
+      where: { tenantId, identityId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Same as listByIdentity but starting from an admission number. If
+   * the row has no identity yet (legacy), returns just that row.
+   */
+  async listEnrollmentsByAdmission(
+    tenantId: string,
+    admissionNumber: string,
+  ): Promise<Student[]> {
+    const rows = await this.studentRepo.find({
+      where: { tenantId, admissionNumber },
+    });
+    if (rows.length === 0) return [];
+    const identityId = rows.find((r) => r.identityId)?.identityId ?? null;
+    if (!identityId) return rows;
+    return this.listByIdentity(tenantId, identityId);
+  }
+
   async getLatest(tenantId: string): Promise<Student[]> {
     return this.studentRepo.find({
       where: { tenantId },

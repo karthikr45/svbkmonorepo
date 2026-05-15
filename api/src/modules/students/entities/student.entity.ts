@@ -64,6 +64,32 @@ export class Student {
   @Column({ name: 'img_url', type: 'text', nullable: true })
   imgUrl: string | null;
 
+  // ─── Identity ─────────────────────────────────────────────────────
+  /**
+   * Canonical identity of the person this row represents. Nullable
+   * during migration — the backfill auto-creates one identity per
+   * legacy row, then this column is effectively non-null in practice.
+   * Every new admission must carry an identity_id.
+   */
+  @Column({ name: 'identity_id', type: 'uuid', nullable: true })
+  @Index('idx_students_identity')
+  identityId: string | null;
+
+  // ─── Transfer Certificate (lifecycle close) ──────────────────────
+  /**
+   * Set when the school issues a TC for this enrollment. The row
+   * stays in the DB (audit + historical receipts) but is filtered
+   * out of active rosters by default.
+   */
+  @Column({ name: 'tc_issued_at', type: 'timestamptz', nullable: true })
+  tcIssuedAt: Date | null;
+
+  @Column({ name: 'tc_reason', type: 'varchar', length: 500, nullable: true })
+  tcReason: string | null;
+
+  @Column({ name: 'tc_certificate_no', type: 'varchar', length: 50, nullable: true })
+  tcCertificateNo: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

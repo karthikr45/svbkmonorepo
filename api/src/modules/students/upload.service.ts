@@ -10,6 +10,7 @@ import { parseExcel } from './utils/excel-parser.util';
 import { UploadValidationService } from './upload-validation.service';
 import { StudentsService } from './students.service';
 import { FeesService } from '../fees/fees.service';
+import { StudentIdentitiesService } from '../student-identities/student-identities.service';
 import {
   ValidateUploadResponseDto,
   ConfirmUploadResponseDto,
@@ -17,6 +18,7 @@ import {
 import { NormalisedRow } from './utils/row-validator.util';
 import { UpsertStudentInput } from './dto/student.dto';
 import { CreateFeeInput } from '../fees/dto/fee.dto';
+import { Student } from './entities/student.entity';
 
 /**
  * Orchestrates the Excel upload:
@@ -37,6 +39,7 @@ export class UploadService {
     private readonly validationService: UploadValidationService,
     private readonly studentsService: StudentsService,
     private readonly feesService: FeesService,
+    private readonly identitiesService: StudentIdentitiesService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -205,9 +208,25 @@ export class UploadService {
       section: string;
       rollNo: string;
       imgUrl?: string | null;
+      identityId?: string;
       terms?: { term: string; amount: number; discount?: number }[];
     },
   ) {
+    // Resolve / create the identity OUTSIDE the transaction so a fresh
+    // identity row is visible across all subsequent queries.
+    let identityId = dto.identityId;
+    if (identityId) {
+      // Validate the caller passed a real identity for their tenant.
+      await this.identitiesService.findOne(tenantId, identityId);
+    } else {
+      const created = await this.identitiesService.create(tenantId, {
+        displayName: dto.name.trim(),
+        primaryEmail: dto.email.trim().toLowerCase() || null,
+        primaryPhone: dto.phoneNumber.trim() || null,
+      });
+      identityId = created.id;
+    }
+
     return this.dataSource.transaction(async (manager) => {
       const studentResult = await this.studentsService.bulkUpsert(
         [
@@ -233,6 +252,12 @@ export class UploadService {
       if (!studentId) {
         throw new BadRequestException('Failed to upsert student');
       }
+
+      // Stamp the identity on the row. bulkUpsert doesn't take it as
+      // an input field, so do it here.
+      await manager
+        .getRepository(Student)
+        .update({ id: studentId }, { identityId });
 
       let feesCreated = 0;
       if (dto.terms?.length) {

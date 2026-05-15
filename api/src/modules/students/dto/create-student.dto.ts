@@ -86,6 +86,16 @@ export class CreateStudentDto {
   imgUrl?: string | null;
 
   @ApiPropertyOptional({
+    description:
+      'Existing person identity to attach this enrollment to. Used when ' +
+      'admitting a returning student who has a TC\'d enrollment already on ' +
+      'record. Omit to auto-create a new identity from name/email/phone.',
+  })
+  @IsOptional()
+  @IsString()
+  identityId?: string;
+
+  @ApiPropertyOptional({
     type: [CreateStudentTermDto],
     description: 'Up to 5 terms (one per term). Discount defaults to 0.',
   })

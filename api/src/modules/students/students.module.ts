@@ -7,19 +7,21 @@ import { FeesModule } from '../fees/fees.module';
 import { UploadService } from './upload.service';
 import { UploadValidationService } from './upload-validation.service';
 import { StudentsDetailsController } from './students-details.controller';
+import { StudentIdentitiesModule } from '../student-identities/student-identities.module';
 
 /**
- * One-way dependency: students → fees.
+ * Dependencies: students → fees, students → student-identities.
  *
- * Students module depends on fees because:
- *  - The Excel upload creates students AND fees (calls FeesService.bulkCreate)
- *  - The student profile page shows fees + payments (calls StudentFeesService)
- *
- * Fees module does NOT import students — it only works with IDs and
- * the database join via TypeORM relations. This keeps dependencies clean.
+ * Students depends on fees because the bulk-upload flow creates fees
+ * alongside students; on identities because every new enrollment must
+ * be attached to a canonical person identity.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Student]), FeesModule],
+  imports: [
+    TypeOrmModule.forFeature([Student]),
+    FeesModule,
+    StudentIdentitiesModule,
+  ],
   controllers: [StudentsController, StudentsDetailsController],
   providers: [StudentsService, UploadService, UploadValidationService],
   exports: [StudentsService],

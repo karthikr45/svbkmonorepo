@@ -144,6 +144,11 @@ export interface CreateStudentPayload {
   section: string;
   rollNo: string;
   imgUrl?: string | null;
+  /**
+   * Existing identity (re-admission). Omit to auto-create a new
+   * identity from name/email/phone.
+   */
+  identityId?: string;
   terms?: CreateStudentTermPayload[];
 }
 

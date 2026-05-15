@@ -344,6 +344,59 @@ export class StudentsController {
     return this.studentsService.update(tenantId, id, dto);
   }
 
+  @Post(':id/issue-tc')
+  @ApiOperation({
+    summary: 'Mark TC issued on this enrollment',
+    description:
+      'Stamps tc_issued_at/reason/certificate_no on the row. Active rosters filter ' +
+      'out TC\'d enrollments by default. Existing fee/payment/receipt history is preserved.',
+  })
+  @ApiParam({ name: 'id', description: 'Student UUID' })
+  async issueTc(
+    @Param('id', buildUuidPipe('id')) id: string,
+    @Body() body: { reason?: string; certificateNo?: string; issuedAt?: string },
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    return this.studentsService.issueTc(tenantId, id, body ?? {});
+  }
+
+  @Post(':id/revoke-tc')
+  @ApiOperation({
+    summary: 'Revoke a previously-issued TC (clears the three TC fields)',
+  })
+  @ApiParam({ name: 'id', description: 'Student UUID' })
+  async revokeTc(
+    @Param('id', buildUuidPipe('id')) id: string,
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    return this.studentsService.revokeTc(tenantId, id);
+  }
+
+  @Get('by-admission/enrollments')
+  @ApiOperation({
+    summary: 'List every enrollment row for the person who owns this admission number',
+    description:
+      'Walks via identity_id. Returns the full timeline of that student\'s stays at ' +
+      'this school, newest first. Returns the single row when the student has no ' +
+      'identity link yet (legacy data).',
+  })
+  async listEnrollmentsByAdmission(
+    @Query('admissionNumber') admissionNumber: string,
+    @Req() req: Request,
+  ) {
+    if (!admissionNumber?.trim()) {
+      return { admissionNumber: '', enrollments: [] };
+    }
+    const { tenantId } = ctx(req);
+    const enrollments = await this.studentsService.listEnrollmentsByAdmission(
+      tenantId,
+      admissionNumber.trim(),
+    );
+    return { admissionNumber, enrollments };
+  }
+
   @Put(':id')
   @ApiOperation({
     summary: 'Update student + fees (legacy payload)',

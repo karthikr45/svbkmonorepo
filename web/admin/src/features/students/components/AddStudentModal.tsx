@@ -8,6 +8,10 @@ import {
 } from "@/features/students/api/students.api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
+import {
+  searchIdentitiesApi,
+  type IdentityMatch,
+} from "@/features/student-identities/api/student-identities.api";
 
 // Fallback so the modal still works on a fresh DB before the seed runs.
 const FALLBACK_TERMS = [
@@ -68,6 +72,59 @@ export function AddStudentModal({
     section: "",
     rollNo: "",
   });
+
+  // ─── Identity search (re-admission flow) ────────────────────────
+  const [identitySearch, setIdentitySearch] = useState({
+    name: "",
+    phone: "",
+    email: "",
+  });
+  const [identityResults, setIdentityResults] = useState<IdentityMatch[]>([]);
+  const [searching, setSearching] = useState(false);
+  // When linked, this is the identity_id sent on save. The card on top
+  // displays the past enrollment so the admin sees it during data entry.
+  const [linkedIdentity, setLinkedIdentity] = useState<IdentityMatch | null>(null);
+
+  async function runIdentitySearch() {
+    if (
+      !identitySearch.name.trim() &&
+      !identitySearch.phone.trim() &&
+      !identitySearch.email.trim()
+    ) {
+      setIdentityResults([]);
+      return;
+    }
+    setSearching(true);
+    setError(null);
+    try {
+      const results = await searchIdentitiesApi({
+        name: identitySearch.name.trim() || undefined,
+        phone: identitySearch.phone.trim() || undefined,
+        email: identitySearch.email.trim() || undefined,
+      });
+      setIdentityResults(results);
+    } catch (e) {
+      setError(getApiErrorMessage(e, "Search failed"));
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function linkIdentity(m: IdentityMatch) {
+    setLinkedIdentity(m);
+    // Pre-fill name / email / phone from the identity to save typing.
+    setForm((prev) => ({
+      ...prev,
+      name: m.identity.displayName,
+      email: m.identity.primaryEmail ?? prev.email,
+      phoneNumber: m.identity.primaryPhone ?? prev.phoneNumber,
+    }));
+    setIdentityResults([]);
+  }
+
+  function unlinkIdentity() {
+    setLinkedIdentity(null);
+  }
   const [terms, setTerms] = useState<TermInput[]>(
     TERMS.map(() => ({ enabled: false, amount: "", discount: "" })),
   );
@@ -87,6 +144,9 @@ export function AddStudentModal({
       rollNo: "",
     });
     setTerms(TERMS.map(() => ({ enabled: false, amount: "", discount: "" })));
+    setLinkedIdentity(null);
+    setIdentitySearch({ name: "", phone: "", email: "" });
+    setIdentityResults([]);
     setError(null);
   }
 
@@ -132,6 +192,7 @@ export function AddStudentModal({
       await createStudentApi({
         ...form,
         branch: form.branch || undefined,
+        identityId: linkedIdentity?.identity.id,
         terms: payloadTerms.length ? payloadTerms : undefined,
       });
       reset();
@@ -172,6 +233,121 @@ export function AddStudentModal({
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 max-h-[calc(100vh-140px)] overflow-y-auto">
+          {/* ─── Re-admission search ─── */}
+          {linkedIdentity ? (
+            <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50/60 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#0b54ab]">
+                    Re-enrolling
+                  </p>
+                  <p className="font-bold text-slate-900 mt-0.5">
+                    {linkedIdentity.identity.displayName}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-1">
+                    {linkedIdentity.identity.primaryPhone ?? ""}
+                    {linkedIdentity.identity.primaryPhone && linkedIdentity.identity.primaryEmail ? " · " : ""}
+                    {linkedIdentity.identity.primaryEmail ?? ""}
+                  </p>
+                  {linkedIdentity.enrollments.length > 0 && (
+                    <ul className="mt-2 space-y-0.5">
+                      {linkedIdentity.enrollments.slice(0, 4).map((e) => (
+                        <li
+                          key={e.id}
+                          className="text-[11px] text-slate-600 tabular-nums"
+                        >
+                          {e.academicYear} · Adm {e.admissionNumber} · Class {e.class}-{e.section}
+                          {e.tcIssuedAt ? (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-200 text-slate-700">
+                              TC issued
+                            </span>
+                          ) : (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-100 text-emerald-700">
+                              Active
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={unlinkIdentity}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                >
+                  Unlink
+                </button>
+              </div>
+            </div>
+          ) : (
+            <details className="mb-6 rounded-xl border border-slate-200 bg-slate-50/40 p-4 group">
+              <summary className="cursor-pointer text-sm font-bold text-slate-700 select-none flex items-center justify-between">
+                <span>Returning student? Search by name / phone / email</span>
+                <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input
+                  value={identitySearch.name}
+                  onChange={(e) => setIdentitySearch({ ...identitySearch, name: e.target.value })}
+                  placeholder="Name"
+                  className="form-input"
+                />
+                <input
+                  value={identitySearch.phone}
+                  onChange={(e) => setIdentitySearch({ ...identitySearch, phone: e.target.value })}
+                  placeholder="Parent phone"
+                  className="form-input"
+                />
+                <input
+                  value={identitySearch.email}
+                  onChange={(e) => setIdentitySearch({ ...identitySearch, email: e.target.value })}
+                  placeholder="Email"
+                  className="form-input"
+                />
+              </div>
+              <div className="mt-3 flex justify-end">
+                <Button variant="secondary" type="button" isLoading={searching} onClick={runIdentitySearch}>
+                  Search
+                </Button>
+              </div>
+              {identityResults.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {identityResults.map((m) => (
+                    <li
+                      key={m.identity.id}
+                      className="rounded-lg bg-white border border-slate-200 px-3 py-2 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900 text-sm truncate">
+                          {m.identity.displayName}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {m.identity.primaryPhone ?? "—"}
+                          {" · "}
+                          {m.identity.primaryEmail ?? "—"}
+                          {m.latestAdmissionNumber
+                            ? ` · last Adm ${m.latestAdmissionNumber}`
+                            : ""}
+                          {" · "}
+                          {m.enrollments.length} enrollment
+                          {m.enrollments.length !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => linkIdentity(m)}
+                        className="text-xs font-semibold text-[#0b54ab] hover:underline"
+                      >
+                        Re-enrol →
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </details>
+          )}
+
           <SectionHeading>Identity</SectionHeading>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             <Field label="Academic year" required>

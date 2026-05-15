@@ -26,6 +26,7 @@ import { SystemMetadataModule } from './modules/system-metadata/system-metadata.
 import { ChatModule } from './modules/chat/chat.module';
 import { ReceiptTemplatesModule } from './modules/receipt-templates/receipt-templates.module';
 import { SocialModule } from './modules/social/social.module';
+import { StudentIdentitiesModule } from './modules/student-identities/student-identities.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { SocialModule } from './modules/social/social.module';
     ChatModule,
     ReceiptTemplatesModule,
     SocialModule,
+    StudentIdentitiesModule,
   ],
 })
 export class AppModule {}
