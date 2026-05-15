@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, LessThan, Repository } from 'typeorm';
+import { DataSource, In, IsNull, LessThan, Repository } from 'typeorm';
 import { Conversation } from './entities/conversation.entity';
 import { ConversationParticipant } from './entities/conversation-participant.entity';
 import { ChatMessage } from './entities/chat-message.entity';
@@ -76,15 +76,13 @@ export class ChatService {
     const qb = this.adminRepo
       .createQueryBuilder('a')
       .leftJoin(Tenant, 't', 't.id = a.tenantId')
-      .select([
-        'a.id AS "adminId"',
-        'a.email AS "email"',
-        'a.firstName AS "firstName"',
-        'a.lastName AS "lastName"',
-        'a.role AS "role"',
-        'a.tenantId AS "tenantId"',
-        'COALESCE(t.tenantName, t.name) AS "tenantName"',
-      ])
+      .select('a.id', 'adminId')
+      .addSelect('a.email', 'email')
+      .addSelect('a.firstName', 'firstName')
+      .addSelect('a.lastName', 'lastName')
+      .addSelect('a.role', 'role')
+      .addSelect('a.tenantId', 'tenantId')
+      .addSelect('COALESCE(t.tenantName, t.name)', 'tenantName')
       .where('a.id != :me', { me: caller.userId })
       .andWhere('a.isActive = TRUE');
 
@@ -95,7 +93,7 @@ export class ChatService {
         { tid: caller.tenantId, superRole: Role.SUPER_ADMIN },
       );
     }
-    qb.orderBy('"tenantName"', 'ASC').addOrderBy('a.firstName', 'ASC');
+    qb.orderBy('"tenantName"', 'ASC', 'NULLS FIRST').addOrderBy('a.firstName', 'ASC');
 
     return qb.getRawMany();
   }
@@ -120,7 +118,7 @@ export class ChatService {
     if (!mine.length) return [];
     const convIds = mine.map((p) => p.conversationId);
 
-    const convs = await this.convRepo.findByIds(convIds);
+    const convs = await this.convRepo.find({ where: { id: In(convIds) } });
     const convById = new Map(convs.map((c) => [c.id, c]));
 
     // All other participants in these conversations.
@@ -135,15 +133,13 @@ export class ChatService {
       ? await this.adminRepo
           .createQueryBuilder('a')
           .leftJoin(Tenant, 't', 't.id = a.tenantId')
-          .select([
-            'a.id AS "adminId"',
-            'a.email AS "email"',
-            'a.firstName AS "firstName"',
-            'a.lastName AS "lastName"',
-            'a.role AS "role"',
-            'a.tenantId AS "tenantId"',
-            'COALESCE(t.tenantName, t.name) AS "tenantName"',
-          ])
+          .select('a.id', 'adminId')
+          .addSelect('a.email', 'email')
+          .addSelect('a.firstName', 'firstName')
+          .addSelect('a.lastName', 'lastName')
+          .addSelect('a.role', 'role')
+          .addSelect('a.tenantId', 'tenantId')
+          .addSelect('COALESCE(t.tenantName, t.name)', 'tenantName')
           .where('a.id IN (:...ids)', { ids: adminIds })
           .getRawMany<ContactRow>()
       : [];
