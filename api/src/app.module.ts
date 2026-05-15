@@ -23,6 +23,7 @@ import { ParentsModule } from './modules/parents/parents.module';
 import { ParentAuthModule } from './modules/parent-auth/parent-auth.module';
 import { ParentPortalModule } from './modules/parent-portal/parent-portal.module';
 import { SystemMetadataModule } from './modules/system-metadata/system-metadata.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { SystemMetadataModule } from './modules/system-metadata/system-metadata.
     ParentAuthModule,
     ParentPortalModule,
     SystemMetadataModule,
+    ChatModule,
   ],
 })
 export class AppModule {}

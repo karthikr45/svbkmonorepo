@@ -22,6 +22,7 @@ const navItems: NavItem[] = [
   { type: "item", href: "/students", label: "Students", icon: "students" },
   { type: "item", href: "/payments", label: "Payment Details", icon: "payment" },
   { type: "item", href: "/pay-now", label: "Pay Now", icon: "payment" },
+  { type: "item", href: "/chat", label: "Chat", icon: "megaphone" },
   {
     type: "group",
     key: "communications",

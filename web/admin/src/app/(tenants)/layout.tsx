@@ -29,6 +29,7 @@ function TenantsHeader() {
           {[
             { href: "/tenants", label: "Tenants" },
             { href: "/system-metadata", label: "System Metadata" },
+            { href: "/chat", label: "Chat" },
           ].map((n) => {
             const active = isActive(n.href);
             return (
