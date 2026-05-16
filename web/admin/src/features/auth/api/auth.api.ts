@@ -11,7 +11,29 @@ const AUTH_ENDPOINTS = {
   selectTenant: "/auth/select-tenant",
   logout: "/logout",
   refreshToken: "/auth/refresh",
+  forgotPassword: "/auth/forgot-password",
+  resetPassword: "/auth/reset-password",
 } as const;
+
+export async function forgotPasswordApi(
+  email: string,
+): Promise<{ message: string }> {
+  return post<{ message: string }, { email: string }>(
+    AUTH_ENDPOINTS.forgotPassword,
+    { email },
+  );
+}
+
+export async function resetPasswordApi(body: {
+  email: string;
+  token: string;
+  newPassword: string;
+}): Promise<{ message: string }> {
+  return post<{ message: string }, typeof body>(
+    AUTH_ENDPOINTS.resetPassword,
+    body,
+  );
+}
 
 export async function verifyLoginApi(
   body: { email: string; password: string },
