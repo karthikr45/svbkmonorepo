@@ -75,7 +75,7 @@ export function SaveTemplatePageContent() {
         name: form.name.trim(),
         message: form.message,
         ...(form.category.trim() ? { category: form.category.trim() } : {}),
-        adminId: getStoredUser("userDetails")?.id ?? "",
+        adminId: getStoredUser()?.id ?? "",
       });
       router.push("/templates");
     } catch (err) {

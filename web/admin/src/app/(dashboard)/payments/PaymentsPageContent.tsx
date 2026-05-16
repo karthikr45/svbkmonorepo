@@ -1152,7 +1152,7 @@ function Th({
   children,
   align = "left",
 }: {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   align?: "left" | "right";
 }) {
   return (

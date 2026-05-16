@@ -244,7 +244,7 @@ export function SystemMetadataContent() {
   );
 }
 
-function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
+function Th({ children, align = "left" }: { children?: React.ReactNode; align?: "left" | "right" }) {
   return (
     <th className={`px-5 py-3 text-${align} text-[11px] font-bold uppercase tracking-[0.06em] text-slate-500`}>
       {children}

@@ -10,8 +10,8 @@ import { on } from "events";
 import { getStudentWithFees } from "@/features/payNow/services/payNow.service";
 import { useAuth } from "@/features/auth";
 
-function formatCurrency(n: number): string {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+function formatCurrency(n?: number): string {
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n ?? 0);
 }
 
 export function PaymentPageContent() {
