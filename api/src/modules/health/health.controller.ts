@@ -1,31 +1,34 @@
-import { Controller, Get } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
-  HealthCheck,
-  HealthCheckService,
-  TypeOrmHealthIndicator,
-} from '@nestjs/terminus';
+  Controller,
+  Get,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 
 /**
  * Liveness/readiness endpoint for load balancers, k8s probes, uptime
- * monitors. Public (no auth) — checks the DB connection.
+ * monitors. Public (no auth, no throttle). Pings the DB directly via the
+ * TypeORM DataSource — no Terminus dependency.
  */
 @ApiTags('health')
 @Controller('healthz')
 @SkipThrottle()
 export class HealthController {
   constructor(
-    private readonly health: HealthCheckService,
-    private readonly db: TypeOrmHealthIndicator,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   @Get()
-  @HealthCheck()
   @ApiOperation({ summary: 'Liveness + DB readiness probe' })
-  check() {
-    return this.health.check([
-      () => this.db.pingCheck('database', { timeout: 3000 }),
-    ]);
+  async check() {
+    try {
+      await this.dataSource.query('SELECT 1');
+    } catch {
+      throw new ServiceUnavailableException({ status: 'error', db: 'down' });
+    }
+    return { status: 'ok', db: 'up', uptime: process.uptime() };
   }
 }
