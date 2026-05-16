@@ -14,17 +14,14 @@ import { Tenant, ReceiptResetPolicy } from '../tenants/entities/tenant.entity';
 import { Student } from '../students/entities/student.entity';
 import { CreateFeeInput, ExistingFeeRecord } from './dto/fee.dto';
 import { ReceiptTemplatesService } from '../receipt-templates/receipt-templates.service';
+import {
+  guessAcademicYear,
+  computePeriodKey as computePeriodKeyPure,
+  sanitizeReceiptPrefix,
+  assembleReceiptNumber,
+  deriveStatus as deriveStatusPure,
+} from './fee-math';
 
-/**
- * Indian academic year boundary: April 1 — March 31. Months 0-2 (Jan/
- * Feb/Mar) belong to the *previous* academic year.
- */
-function guessAcademicYear(d: Date): string {
-  const year = d.getFullYear();
-  const monthIdx = d.getMonth(); // 0-based; April = 3
-  const startYear = monthIdx >= 3 ? year : year - 1;
-  return `${startYear}-${startYear + 1}`;
-}
 
 /** Snapshot of who triggered a penalty/discount mutation. */
 export interface AdjustmentActor {
@@ -1472,15 +1469,9 @@ ${body}
       throw new NotFoundException(`Tenant ${tenantId} not found`);
     }
 
-    const prefix = (
-      tenant.receiptPrefix ??
-      tenant.code ??
-      tenant.tenantCode ??
-      'RCP'
-    )
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '');
+    const prefix = sanitizeReceiptPrefix(
+      tenant.receiptPrefix ?? tenant.code ?? tenant.tenantCode,
+    );
     const policy = tenant.receiptResetPolicy ?? ReceiptResetPolicy.ACADEMIC_YEAR;
     const start = Math.max(1, tenant.receiptStartNumber ?? 1);
 
@@ -1535,10 +1526,7 @@ ${body}
       await seqRepo.save(row);
     }
 
-    const padded = String(nextSeq).padStart(4, '0');
-    const periodSegment =
-      policy === ReceiptResetPolicy.NEVER ? '' : `-${periodKey}`;
-    return `${prefix}${periodSegment}-${padded}`;
+    return assembleReceiptNumber(prefix, policy, periodKey, nextSeq);
   }
 
   /**
@@ -1559,15 +1547,9 @@ ${body}
       .findOne({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found`);
 
-    const prefix = (
-      tenant.receiptPrefix ??
-      tenant.code ??
-      tenant.tenantCode ??
-      'RCP'
-    )
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '');
+    const prefix = sanitizeReceiptPrefix(
+      tenant.receiptPrefix ?? tenant.code ?? tenant.tenantCode,
+    );
     const policy = tenant.receiptResetPolicy ?? ReceiptResetPolicy.ACADEMIC_YEAR;
     const start = Math.max(1, tenant.receiptStartNumber ?? 1);
 
@@ -1727,23 +1709,7 @@ ${body}
     when: Date,
     academicYear: string | null,
   ): string {
-    if (policy === ReceiptResetPolicy.NEVER) return 'GLOBAL';
-    if (policy === ReceiptResetPolicy.YEARLY) return String(when.getFullYear());
-    if (policy === ReceiptResetPolicy.MONTHLY) {
-      const mm = String(when.getMonth() + 1).padStart(2, '0');
-      return `${when.getFullYear()}-${mm}`;
-    }
-    if (policy === ReceiptResetPolicy.DAILY) {
-      const mm = String(when.getMonth() + 1).padStart(2, '0');
-      const dd = String(when.getDate()).padStart(2, '0');
-      return `${when.getFullYear()}${mm}${dd}`;
-    }
-    // ACADEMIC_YEAR — prefer the explicit AY from the fee row; fall back
-    // to a calendar guess. Short-form "2025-26" reads better on receipts.
-    const ay = academicYear ?? guessAcademicYear(when);
-    const m = ay.match(/^(\d{4})\D+(\d{4})$/);
-    if (!m) return ay;
-    return `${m[1]}-${m[2].slice(2)}`;
+    return computePeriodKeyPure(policy, when, academicYear);
   }
 
   // ──────────────── Internals ────────────────
@@ -1778,9 +1744,7 @@ ${body}
   }
 
   private deriveStatus(paid: number, net: number): PaymentStatus {
-    if (paid === 0) return PaymentStatus.UNPAID;
-    if (paid < net) return PaymentStatus.PARTIAL;
-    return PaymentStatus.PAID; // paid >= net; net was validated >= paid on discount
+    return deriveStatusPure(paid, net);
   }
 }
 
