@@ -25,23 +25,59 @@ export interface VerifyOtpResponse {
   parent: ParentProfile;
 }
 
-export async function verifyOtp(
-  email: string,
-  otp: string,
-  tenantCode?: string,
-): Promise<VerifyOtpResponse> {
-  const { data } = await api.post("/parent/auth/verify-otp", {
-    email,
-    otp,
-    tenantCode,
-  });
-  const result = unwrap<VerifyOtpResponse>(data);
+export interface TenantChoice {
+  parentId: string;
+  tenantId: string;
+  tenantCode: string | null;
+  tenantName: string | null;
+}
+
+export interface TenantSelectionResponse {
+  requiresTenantSelection: true;
+  email: string;
+  selectionToken: string;
+  tenants: TenantChoice[];
+}
+
+export type VerifyOtpResult =
+  | { kind: "tokens" }
+  | { kind: "selection"; selection: TenantSelectionResponse };
+
+function persistSession(result: VerifyOtpResponse) {
   setTokens({
     accessToken: result.accessToken,
     refreshToken: result.refreshToken,
   });
   setParent(result.parent);
-  return result;
+}
+
+export async function verifyOtp(
+  email: string,
+  otp: string,
+  tenantCode?: string,
+): Promise<VerifyOtpResult> {
+  const { data } = await api.post("/parent/auth/verify-otp", {
+    email,
+    otp,
+    tenantCode,
+  });
+  const result = unwrap<VerifyOtpResponse | TenantSelectionResponse>(data);
+  if ("requiresTenantSelection" in result) {
+    return { kind: "selection", selection: result };
+  }
+  persistSession(result);
+  return { kind: "tokens" };
+}
+
+export async function selectTenant(
+  selectionToken: string,
+  parentId: string,
+): Promise<void> {
+  const { data } = await api.post("/parent/auth/select-tenant", {
+    selectionToken,
+    parentId,
+  });
+  persistSession(unwrap<VerifyOtpResponse>(data));
 }
 
 export async function logout(): Promise<void> {

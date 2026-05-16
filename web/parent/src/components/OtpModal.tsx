@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { sendOtp, verifyOtp } from "@/lib/parent-portal";
+import {
+  sendOtp,
+  verifyOtp,
+  selectTenant,
+  type TenantSelectionResponse,
+} from "@/lib/parent-portal";
 import { apiErrorMessage } from "@/lib/api";
 
 interface OtpModalProps {
@@ -19,6 +24,10 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [timer, setTimer] = useState(RESEND_SECONDS);
   const [canResend, setCanResend] = useState(false);
+  const [selection, setSelection] = useState<TenantSelectionResponse | null>(
+    null,
+  );
+  const [picking, setPicking] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Start countdown
@@ -93,12 +102,31 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
     setIsVerifying(true);
     setError(null);
     try {
-      await verifyOtp(email, code);
-      onVerified();
+      const result = await verifyOtp(email, code);
+      if (result.kind === "selection") {
+        setSelection(result.selection);
+      } else {
+        onVerified();
+      }
     } catch (err) {
       setError(apiErrorMessage(err, "Could not verify OTP. Try again."));
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const handlePickTenant = async (parentId: string) => {
+    if (!selection) return;
+    setPicking(true);
+    setError(null);
+    try {
+      await selectTenant(selection.selectionToken, parentId);
+      onVerified();
+    } catch (err) {
+      setError(
+        apiErrorMessage(err, "Could not open that school. Try again."),
+      );
+      setPicking(false);
     }
   };
 
@@ -147,6 +175,38 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
         {/* OTP icon strip */}
         <div className="mx-6 h-px bg-slate-100" />
 
+        {selection ? (
+          <div className="px-6 py-6">
+            <p className="text-sm text-slate-600 mb-4">
+              This email is registered with more than one school. Choose
+              which one to open:
+            </p>
+            <div className="flex flex-col gap-2">
+              {selection.tenants.map((t) => (
+                <button
+                  key={t.parentId}
+                  onClick={() => handlePickTenant(t.parentId)}
+                  disabled={picking}
+                  className="w-full text-left rounded-xl border border-slate-200 px-4 py-3 hover:border-[#0b54ab] hover:bg-blue-50/40 transition-colors disabled:opacity-50"
+                >
+                  <p className="font-semibold text-slate-900">
+                    {t.tenantName || t.tenantCode || "School"}
+                  </p>
+                  {t.tenantCode && (
+                    <p className="text-xs text-slate-500 mt-0.5 uppercase tracking-wide">
+                      {t.tenantCode}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+            {error && (
+              <p className="mt-3 text-center text-sm text-red-600" role="alert">
+                {error}
+              </p>
+            )}
+          </div>
+        ) : (
         <div className="px-6 py-6">
           {/* OTP boxes */}
           <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
@@ -215,6 +275,7 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
             Enter the 6-digit code sent to your email. With <code>DEMO_MODE=true</code> on the API, any 6 digits will be accepted.
           </p>
         </div>
+        )}
       </div>
     </div>
   );

@@ -12,7 +12,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import * as nodemailer from 'nodemailer';
-import { LessThan, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { Role } from '../../common/enums/roles.enum';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { Parent } from '../parents/entities/parent.entity';
@@ -42,14 +42,16 @@ export class ParentAuthService {
     private readonly configService: ConfigService,
   ) {}
 
+  /**
+   * One email may have a Parent row in several tenants (kids across
+   * branches/schools). We send a SINGLE OTP and write one OTP row per
+   * tenant with the same hash, so the parent never has to know a tenant
+   * code up front. tenantCode still works to target one school.
+   */
   async sendOtp(email: string, tenantCode?: string): Promise<{ message: string }> {
-    const parent = await this.resolveParentByEmail(email, tenantCode);
-
-    // Invalidate previous unused OTPs for this email/tenant
-    await this.otpRepo.update(
-      { tenantId: parent.tenantId, email: parent.email, isUsed: false },
-      { isUsed: true },
-    );
+    const targets = tenantCode
+      ? [await this.resolveParentByEmail(email, tenantCode)]
+      : await this.activeParentsByEmail(email);
 
     const rawOtp = this.generateOtp();
     const hash = await bcrypt.hash(rawOtp, 10);
@@ -57,32 +59,34 @@ export class ParentAuthService {
       this.configService.get<number>('otp.expiresInMinutes') ?? 5;
     const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000);
 
-    await this.otpRepo.save(
-      this.otpRepo.create({
-        tenantId: parent.tenantId,
-        email: parent.email,
-        otpHash: hash,
-        expiresAt,
-        isUsed: false,
-      }),
-    );
+    for (const p of targets) {
+      await this.otpRepo.update(
+        { tenantId: p.tenantId, email: p.email, isUsed: false },
+        { isUsed: true },
+      );
+      await this.otpRepo.save(
+        this.otpRepo.create({
+          tenantId: p.tenantId,
+          email: p.email,
+          otpHash: hash,
+          expiresAt,
+          isUsed: false,
+        }),
+      );
+    }
 
-    await this.sendOtpEmail(parent.email, parent.name, rawOtp);
-
+    await this.sendOtpEmail(targets[0].email, targets[0].name, rawOtp);
     return { message: 'OTP sent successfully. Please check your email.' };
   }
 
   async verifyOtp(email: string, otp: string, tenantCode?: string) {
-    const parent = await this.resolveParentByEmail(email, tenantCode);
+    const candidates = await this.activeParentsByEmail(email);
 
     const demoMode = this.configService.get<boolean>('demoMode');
     if (!demoMode) {
+      const tenantIds = candidates.map((c) => c.tenantId);
       const otpRecord = await this.otpRepo.findOne({
-        where: {
-          tenantId: parent.tenantId,
-          email: parent.email,
-          isUsed: false,
-        },
+        where: { tenantId: In(tenantIds), email, isUsed: false },
         order: { createdAt: 'DESC' },
       });
 
@@ -90,17 +94,104 @@ export class ParentAuthService {
         throw new BadRequestException('OTP not found. Please request a new one.');
       }
       if (new Date() > otpRecord.expiresAt) {
-        await this.otpRepo.update(otpRecord.id, { isUsed: true });
+        await this.otpRepo.update(
+          { email, tenantId: In(tenantIds), isUsed: false },
+          { isUsed: true },
+        );
         throw new BadRequestException('OTP has expired. Please request a new one.');
       }
-
       const isMatch = await bcrypt.compare(otp, otpRecord.otpHash);
       if (!isMatch) {
         throw new BadRequestException('Invalid OTP. Please try again.');
       }
-      await this.otpRepo.update(otpRecord.id, { isUsed: true });
+      // Burn the OTP for every tenant it was issued to.
+      await this.otpRepo.update(
+        { email, tenantId: In(tenantIds), isUsed: false },
+        { isUsed: true },
+      );
     }
 
+    // Targeted (tenantCode) or single-tenant → straight to tokens.
+    if (tenantCode) {
+      const parent = await this.resolveParentByEmail(email, tenantCode);
+      return this.tokenResponse(parent);
+    }
+    if (candidates.length === 1) {
+      return this.tokenResponse(candidates[0]);
+    }
+
+    // Multiple schools → hand back a picker + short-lived selection token
+    // so the parent doesn't have to re-enter the OTP.
+    const tenants = await this.buildTenantChoices(candidates);
+    const selectionToken = this.jwtService.sign(
+      {
+        purpose: 'parent-tenant-selection',
+        email,
+        parentIds: candidates.map((c) => c.id),
+      },
+      {
+        secret: this.configService.get<string>('jwt.secret'),
+        expiresIn: 300,
+      },
+    );
+    return { requiresTenantSelection: true, email, selectionToken, tenants };
+  }
+
+  /** Exchange a selection token + chosen parentId for real tokens. */
+  async selectTenant(selectionToken: string, parentId: string) {
+    let claims: { purpose?: string; email?: string; parentIds?: string[] };
+    try {
+      claims = this.jwtService.verify(selectionToken, {
+        secret: this.configService.get<string>('jwt.secret'),
+      });
+    } catch {
+      throw new UnauthorizedException('Selection token expired or invalid');
+    }
+    if (
+      claims.purpose !== 'parent-tenant-selection' ||
+      !claims.parentIds?.includes(parentId)
+    ) {
+      throw new UnauthorizedException(
+        'Selection token does not authorise this account',
+      );
+    }
+    const candidates = await this.activeParentsByEmail(claims.email ?? '');
+    const parent = candidates.find((c) => c.id === parentId);
+    if (!parent) throw new NotFoundException('Account not found');
+    return this.tokenResponse(parent);
+  }
+
+  private async activeParentsByEmail(email: string): Promise<Parent[]> {
+    const all = await this.parentsService.findByEmailGlobal(email);
+    const active = all.filter((p) => p.isActive);
+    if (active.length === 0) {
+      throw new NotFoundException('No account found with this email address');
+    }
+    return active;
+  }
+
+  private async buildTenantChoices(parents: Parent[]) {
+    const out: {
+      parentId: string;
+      tenantId: string;
+      tenantCode: string | null;
+      tenantName: string | null;
+    }[] = [];
+    for (const p of parents) {
+      const t = await this.tenantRepo
+        .findOne({ where: { id: p.tenantId } })
+        .catch(() => null);
+      out.push({
+        parentId: p.id,
+        tenantId: p.tenantId,
+        tenantCode: t?.tenantCode ?? null,
+        tenantName: t?.tenantName ?? t?.name ?? null,
+      });
+    }
+    return out;
+  }
+
+  private async tokenResponse(parent: Parent) {
     const tokens = await this.issueTokenPair(parent);
     return {
       ...tokens,

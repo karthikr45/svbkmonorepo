@@ -17,6 +17,7 @@ import { ParentAuthService } from './parent-auth.service';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ParentRefreshTokenDto } from './dto/refresh-token.dto';
+import { ParentSelectTenantDto } from './dto/select-tenant.dto';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('parent-auth')
@@ -38,6 +39,18 @@ export class ParentAuthController {
   @ApiOperation({ summary: 'Verify OTP and receive access + refresh tokens' })
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.parentAuthService.verifyOtp(dto.email, dto.otp, dto.tenantCode);
+  }
+
+  @Post('select-tenant')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Pick a school after OTP when the email spans multiple tenants',
+  })
+  selectTenant(@Body() dto: ParentSelectTenantDto) {
+    return this.parentAuthService.selectTenant(
+      dto.selectionToken,
+      dto.parentId,
+    );
   }
 
   @Post('refresh')
