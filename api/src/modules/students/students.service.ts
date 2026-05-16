@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -6,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, EntityManager } from 'typeorm';
 import { Student } from './entities/student.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 import {
   UpsertStudentInput,
   UpsertStudentsResult,
@@ -22,6 +24,8 @@ export class StudentsService {
   constructor(
     @InjectRepository(Student)
     private readonly studentRepo: Repository<Student>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
   ) {}
 
   /**
@@ -114,6 +118,123 @@ export class StudentsService {
     student.tcReason = null;
     student.tcCertificateNo = null;
     return this.studentRepo.save(student);
+  }
+
+  /**
+   * Printable Transfer Certificate (A4 HTML). Only valid once a TC has
+   * actually been issued. Particulars not held in the schema (DOB,
+   * parentage, conduct, date of admission) are rendered as blanks for
+   * the office to complete and sign — standard for Indian TCs.
+   */
+  async renderTcCertificate(tenantId: string, id: string): Promise<string> {
+    const s = await this.findOneOrFail(tenantId, id);
+    if (!s.tcIssuedAt) {
+      throw new BadRequestException(
+        'No TC has been issued for this enrollment yet.',
+      );
+    }
+    const tenant = await this.tenantRepo.findOne({
+      where: { id: tenantId },
+    });
+
+    const esc = (v: unknown): string =>
+      v == null
+        ? ''
+        : String(v)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    const blank = '<span class="bl">&nbsp;</span>';
+    const fmt = (d: Date | null) =>
+      d ? new Date(d).toLocaleDateString('en-IN') : blank;
+
+    const schoolName = esc(
+      tenant?.tenantName || tenant?.name || 'School',
+    ).toUpperCase();
+    const addr = [tenant?.address, tenant?.city, tenant?.state]
+      .filter(Boolean)
+      .map(esc)
+      .join(', ');
+
+    const rows: [string, string][] = [
+      ['1. Admission Number', esc(s.admissionNumber)],
+      ['2. Name of the Pupil', esc(s.name)],
+      ["3. Father's / Mother's Name", blank],
+      ['4. Date of Birth', blank],
+      [
+        '5. Class in which studying (and since when)',
+        `${esc(s.class)} - ${esc(s.section)}`,
+      ],
+      ['6. Academic Year', esc(s.academicYear)],
+      ['7. Date of Admission', blank],
+      ['8. Date of Leaving the School', fmt(s.tcIssuedAt)],
+      ['9. Reason for Leaving', esc(s.tcReason) || blank],
+      ['10. Conduct & Character', blank],
+      ['11. Any Fees Due', blank],
+      ['12. General Remarks', blank],
+    ];
+
+    return `<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>Transfer Certificate — ${esc(s.name)}</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Georgia, "Times New Roman", serif; color:#111; margin:0; }
+  .sheet { max-width: 720px; margin: 0 auto; padding: 24px; }
+  .hd { text-align:center; border-bottom:2px solid #111; padding-bottom:12px; }
+  .hd h1 { margin:0; font-size:24px; letter-spacing:1px; }
+  .hd p { margin:4px 0 0; font-size:13px; color:#444; }
+  .title { text-align:center; margin:22px 0 6px; font-size:18px;
+           font-weight:bold; text-decoration:underline; letter-spacing:2px; }
+  .cno { display:flex; justify-content:space-between; font-size:13px;
+         margin:14px 2px; }
+  table { width:100%; border-collapse:collapse; margin-top:8px; }
+  td { padding:9px 6px; font-size:14px; vertical-align:top;
+       border-bottom:1px dotted #999; }
+  td.k { width:48%; }
+  td.v { font-weight:bold; }
+  .bl { display:inline-block; min-width:140px; border-bottom:1px solid #555; }
+  .ft { margin-top:48px; display:flex; justify-content:space-between;
+        font-size:13px; }
+  .sig { text-align:center; }
+  .sig .ln { margin-top:40px; border-top:1px solid #111; padding-top:4px; }
+  .note { margin-top:26px; font-size:11px; color:#666; text-align:center; }
+  @media print { .noprint { display:none; } }
+</style></head>
+<body>
+  <div class="sheet">
+    <div class="hd">
+      <h1>${schoolName}</h1>
+      ${addr ? `<p>${addr}</p>` : ''}
+    </div>
+    <div class="title">TRANSFER CERTIFICATE</div>
+    <div class="cno">
+      <span>T.C. No: <b>${esc(s.tcCertificateNo) || blank}</b></span>
+      <span>Date of Issue: <b>${fmt(s.tcIssuedAt)}</b></span>
+    </div>
+    <table>
+      ${rows
+        .map(
+          ([k, v]) =>
+            `<tr><td class="k">${k}</td><td class="v">${v}</td></tr>`,
+        )
+        .join('')}
+    </table>
+    <div class="ft">
+      <div class="sig"><div class="ln">Class Teacher</div></div>
+      <div class="sig"><div class="ln">Office Seal</div></div>
+      <div class="sig"><div class="ln">Principal</div></div>
+    </div>
+    <p class="note">
+      This is a system-generated draft. Verify all particulars, complete
+      the blank fields, and affix the school seal before issuing.
+    </p>
+    <p class="noprint" style="text-align:center;margin-top:16px">
+      <button onclick="window.print()">Print</button>
+    </p>
+  </div>
+</body></html>`;
   }
 
   /**

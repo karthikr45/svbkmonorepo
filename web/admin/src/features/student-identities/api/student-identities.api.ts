@@ -1,4 +1,5 @@
 import { get, patch, post } from "@/lib/api-client";
+import { getApiBaseUrl } from "@/lib/env";
 
 export interface StudentIdentity {
   id: string;
@@ -124,6 +125,17 @@ export interface TcRosterRow {
   section: string;
   rollNo: string;
   tcIssuedAt: string | null;
+  /** Sum of unpaid balances across the student's fees for the year. */
+  outstanding: number;
+}
+
+interface RawStudentRow extends Omit<TcRosterRow, "outstanding"> {
+  fees?: { netAmount?: string | number; paidAmount?: string | number }[];
+}
+
+/** Printable TC document (HTML). Fetched with auth, opened as a blob. */
+export function tcCertificateUrl(studentId: string): string {
+  return `${getApiBaseUrl()}/students/${studentId}/tc-certificate`;
 }
 
 export interface TcRosterPage {
@@ -149,7 +161,33 @@ export async function listStudentsForTcApi(query: {
   if (query.tcStatus) p.set("tcStatus", query.tcStatus);
   p.set("page", String(query.page ?? 1));
   p.set("pageSize", String(query.pageSize ?? 50));
-  return unwrap<TcRosterPage>(await get(`/students?${p.toString()}`));
+  const res = unwrap<{
+    items: RawStudentRow[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }>(await get(`/students?${p.toString()}`));
+  return {
+    ...res,
+    items: res.items.map((s) => ({
+      id: s.id,
+      name: s.name,
+      admissionNumber: s.admissionNumber,
+      academicYear: s.academicYear,
+      branch: s.branch,
+      class: s.class,
+      section: s.section,
+      rollNo: s.rollNo,
+      tcIssuedAt: s.tcIssuedAt,
+      outstanding: (s.fees ?? []).reduce(
+        (sum, f) =>
+          sum +
+          Math.max(0, Number(f.netAmount ?? 0) - Number(f.paidAmount ?? 0)),
+        0,
+      ),
+    })),
+  };
 }
 
 export interface EnrollmentOutstanding {

@@ -5,15 +5,43 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 import { Card } from "@/components/ui/Card";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { getStoredToken } from "@/features/auth/services";
 import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
 import {
   issueTcApi,
   listEnrollmentsByAdmissionApi,
   listStudentsForTcApi,
   revokeTcApi,
+  tcCertificateUrl,
   type EnrollmentSummary,
   type TcRosterRow,
 } from "@/features/student-identities/api/student-identities.api";
+
+const inr = (n: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(n) ? n : 0);
+
+/** Fetch the TC HTML with auth, then open it as a blob in a new tab. */
+async function openTcCertificate(studentId: string) {
+  try {
+    const token = getStoredToken();
+    const res = await fetch(tcCertificateUrl(studentId), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+    const objectUrl = URL.createObjectURL(
+      new Blob([html], { type: "text/html" }),
+    );
+    window.open(objectUrl, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (err) {
+    alert(getApiErrorMessage(err, "Could not open the TC certificate"));
+  }
+}
 
 type StatusFilter = "tc_issued" | "active" | "all";
 
@@ -39,6 +67,9 @@ export function TransferCertificateContent() {
 
   const [rows, setRows] = useState<TcRosterRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const PAGE_SIZE = 50;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -63,10 +94,12 @@ export function TransferCertificateContent() {
         class: klass || undefined,
         search: search.trim() || undefined,
         tcStatus: status,
-        pageSize: 100,
+        page,
+        pageSize: PAGE_SIZE,
       });
       setRows(res.items);
       setTotal(res.total);
+      setTotalPages(res.totalPages || 1);
     } catch (err) {
       setError(getApiErrorMessage(err, "Could not load students"));
       setRows([]);
@@ -74,6 +107,11 @@ export function TransferCertificateContent() {
     } finally {
       setLoading(false);
     }
+  }, [year, klass, status, search, page]);
+
+  // Any filter change resets to the first page.
+  useEffect(() => {
+    setPage(1);
   }, [year, klass, status, search]);
 
   useEffect(() => {
@@ -265,18 +303,29 @@ export function TransferCertificateContent() {
                   {r.class}-{r.section} · Roll {r.rollNo} · {r.branch}
                 </td>
                 <td className="px-5 py-3">
-                  {r.tcIssuedAt ? (
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-slate-200 text-slate-700"
-                      title={`Issued ${new Date(r.tcIssuedAt).toLocaleDateString("en-IN")}`}
-                    >
-                      TC · {new Date(r.tcIssuedAt).toLocaleDateString("en-IN")}
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-emerald-50 text-emerald-700">
-                      Active
-                    </span>
-                  )}
+                  <div className="flex flex-col gap-1 items-start">
+                    {r.tcIssuedAt ? (
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-slate-200 text-slate-700"
+                        title={`Issued ${new Date(r.tcIssuedAt).toLocaleDateString("en-IN")}`}
+                      >
+                        TC · {new Date(r.tcIssuedAt).toLocaleDateString("en-IN")}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-emerald-50 text-emerald-700">
+                        Active
+                      </span>
+                    )}
+                    {r.outstanding > 0 ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-50 text-red-700">
+                        Dues {inr(r.outstanding)}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-600">
+                        No dues
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-5 py-3 text-right space-x-3 whitespace-nowrap">
                   <button
@@ -292,12 +341,20 @@ export function TransferCertificateContent() {
                     Payments
                   </Link>
                   {r.tcIssuedAt ? (
-                    <button
-                      onClick={() => revoke(r)}
-                      className="text-xs font-semibold text-amber-600 hover:underline"
-                    >
-                      Revoke TC
-                    </button>
+                    <>
+                      <button
+                        onClick={() => openTcCertificate(r.id)}
+                        className="text-xs font-semibold text-emerald-700 hover:underline"
+                      >
+                        Print TC
+                      </button>
+                      <button
+                        onClick={() => revoke(r)}
+                        className="text-xs font-semibold text-amber-600 hover:underline"
+                      >
+                        Revoke TC
+                      </button>
+                    </>
                   ) : (
                     <button
                       onClick={() => setTcFor(r)}
@@ -311,6 +368,29 @@ export function TransferCertificateContent() {
             ))}
           </tbody>
         </table>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 text-xs text-slate-600">
+            <span>
+              Page {page} of {totalPages} · {total} record(s)
+            </span>
+            <div className="space-x-2">
+              <button
+                disabled={page <= 1 || loading}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold disabled:opacity-40 hover:bg-slate-50"
+              >
+                ‹ Prev
+              </button>
+              <button
+                disabled={page >= totalPages || loading}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold disabled:opacity-40 hover:bg-slate-50"
+              >
+                Next ›
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {tcFor && (
@@ -341,7 +421,7 @@ function TcDialog({
   onClose,
   onIssued,
 }: {
-  enrollment: { id: string; name: string; admissionNumber: string; academicYear: string; class: string; section: string; rollNo: string };
+  enrollment: { id: string; name: string; admissionNumber: string; academicYear: string; class: string; section: string; rollNo: string; outstanding?: number };
   onClose: () => void;
   onIssued: () => void;
 }) {
@@ -350,14 +430,22 @@ function TcDialog({
   const [issuedAt, setIssuedAt] = useState(new Date().toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const dues = enrollment.outstanding ?? 0;
+  const [ackDues, setAckDues] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (dues > 0 && !ackDues) {
+      setErr("Please acknowledge the pending dues before issuing.");
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
+      const duesNote =
+        dues > 0 ? `[Issued with dues pending: ${inr(dues)}] ` : "";
       await issueTcApi(enrollment.id, {
-        reason: reason.trim() || undefined,
+        reason: (duesNote + reason.trim()).trim() || undefined,
         certificateNo: certificateNo.trim() || undefined,
         issuedAt: new Date(issuedAt).toISOString(),
       });
@@ -397,6 +485,30 @@ function TcDialog({
               {enrollment.rollNo}
             </p>
           </div>
+
+          {dues > 0 && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-3 text-sm text-red-700">
+              <p className="font-bold">
+                Pending dues: {inr(dues)}
+              </p>
+              <p className="mt-1 text-[13px]">
+                This student still owes fees. Most schools clear dues before
+                issuing a TC. You can still proceed, but it will be recorded.
+              </p>
+              <label className="mt-2 flex items-start gap-2 text-[13px] font-semibold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={ackDues}
+                  onChange={(e) => setAckDues(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Issue the TC despite {inr(dues)} pending (this note is
+                  saved on the record).
+                </span>
+              </label>
+            </div>
+          )}
 
           <label className="flex flex-col gap-1.5">
             <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
@@ -456,7 +568,12 @@ function TcDialog({
             >
               Cancel
             </Button>
-            <Button variant="primary" type="submit" isLoading={busy}>
+            <Button
+              variant="primary"
+              type="submit"
+              isLoading={busy}
+              disabled={dues > 0 && !ackDues}
+            >
               Issue TC
             </Button>
           </div>

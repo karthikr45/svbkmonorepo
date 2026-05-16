@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StudentsController } from './students.controller';
 import { StudentsService } from './students.service';
 import { Student } from './entities/student.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 import { FeesModule } from '../fees/fees.module';
 import { UploadService } from './upload.service';
 import { UploadValidationService } from './upload-validation.service';
@@ -18,7 +19,7 @@ import { StudentIdentitiesModule } from '../student-identities/student-identitie
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Student]),
+    TypeOrmModule.forFeature([Student, Tenant]),
     FeesModule,
     StudentIdentitiesModule,
   ],

@@ -374,6 +374,25 @@ export class StudentsController {
     return this.studentsService.revokeTc(tenantId, id);
   }
 
+  @Get(':id/tc-certificate')
+  @ApiOperation({
+    summary: 'Printable Transfer Certificate (HTML, A4)',
+    description:
+      'Returns a printable TC document for an enrollment that already has '
+      + 'a TC issued. Open in a new tab and use the browser print dialog.',
+  })
+  @ApiParam({ name: 'id', description: 'Student UUID' })
+  async tcCertificate(
+    @Param('id', buildUuidPipe('id')) id: string,
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    const html = await this.studentsService.renderTcCertificate(tenantId, id);
+    const res = (req as any).res;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  }
+
   @Get('by-admission/enrollments')
   @ApiOperation({
     summary: 'List every enrollment row for the person who owns this admission number',
