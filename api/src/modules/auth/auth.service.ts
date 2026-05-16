@@ -6,9 +6,11 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 import { UsersService } from '../users/users.service';
 import { AdminsService } from '../admins/admins.service';
 import { TenantsService } from '../tenants/tenants.service';
+import { MailService } from '../mail/mail.service';
 import { JwtPayload } from './strategies/jwt.strategy';
 
 export interface TenantChoice {
@@ -48,7 +50,101 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly adminsService: AdminsService,
     private readonly tenantsService: TenantsService,
+    private readonly mailService: MailService,
   ) {}
+
+  /**
+   * Starts a password reset. Always returns the same response whether or not
+   * the email exists (no account enumeration). One raw token is issued and
+   * its hash stored on every active admin row for that email so the person
+   * resets their password across all their tenants at once.
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const generic = {
+      message:
+        'If an account exists for that email, a reset link has been sent.',
+    };
+    const admins = await this.adminsService.findActiveByEmail(email);
+    if (admins.length === 0) return generic;
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
+    for (const a of admins) {
+      await this.adminsService.setPasswordResetToken(a.id, tokenHash, expiresAt);
+    }
+
+    const clientUrl =
+      this.configService.get<string>('clientUrl') || 'http://localhost:3000';
+    const link = `${clientUrl.replace(/\/$/, '')}/reset-password?token=${rawToken}&email=${encodeURIComponent(
+      email,
+    )}`;
+    const name = admins[0].firstName || 'there';
+    const html = `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+        <h2 style="color:#1a3c8f">Sri Venkateswara Bala Kuteer</h2>
+        <p>Hello <strong>${name}</strong>,</p>
+        <p>We received a request to reset your admin password. Click the
+           button below to choose a new one:</p>
+        <p style="text-align:center;margin:24px 0">
+          <a href="${link}" style="background:#1a3c8f;color:#fff;padding:12px 24px;
+             border-radius:8px;text-decoration:none;font-weight:bold">
+            Reset Password
+          </a>
+        </p>
+        <p style="color:#888;font-size:13px">
+          This link is valid for 30 minutes. If you didn't request this, you
+          can safely ignore this email — your password won't change.
+        </p>
+        <hr style="border:none;border-top:1px solid #eee"/>
+        <p style="color:#aaa;font-size:12px">
+          © ${new Date().getFullYear()} Sri Venkateswara Bala Kuteer.
+        </p>
+      </div>
+    `;
+    await this.mailService.send(email, 'Reset your SVBK admin password', html);
+    return generic;
+  }
+
+  /**
+   * Completes a password reset. The raw token is hashed and matched against
+   * every active admin row for the email; all matching rows get the new
+   * password and have their reset + refresh state cleared (forces re-login).
+   */
+  async resetPassword(
+    email: string,
+    rawToken: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
+    const admins = await this.adminsService.findActiveByEmail(email);
+    const now = new Date();
+    const matched = admins.filter(
+      (a) =>
+        a.passwordResetTokenHash === tokenHash &&
+        a.passwordResetExpiresAt != null &&
+        a.passwordResetExpiresAt > now,
+    );
+
+    if (matched.length === 0) {
+      throw new UnauthorizedException(
+        'Reset link is invalid or has expired. Please request a new one.',
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    for (const a of matched) {
+      await this.adminsService.completePasswordReset(a.id, passwordHash);
+    }
+    return { message: 'Password has been reset. Please sign in.' };
+  }
 
   /**
    * Validates email+password against every admin row matching that email

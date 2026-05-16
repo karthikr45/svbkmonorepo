@@ -128,4 +128,33 @@ export class AdminsService {
   async updateRefreshToken(adminId: string, hash: string | null): Promise<void> {
     await this.adminsRepository.update(adminId, { refreshTokenHash: hash });
   }
+
+  /** Active admin rows for an email — same email may span tenants. */
+  async findActiveByEmail(email: string): Promise<Admin[]> {
+    return this.adminsRepository.find({ where: { email, isActive: true } });
+  }
+
+  async setPasswordResetToken(
+    adminId: string,
+    hash: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    await this.adminsRepository.update(adminId, {
+      passwordResetTokenHash: hash,
+      passwordResetExpiresAt: expiresAt,
+    });
+  }
+
+  /** Sets a new password and atomically clears reset + refresh state. */
+  async completePasswordReset(
+    adminId: string,
+    passwordHash: string,
+  ): Promise<void> {
+    await this.adminsRepository.update(adminId, {
+      passwordHash,
+      passwordResetTokenHash: null,
+      passwordResetExpiresAt: null,
+      refreshTokenHash: null,
+    });
+  }
 }

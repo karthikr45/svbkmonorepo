@@ -57,6 +57,14 @@ export class Admin {
   @Column({ type: 'varchar', nullable: true })
   refreshTokenHash: string | null = null;
 
+  // Hashed single-use password-reset token + its expiry. Null when no reset
+  // is in flight. Cleared on successful reset.
+  @Column({ type: 'varchar', nullable: true })
+  passwordResetTokenHash: string | null = null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  passwordResetExpiresAt: Date | null = null;
+
   @CreateDateColumn()
   createdAt: Date;
 
