@@ -4,14 +4,24 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 
+/**
+ * Catches every exception, returns a consistent error envelope, and logs
+ * server-side failures with request context through Winston (Logger is
+ * routed to winston-logger.service → logs/error.log). 5xx and unknown
+ * errors are logged with the stack; 4xx are quieter.
+ */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger('Exception');
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
 
     const status =
       exception instanceof HttpException
@@ -37,10 +47,24 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
     }
 
+    const tenantId =
+      (request as any)?.user?.tenantId ??
+      (request?.headers?.['x-tenant-id'] as string | undefined) ??
+      'none';
+    const where = `${request?.method} ${request?.originalUrl} (tenant=${tenantId})`;
+
+    if (status >= 500) {
+      const stack =
+        exception instanceof Error ? exception.stack : String(exception);
+      this.logger.error(`${status} ${where} — ${message}`, stack);
+    } else if (status !== HttpStatus.UNAUTHORIZED && status !== 422) {
+      this.logger.warn(`${status} ${where} — ${message}`);
+    }
+
     response.status(status).json({
       success: false,
       statusCode: status,
-      message,
+      message: status >= 500 ? 'Internal server error' : message,
       errors,
     });
   }
