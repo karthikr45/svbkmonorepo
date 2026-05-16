@@ -50,17 +50,23 @@ import { StudentIdentitiesModule } from './modules/student-identities/student-id
     HealthModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get<string>('database.host'),
-        port: config.get<number>('database.port'),
-        username: config.get<string>('database.username'),
-        password: config.get<string>('database.password'),
-        database: config.get<string>('database.name'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: config.get<boolean>('database.sync'),
-        logging: false,
-      }),
+      useFactory: (config: ConfigService) => {
+        const sync = config.get<boolean>('database.sync');
+        return {
+          type: 'postgres' as const,
+          host: config.get<string>('database.host'),
+          port: config.get<number>('database.port'),
+          username: config.get<string>('database.username'),
+          password: config.get<string>('database.password'),
+          database: config.get<string>('database.name'),
+          entities: [__dirname + '/**/*.entity{.ts,.js}'],
+          migrations: [__dirname + '/migrations/*{.ts,.js}'],
+          synchronize: sync,
+          // When not auto-syncing (prod), apply pending migrations on boot.
+          migrationsRun: !sync,
+          logging: false,
+        };
+      },
       inject: [ConfigService],
     }),
     AuthModule,
