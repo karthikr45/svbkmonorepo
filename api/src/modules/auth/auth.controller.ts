@@ -20,9 +20,12 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { SelectTenantDto } from './dto/select-tenant.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('auth')
 @Controller('auth')
+// Brute-force protection: at most 10 auth attempts per minute per IP.
+@Throttle({ default: { ttl: 60_000, limit: 10 } })
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 

@@ -7,6 +7,7 @@ import compression from 'compression';
 import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { WinstonLoggerService } from './logger/winston-logger.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SystemMetadata } from './modules/system-metadata/entities/system-metadata.entity';
@@ -54,7 +55,13 @@ async function checkMetadataHealth(app: Awaited<ReturnType<typeof NestFactory.cr
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true,
+    bufferLogs: true,
+  });
+  // Route Nest's own logs + our app logs through winston (console +
+  // logs/error.log + logs/combined.log).
+  app.useLogger(new WinstonLoggerService());
   const configService = app.get(ConfigService);
 
   // Security & performance middleware

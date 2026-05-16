@@ -17,9 +17,12 @@ import { ParentAuthService } from './parent-auth.service';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ParentRefreshTokenDto } from './dto/refresh-token.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('parent-auth')
 @Controller('parent/auth')
+// OTP request + verify are the highest-abuse surface — 8/min/IP.
+@Throttle({ default: { ttl: 60_000, limit: 8 } })
 export class ParentAuthController {
   constructor(private readonly parentAuthService: ParentAuthService) {}
 

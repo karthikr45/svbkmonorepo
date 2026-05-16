@@ -1,7 +1,15 @@
-import { Module } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+} from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import configuration from './config/configuration';
+import { HealthModule } from './modules/health/health.module';
+import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminsModule } from './modules/admins/admins.module';
 import { UsersModule } from './modules/users/users.module';
@@ -34,6 +42,12 @@ import { StudentIdentitiesModule } from './modules/student-identities/student-id
       isGlobal: true,
       load: [configuration],
     }),
+    // Global rate limit: 120 req / 60s per IP. Auth + OTP endpoints
+    // add stricter per-route limits via @Throttle.
+    ThrottlerModule.forRoot([
+      { name: 'default', ttl: 60_000, limit: 120 },
+    ]),
+    HealthModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
@@ -76,5 +90,14 @@ import { StudentIdentitiesModule } from './modules/student-identities/student-id
     SocialModule,
     StudentIdentitiesModule,
   ],
+  providers: [
+    // Apply the rate limiter globally; per-route @Throttle/@SkipThrottle
+    // tighten or loosen it where needed.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestLoggerMiddleware).forRoutes('*');
+  }
+}
