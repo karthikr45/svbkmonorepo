@@ -14,6 +14,7 @@ import { Role } from '../../common/enums/roles.enum';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ParentPortalService } from './parent-portal.service';
 import { ParentInitiatePaymentDto } from './dto/initiate-payment.dto';
+import { ParentVerifyPaymentDto } from './dto/verify-payment.dto';
 
 @ApiTags('parent-portal')
 @ApiBearerAuth()
@@ -68,5 +69,18 @@ export class ParentPortalController {
       dto.feeId,
       dto.gateway,
     );
+  }
+
+  @Post('payments/verify')
+  @ApiOperation({ summary: 'Confirm a payment after the gateway checkout' })
+  verifyPayment(
+    @CurrentUser() user: any,
+    @Body() dto: ParentVerifyPaymentDto,
+  ) {
+    return this.portal.verifyPayment(user.tenantId, user.userId, {
+      gatewayOrderId: dto.gatewayOrderId,
+      gatewayPaymentId: dto.gatewayPaymentId,
+      signature: dto.signature,
+    });
   }
 }

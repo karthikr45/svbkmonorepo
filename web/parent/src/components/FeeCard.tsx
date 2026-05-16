@@ -1,8 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { initiatePayment, type Fee, type Gateway } from "@/lib/parent-portal";
+import {
+  initiatePayment,
+  fetchActivePaymentConfig,
+  verifyParentPayment,
+  type Fee,
+  type Gateway,
+} from "@/lib/parent-portal";
 import { apiErrorMessage } from "@/lib/api";
+
+/** Injects a script tag once; resolves true on load, false on error. */
+function loadScript(src: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve(true);
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
 
 const STATUS_STYLES: Record<
   string,
@@ -22,31 +43,120 @@ function inr(value: number | string) {
   }).format(Number.isFinite(n) ? n : 0);
 }
 
-export function FeeCard({ fee }: { fee: Fee }) {
+export function FeeCard({
+  fee,
+  onPaid,
+}: {
+  fee: Fee;
+  onPaid?: () => void;
+}) {
   const statusStyle = STATUS_STYLES[fee.paymentStatus] ?? STATUS_STYLES.UNPAID;
   const balance = Number(fee.netAmount) - Number(fee.paidAmount);
   const canPay = balance > 0 && fee.paymentStatus !== "PAID";
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
-  const [orderInfo, setOrderInfo] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  async function settle(args: {
+    gatewayOrderId: string;
+    gatewayPaymentId?: string;
+    signature?: string;
+  }) {
+    try {
+      await verifyParentPayment(args);
+      setSuccessMsg("Payment successful. Updating…");
+      onPaid?.();
+    } catch (err) {
+      setPayError(
+        apiErrorMessage(
+          err,
+          "Payment was made but confirmation is pending. It will update shortly.",
+        ),
+      );
+    } finally {
+      setPaying(false);
+    }
+  }
 
   async function handlePay(gateway: Gateway) {
     setPaying(true);
     setPayError(null);
-    setOrderInfo(null);
+    setSuccessMsg(null);
     try {
       const res = await initiatePayment(fee.id, gateway);
-      // The gatewayResponse contains the order id (and key/session) needed by
-      // the gateway SDK on the client. Show a friendly summary; full SDK
-      // integration is out of scope of this scaffold.
+      const raw = res.gatewayResponse as Record<string, unknown>;
       const orderId =
-        (res.gatewayResponse as { id?: string; orderId?: string }).id ??
-        (res.gatewayResponse as { orderId?: string }).orderId ??
-        res.payment?.id;
-      setOrderInfo(`Order created (${gateway}): ${orderId}`);
+        res.payment?.gatewayOrderId ??
+        (raw.id as string | undefined) ??
+        (raw.order_id as string | undefined);
+      if (!orderId) throw new Error("Gateway did not return an order id.");
+
+      if (gateway === "razorpay") {
+        const cfg = await fetchActivePaymentConfig();
+        if (!cfg.paymentClientId) {
+          throw new Error(
+            "Online payment isn't configured for your school yet. " +
+              "Please contact the school office.",
+          );
+        }
+        const ok = await loadScript(
+          "https://checkout.razorpay.com/v1/checkout.js",
+        );
+        if (!ok) throw new Error("Failed to load the Razorpay checkout.");
+        const w = window as unknown as { Razorpay: new (o: unknown) => { open: () => void } };
+        const rzp = new w.Razorpay({
+          key: cfg.paymentClientId,
+          order_id: orderId,
+          amount: res.payment.amount,
+          currency: res.payment.currency || "INR",
+          name: "SVBK",
+          description: `${fee.term} · ${fee.academicYear}`,
+          handler: (r: {
+            razorpay_payment_id: string;
+            razorpay_signature: string;
+          }) => {
+            void settle({
+              gatewayOrderId: orderId,
+              gatewayPaymentId: r.razorpay_payment_id,
+              signature: r.razorpay_signature,
+            });
+          },
+          modal: {
+            ondismiss: () => {
+              setPaying(false);
+              setPayError("Payment cancelled.");
+            },
+          },
+        });
+        rzp.open();
+      } else {
+        const sessionId = raw.payment_session_id as string | undefined;
+        if (!sessionId) throw new Error("Cashfree session was not created.");
+        const ok = await loadScript("https://sdk.cashfree.com/js/v3/cashfree.js");
+        if (!ok) throw new Error("Failed to load the Cashfree checkout.");
+        const w = window as unknown as {
+          Cashfree: (o: { mode: string }) => {
+            checkout: (o: unknown) => Promise<{ error?: { message?: string } }>;
+          };
+        };
+        const cashfree = w.Cashfree({ mode: "production" });
+        const result = await cashfree.checkout({
+          paymentSessionId: sessionId,
+          redirectTarget: "_modal",
+          onSuccess: () => {
+            void settle({ gatewayOrderId: orderId });
+          },
+          onFailure: () => {
+            setPaying(false);
+            setPayError("Cashfree payment failed.");
+          },
+        });
+        if (result?.error) {
+          throw new Error(result.error.message ?? "Cashfree payment failed.");
+        }
+      }
     } catch (err) {
-      setPayError(apiErrorMessage(err, "Could not initiate payment"));
-    } finally {
+      setPayError(apiErrorMessage(err, "Could not start the payment."));
       setPaying(false);
     }
   }
@@ -106,8 +216,8 @@ export function FeeCard({ fee }: { fee: Fee }) {
           {payError && (
             <p className="text-xs text-red-600" role="alert">{payError}</p>
           )}
-          {orderInfo && (
-            <p className="text-xs text-green-700">{orderInfo}</p>
+          {successMsg && (
+            <p className="text-xs text-green-700">{successMsg}</p>
           )}
         </div>
       )}

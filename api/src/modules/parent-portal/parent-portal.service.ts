@@ -275,4 +275,45 @@ export class ParentPortalService {
       email: student.email,
     });
   }
+
+  /**
+   * Confirms a payment after the gateway checkout closes. Validates the
+   * order belongs to a fee for one of this parent's children before
+   * delegating to the shared verify logic (which also re-checks the
+   * gateway signature). The webhook stays the source of truth.
+   */
+  async verifyPayment(
+    tenantId: string,
+    parentId: string,
+    args: {
+      gatewayOrderId: string;
+      gatewayPaymentId?: string;
+      signature?: string;
+    },
+  ) {
+    const payment = await this.paymentRepo.findOne({
+      where: { gatewayOrderId: args.gatewayOrderId, tenantId },
+    });
+    if (!payment) {
+      throw new NotFoundException('Payment order not found');
+    }
+    if (!payment.feeId) {
+      throw new BadRequestException('Order is not tied to a fee');
+    }
+    const fee = await this.feeRepo.findOne({
+      where: { id: payment.feeId, tenantId },
+    });
+    if (!fee) {
+      throw new NotFoundException('Fee not found for this order');
+    }
+    await this.ensureChildBelongsToParent(tenantId, parentId, fee.studentId);
+
+    return this.paymentsService.verifyPayment(tenantId, {
+      tenantId,
+      gateway: payment.gateway as PaymentGateway,
+      gatewayOrderId: args.gatewayOrderId,
+      gatewayPaymentId: args.gatewayPaymentId,
+      signature: args.signature,
+    });
+  }
 }

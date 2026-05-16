@@ -106,6 +106,7 @@ export interface Payment {
   currency: string;
   status: string;
   gateway: string | null;
+  gatewayOrderId: string | null;
   paymentType: string;
   paidAt: string | null;
   createdAt: string;
@@ -177,4 +178,24 @@ export async function initiatePayment(
 ): Promise<InitiatePaymentResponse> {
   const { data } = await api.post("/parent/payments", { feeId, gateway });
   return unwrap<InitiatePaymentResponse>(data);
+}
+
+export interface ActivePaymentConfig {
+  gatewayType: string | null;
+  paymentClientId: string | null;
+}
+
+/** Public gateway key for this tenant — the secret never leaves the server. */
+export async function fetchActivePaymentConfig(): Promise<ActivePaymentConfig> {
+  const { data } = await api.get("/tenant-configs/active-payment");
+  return unwrap<ActivePaymentConfig>(data);
+}
+
+export async function verifyParentPayment(args: {
+  gatewayOrderId: string;
+  gatewayPaymentId?: string;
+  signature?: string;
+}): Promise<{ payment: Payment }> {
+  const { data } = await api.post("/parent/payments/verify", args);
+  return unwrap<{ payment: Payment }>(data);
 }

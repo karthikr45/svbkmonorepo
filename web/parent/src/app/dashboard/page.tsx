@@ -85,6 +85,23 @@ export default function DashboardPage() {
       .finally(() => setFeesLoading(false));
   }, [selectedChildId]);
 
+  const refreshAfterPayment = useCallback(() => {
+    fetchDashboard()
+      .then(setDashboard)
+      .catch((err) =>
+        setError(apiErrorMessage(err, "Could not refresh dashboard.")),
+      );
+    if (selectedChildId) {
+      setFeesLoading(true);
+      fetchFees(selectedChildId)
+        .then(setFees)
+        .catch((err) =>
+          setError(apiErrorMessage(err, "Could not refresh fees.")),
+        )
+        .finally(() => setFeesLoading(false));
+    }
+  }, [selectedChildId]);
+
   const handleLogout = useCallback(async () => {
     await logout(); // logout itself does the hard nav to /login
   }, []);
@@ -292,7 +309,11 @@ export default function DashboardPage() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
                   {fees.map((fee) => (
-                    <FeeCard key={fee.id} fee={fee} />
+                    <FeeCard
+                      key={fee.id}
+                      fee={fee}
+                      onPaid={refreshAfterPayment}
+                    />
                   ))}
                 </div>
               )}
