@@ -134,6 +134,37 @@ export class AdminsService {
     return this.adminsRepository.find({ where: { email, isActive: true } });
   }
 
+  /**
+   * Records a failed sign-in for every active row of this email and locks
+   * them once the threshold is hit. Returns the lock expiry if now locked.
+   */
+  async registerFailedLogin(
+    email: string,
+    maxAttempts: number,
+    lockMinutes: number,
+  ): Promise<Date | null> {
+    const rows = await this.findActiveByEmail(email);
+    if (rows.length === 0) return null;
+    const attempts = Math.max(...rows.map((r) => r.failedLoginAttempts)) + 1;
+    let lockedUntil: Date | null = null;
+    if (attempts >= maxAttempts) {
+      lockedUntil = new Date(Date.now() + lockMinutes * 60 * 1000);
+    }
+    await this.adminsRepository.update(
+      { email, isActive: true },
+      { failedLoginAttempts: attempts, lockedUntil },
+    );
+    return lockedUntil;
+  }
+
+  /** Clears lockout state after a successful sign-in. */
+  async resetLoginState(email: string): Promise<void> {
+    await this.adminsRepository.update(
+      { email, isActive: true },
+      { failedLoginAttempts: 0, lockedUntil: null },
+    );
+  }
+
   async setPasswordResetToken(
     adminId: string,
     hash: string,

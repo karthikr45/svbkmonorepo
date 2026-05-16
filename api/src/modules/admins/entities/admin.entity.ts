@@ -65,6 +65,13 @@ export class Admin {
   @Column({ type: 'timestamp', nullable: true })
   passwordResetExpiresAt: Date | null = null;
 
+  // Brute-force lockout. Reset on a successful sign-in.
+  @Column({ type: 'int', default: 0 })
+  failedLoginAttempts: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lockedUntil: Date | null = null;
+
   @CreateDateColumn()
   createdAt: Date;
 

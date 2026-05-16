@@ -36,6 +36,12 @@ export default () => ({
   otp: {
     expiresInMinutes: parseInt(process.env.OTP_EXPIRES_IN_MINUTES ?? '5', 10) || 5,
   },
+  auth: {
+    lockoutMaxAttempts:
+      parseInt(process.env.AUTH_LOCKOUT_MAX_ATTEMPTS ?? '5', 10) || 5,
+    lockoutMinutes:
+      parseInt(process.env.AUTH_LOCKOUT_MINUTES ?? '15', 10) || 15,
+  },
   smtp: {
     host: process.env.SMTP_HOST || '',
     port: parseInt(process.env.SMTP_PORT ?? '587', 10) || 587,

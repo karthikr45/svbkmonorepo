@@ -159,9 +159,26 @@ export class AuthService {
     password: string,
   ): Promise<SignInDirectResult | SignInSelectionResult> {
     const candidates = await this.adminsService.findAllByEmail(email);
+    const activeAdmins = candidates.filter((c) => c.isActive);
+
+    // Brute-force lockout (admin accounts only).
+    if (activeAdmins.length > 0) {
+      const now = Date.now();
+      const lockedRow = activeAdmins.find(
+        (a) => a.lockedUntil != null && a.lockedUntil.getTime() > now,
+      );
+      if (lockedRow) {
+        const mins = Math.ceil(
+          (lockedRow.lockedUntil!.getTime() - now) / 60000,
+        );
+        throw new UnauthorizedException(
+          `Account locked due to too many failed attempts. Try again in ${mins} minute(s) or reset your password.`,
+        );
+      }
+    }
+
     const matched: typeof candidates = [];
-    for (const c of candidates) {
-      if (!c.isActive) continue;
+    for (const c of activeAdmins) {
       if (await bcrypt.compare(password, c.passwordHash)) matched.push(c);
     }
 
@@ -172,8 +189,27 @@ export class AuthService {
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (ok) return this.issueTokens(user as any, 'user');
       }
+      // Count this as a failed admin attempt only if admin rows exist.
+      if (activeAdmins.length > 0) {
+        const maxAttempts =
+          Number(this.configService.get('auth.lockoutMaxAttempts')) || 5;
+        const lockMinutes =
+          Number(this.configService.get('auth.lockoutMinutes')) || 15;
+        const lockedUntil = await this.adminsService.registerFailedLogin(
+          email,
+          maxAttempts,
+          lockMinutes,
+        );
+        if (lockedUntil) {
+          throw new UnauthorizedException(
+            `Account locked due to too many failed attempts. Try again in ${lockMinutes} minute(s) or reset your password.`,
+          );
+        }
+      }
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    await this.adminsService.resetLoginState(email);
 
     if (matched.length === 1) {
       return this.issueTokens(matched[0], 'admin');
