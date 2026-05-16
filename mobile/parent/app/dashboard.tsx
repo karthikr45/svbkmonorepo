@@ -109,6 +109,10 @@ export default function DashboardScreen() {
                 <Stat label="Penalty" value={inr(data.summary.totalPenalty)} bg="#f1f5f9" fg="#334155" />
               </View>
             )}
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+              <NavBtn label="Payments" onPress={() => router.push("/payments")} />
+              <NavBtn label="School Feed" onPress={() => router.push("/feed")} />
+            </View>
             <Text style={{ fontSize: 16, fontWeight: "700", color: "#1e293b", marginBottom: 8 }}>
               Children
             </Text>
@@ -120,7 +124,10 @@ export default function DashboardScreen() {
           <RefreshControl refreshing={false} onRefresh={() => load()} />
         }
         renderItem={({ item }) => (
-          <View
+          <Pressable
+            onPress={() =>
+              router.push(`/fees?studentId=${item.student.id}`)
+            }
             style={{
               padding: 16,
               backgroundColor: "#fff",
@@ -145,7 +152,10 @@ export default function DashboardScreen() {
                 {item.amountDue > 0 ? `Due ${inr(item.amountDue)}` : "Up to date"}
               </Text>
             </View>
-          </View>
+            <Text style={{ color: "#0b54ab", fontWeight: "700", marginTop: 10 }}>
+              View fees ›
+            </Text>
+          </Pressable>
         )}
         ListEmptyComponent={
           !error ? (
@@ -156,6 +166,29 @@ export default function DashboardScreen() {
         }
       />
     </View>
+  );
+}
+
+function NavBtn({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        flex: 1,
+        backgroundColor: "#0b54ab",
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: "center",
+      }}
+    >
+      <Text style={{ color: "#fff", fontWeight: "700" }}>{label}</Text>
+    </Pressable>
   );
 }
 

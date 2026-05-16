@@ -1,5 +1,15 @@
+import Constants from "expo-constants";
 import { api } from "./api";
 import { setTokens, setParent, clearAuth, type ParentProfile } from "./auth";
+
+/** Web parent portal base — used to hand off online payment to the
+ * proven web checkout (no native gateway SDK in the app). */
+export function getParentWebUrl(): string {
+  return (
+    (Constants.expoConfig?.extra?.parentWebUrl as string | undefined) ??
+    "http://localhost:3002"
+  );
+}
 
 function unwrap<T>(payload: unknown): T {
   if (
@@ -111,4 +121,54 @@ export interface DashboardResponse {
 export async function fetchDashboard(): Promise<DashboardResponse> {
   const { data } = await api.get("/parent/dashboard");
   return unwrap<DashboardResponse>(data);
+}
+
+export interface Fee {
+  id: string;
+  academicYear: string;
+  term: string;
+  netAmount: string;
+  paidAmount: string;
+  totalPenalty: string;
+  totalDiscount: string;
+  paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
+  studentId: string;
+}
+
+export async function fetchFees(studentId?: string): Promise<Fee[]> {
+  const { data } = await api.get("/parent/fees", {
+    params: studentId ? { studentId } : undefined,
+  });
+  return unwrap<Fee[]>(data);
+}
+
+export interface Payment {
+  id: string;
+  feeId: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  gateway: string | null;
+  paymentType: string;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export async function fetchPayments(): Promise<Payment[]> {
+  const { data } = await api.get("/parent/payments");
+  return unwrap<Payment[]>(data);
+}
+
+export interface FeedPost {
+  id: string;
+  title: string | null;
+  body: string | null;
+  createdAt: string;
+  images?: { url: string }[];
+}
+
+export async function fetchFeed(): Promise<FeedPost[]> {
+  const { data } = await api.get("/social/feed?limit=40");
+  const res = unwrap<FeedPost[] | { items: FeedPost[] }>(data);
+  return Array.isArray(res) ? res : (res.items ?? []);
 }
