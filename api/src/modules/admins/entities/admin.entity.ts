@@ -66,6 +66,18 @@ export class Admin {
   @Column({ type: 'timestamp', nullable: true })
   passwordResetExpiresAt: Date | null = null;
 
+  // Email verification. Default false; sign-in only blocks on this when
+  // AUTH_REQUIRE_EMAIL_VERIFICATION=true (so existing/seeded admins keep
+  // working until an operator opts in).
+  @Column({ type: 'boolean', default: false })
+  emailVerified: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  emailVerificationTokenHash: string | null = null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  emailVerificationExpiresAt: Date | null = null;
+
   // Brute-force lockout. Reset on a successful sign-in.
   @Column({ type: 'int', default: 0 })
   failedLoginAttempts: number;

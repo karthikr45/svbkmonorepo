@@ -20,6 +20,8 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { SelectTenantDto } from './dto/select-tenant.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Throttle } from '@nestjs/throttler';
@@ -110,6 +112,22 @@ export class AuthController {
       dto.token,
       dto.newPassword,
     );
+  }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm an admin email using a verification token' })
+  verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmail(dto.email, dto.token);
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Email a fresh verification link (always 200, no enumeration)',
+  })
+  resendVerification(@Body() dto: ResendVerificationDto) {
+    return this.authService.sendVerificationEmail(dto.email);
   }
 
   @Post('refresh')

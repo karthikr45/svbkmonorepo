@@ -147,6 +147,87 @@ export class AuthService {
   }
 
   /**
+   * Sends (or resends) an email-verification link. Generic response so it
+   * can't be used to probe which emails exist.
+   */
+  async sendVerificationEmail(email: string): Promise<{ message: string }> {
+    const generic = {
+      message:
+        'If an unverified account exists for that email, a verification link has been sent.',
+    };
+    const admins = (await this.adminsService.findActiveByEmail(email)).filter(
+      (a) => !a.emailVerified,
+    );
+    if (admins.length === 0) return generic;
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+    for (const a of admins) {
+      await this.adminsService.setEmailVerificationToken(
+        a.id,
+        tokenHash,
+        expiresAt,
+      );
+    }
+
+    const clientUrl =
+      this.configService.get<string>('clientUrl') || 'http://localhost:3000';
+    const link = `${clientUrl.replace(/\/$/, '')}/verify-email?token=${rawToken}&email=${encodeURIComponent(
+      email,
+    )}`;
+    const name = admins[0].firstName || 'there';
+    const html = `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+        <h2 style="color:#1a3c8f">Sri Venkateswara Bala Kuteer</h2>
+        <p>Hello <strong>${name}</strong>,</p>
+        <p>Please confirm your email address to finish setting up your
+           admin account:</p>
+        <p style="text-align:center;margin:24px 0">
+          <a href="${link}" style="background:#1a3c8f;color:#fff;padding:12px 24px;
+             border-radius:8px;text-decoration:none;font-weight:bold">
+            Verify Email
+          </a>
+        </p>
+        <p style="color:#888;font-size:13px">
+          This link is valid for 24 hours.
+        </p>
+      </div>
+    `;
+    await this.mailService.send(email, 'Verify your SVBK admin email', html);
+    return generic;
+  }
+
+  async verifyEmail(
+    email: string,
+    rawToken: string,
+  ): Promise<{ message: string }> {
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
+    const admins = await this.adminsService.findActiveByEmail(email);
+    const now = new Date();
+    const ok = admins.some(
+      (a) =>
+        a.emailVerificationTokenHash === tokenHash &&
+        a.emailVerificationExpiresAt != null &&
+        a.emailVerificationExpiresAt > now,
+    );
+    if (!ok) {
+      throw new UnauthorizedException(
+        'Verification link is invalid or has expired. Please request a new one.',
+      );
+    }
+    await this.adminsService.markEmailVerified(email);
+    return { message: 'Email verified. You can now sign in.' };
+  }
+
+  /**
    * Validates email+password against every admin row matching that email
    * (same email may exist across tenants, each with its own password).
    * - 0 matches → 401
@@ -210,6 +291,15 @@ export class AuthService {
     }
 
     await this.adminsService.resetLoginState(email);
+
+    if (
+      this.configService.get<boolean>('auth.requireEmailVerification') &&
+      matched.some((m) => !m.emailVerified)
+    ) {
+      throw new UnauthorizedException(
+        'Please verify your email before signing in. Check your inbox or request a new verification link.',
+      );
+    }
 
     if (matched.length === 1) {
       return this.issueTokens(matched[0], 'admin');

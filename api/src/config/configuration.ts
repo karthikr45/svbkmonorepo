@@ -41,6 +41,8 @@ export default () => ({
       parseInt(process.env.AUTH_LOCKOUT_MAX_ATTEMPTS ?? '5', 10) || 5,
     lockoutMinutes:
       parseInt(process.env.AUTH_LOCKOUT_MINUTES ?? '15', 10) || 15,
+    requireEmailVerification:
+      process.env.AUTH_REQUIRE_EMAIL_VERIFICATION === 'true',
   },
   smtp: {
     host: process.env.SMTP_HOST || '',

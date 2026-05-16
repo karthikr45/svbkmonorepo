@@ -188,4 +188,27 @@ export class AdminsService {
       refreshTokenHash: null,
     });
   }
+
+  async setEmailVerificationToken(
+    adminId: string,
+    hash: string,
+    expiresAt: Date,
+  ): Promise<void> {
+    await this.adminsRepository.update(adminId, {
+      emailVerificationTokenHash: hash,
+      emailVerificationExpiresAt: expiresAt,
+    });
+  }
+
+  /** Marks every active row for an email verified and clears the token. */
+  async markEmailVerified(email: string): Promise<void> {
+    await this.adminsRepository.update(
+      { email, isActive: true },
+      {
+        emailVerified: true,
+        emailVerificationTokenHash: null,
+        emailVerificationExpiresAt: null,
+      },
+    );
+  }
 }

@@ -13,7 +13,28 @@ const AUTH_ENDPOINTS = {
   refreshToken: "/auth/refresh",
   forgotPassword: "/auth/forgot-password",
   resetPassword: "/auth/reset-password",
+  verifyEmail: "/auth/verify-email",
+  resendVerification: "/auth/resend-verification",
 } as const;
+
+export async function verifyEmailApi(body: {
+  email: string;
+  token: string;
+}): Promise<{ message: string }> {
+  return post<{ message: string }, typeof body>(
+    AUTH_ENDPOINTS.verifyEmail,
+    body,
+  );
+}
+
+export async function resendVerificationApi(
+  email: string,
+): Promise<{ message: string }> {
+  return post<{ message: string }, { email: string }>(
+    AUTH_ENDPOINTS.resendVerification,
+    { email },
+  );
+}
 
 export async function forgotPasswordApi(
   email: string,
