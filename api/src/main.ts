@@ -113,4 +113,12 @@ async function bootstrap() {
   console.log(`SVBK API running on: http://localhost:${port}/api`);
   console.log(`Swagger docs at:      http://localhost:${port}/api/docs`);
 }
-bootstrap();
+
+// bufferLogs swallows output until the logger is attached, so a failure
+// during NestFactory.create() would otherwise be completely silent.
+// Surface it on the raw console and exit non-zero.
+bootstrap().catch((err) => {
+  // eslint-disable-next-line no-console
+  console.error('Fatal: API failed to start.\n', err);
+  process.exit(1);
+});
