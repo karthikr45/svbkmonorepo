@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -44,6 +45,17 @@ export class ListStudentsQueryDto {
   @IsString({ message: 'search must be a string' })
   @MaxLength(100, { message: 'search must be 100 characters or fewer' })
   search?: string;
+
+  /**
+   * TC lifecycle filter for the Transfer Certificate register.
+   * `active` = on roster (no TC), `tc_issued` = TC'd, `all` (default).
+   */
+  @ApiPropertyOptional({ enum: ['active', 'tc_issued', 'all'] })
+  @IsOptional()
+  @IsIn(['active', 'tc_issued', 'all'], {
+    message: 'tcStatus must be active, tc_issued, or all',
+  })
+  tcStatus?: 'active' | 'tc_issued' | 'all';
 
   @ApiPropertyOptional({ example: 1, default: 1 })
   @IsOptional()

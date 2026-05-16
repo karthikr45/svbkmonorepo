@@ -112,6 +112,46 @@ export async function listEnrollmentsByAdmissionApi(
   );
 }
 
+// ─── Year-based TC register (GET /students) ────────────────────────
+
+export interface TcRosterRow {
+  id: string;
+  name: string;
+  admissionNumber: string;
+  academicYear: string;
+  branch: string;
+  class: string;
+  section: string;
+  rollNo: string;
+  tcIssuedAt: string | null;
+}
+
+export interface TcRosterPage {
+  items: TcRosterRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function listStudentsForTcApi(query: {
+  academicYear?: string;
+  class?: string;
+  search?: string;
+  tcStatus?: "active" | "tc_issued" | "all";
+  page?: number;
+  pageSize?: number;
+}): Promise<TcRosterPage> {
+  const p = new URLSearchParams();
+  if (query.academicYear) p.set("academicYear", query.academicYear);
+  if (query.class) p.set("class", query.class);
+  if (query.search) p.set("search", query.search);
+  if (query.tcStatus) p.set("tcStatus", query.tcStatus);
+  p.set("page", String(query.page ?? 1));
+  p.set("pageSize", String(query.pageSize ?? 50));
+  return unwrap<TcRosterPage>(await get(`/students?${p.toString()}`));
+}
+
 export interface EnrollmentOutstanding {
   studentId: string;
   admissionNumber: string;

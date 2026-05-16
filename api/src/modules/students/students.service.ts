@@ -250,6 +250,7 @@ export class StudentsService {
       class?: string;
       section?: string;
       search?: string;
+      tcStatus?: 'active' | 'tc_issued' | 'all';
       page?: number;
       pageSize?: number;
     },
@@ -287,6 +288,11 @@ export class StudentsService {
         '(student.name ILIKE :q OR student.admissionNumber ILIKE :q)',
         { q: `%${filters.search}%` },
       );
+    }
+    if (filters.tcStatus === 'tc_issued') {
+      qb.andWhere('student.tcIssuedAt IS NOT NULL');
+    } else if (filters.tcStatus === 'active') {
+      qb.andWhere('student.tcIssuedAt IS NULL');
     }
 
     qb.orderBy('student.class', 'ASC')
