@@ -4,6 +4,7 @@ import { StudentsController } from './students.controller';
 import { StudentsService } from './students.service';
 import { Student } from './entities/student.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
+import { StudentIdentity } from '../student-identities/entities/student-identity.entity';
 import { FeesModule } from '../fees/fees.module';
 import { UploadService } from './upload.service';
 import { UploadValidationService } from './upload-validation.service';
@@ -19,7 +20,7 @@ import { StudentIdentitiesModule } from '../student-identities/student-identitie
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Student, Tenant]),
+    TypeOrmModule.forFeature([Student, Tenant, StudentIdentity]),
     FeesModule,
     StudentIdentitiesModule,
   ],

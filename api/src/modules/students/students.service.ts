@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, EntityManager } from 'typeorm';
 import { Student } from './entities/student.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
+import { StudentIdentity } from '../student-identities/entities/student-identity.entity';
 import {
   UpsertStudentInput,
   UpsertStudentsResult,
@@ -26,6 +27,8 @@ export class StudentsService {
     private readonly studentRepo: Repository<Student>,
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
+    @InjectRepository(StudentIdentity)
+    private readonly identityRepo: Repository<StudentIdentity>,
   ) {}
 
   /**
@@ -122,9 +125,9 @@ export class StudentsService {
 
   /**
    * Printable Transfer Certificate (A4 HTML). Only valid once a TC has
-   * actually been issued. Particulars not held in the schema (DOB,
-   * parentage, conduct, date of admission) are rendered as blanks for
-   * the office to complete and sign — standard for Indian TCs.
+   * actually been issued. Particulars are auto-filled from the student
+   * row and the linked identity (DOB / gender); anything still unknown
+   * is left as a blank for the office to complete and sign.
    */
   async renderTcCertificate(tenantId: string, id: string): Promise<string> {
     const s = await this.findOneOrFail(tenantId, id);
@@ -133,9 +136,14 @@ export class StudentsService {
         'No TC has been issued for this enrollment yet.',
       );
     }
-    const tenant = await this.tenantRepo.findOne({
-      where: { id: tenantId },
-    });
+    const [tenant, identity] = await Promise.all([
+      this.tenantRepo.findOne({ where: { id: tenantId } }),
+      s.identityId
+        ? this.identityRepo.findOne({
+            where: { id: s.identityId, tenantId },
+          })
+        : Promise.resolve(null),
+    ]);
 
     const esc = (v: unknown): string =>
       v == null
@@ -145,8 +153,16 @@ export class StudentsService {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
     const blank = '<span class="bl">&nbsp;</span>';
-    const fmt = (d: Date | null) =>
-      d ? new Date(d).toLocaleDateString('en-IN') : blank;
+    // TZ-safe DD/MM/YYYY from a Date or YYYY-MM-DD string — uses UTC
+    // components so the rendered date never shifts by server timezone.
+    const fmt = (d: Date | string | null): string => {
+      if (!d) return blank;
+      const dt = typeof d === 'string' ? new Date(d) : d;
+      if (Number.isNaN(dt.getTime())) return blank;
+      const dd = String(dt.getUTCDate()).padStart(2, '0');
+      const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+      return `${dd}/${mm}/${dt.getUTCFullYear()}`;
+    };
 
     const schoolName = esc(
       tenant?.tenantName || tenant?.name || 'School',
@@ -156,22 +172,30 @@ export class StudentsService {
       .map(esc)
       .join(', ');
 
+    const parents = [s.fatherName, s.motherName]
+      .filter(Boolean)
+      .map(esc)
+      .join(' / ');
+    const dob = identity?.dateOfBirth ?? null;
+    const admittedOn = s.dateOfAdmission ?? s.createdAt ?? null;
+
     const rows: [string, string][] = [
       ['1. Admission Number', esc(s.admissionNumber)],
       ['2. Name of the Pupil', esc(s.name)],
-      ["3. Father's / Mother's Name", blank],
-      ['4. Date of Birth', blank],
+      ["3. Father's / Mother's Name", parents || blank],
+      ['4. Gender', esc(identity?.gender) || blank],
+      ['5. Date of Birth', dob ? fmt(dob) : blank],
       [
-        '5. Class in which studying (and since when)',
+        '6. Class in which studying',
         `${esc(s.class)} - ${esc(s.section)}`,
       ],
-      ['6. Academic Year', esc(s.academicYear)],
-      ['7. Date of Admission', blank],
-      ['8. Date of Leaving the School', fmt(s.tcIssuedAt)],
-      ['9. Reason for Leaving', esc(s.tcReason) || blank],
-      ['10. Conduct & Character', blank],
-      ['11. Any Fees Due', blank],
-      ['12. General Remarks', blank],
+      ['7. Academic Year', esc(s.academicYear)],
+      ['8. Date of Admission', admittedOn ? fmt(admittedOn) : blank],
+      ['9. Date of Leaving the School', fmt(s.tcIssuedAt)],
+      ['10. Reason for Leaving', esc(s.tcReason) || blank],
+      ['11. Conduct & Character', blank],
+      ['12. Any Fees Due', blank],
+      ['13. General Remarks', blank],
     ];
 
     return `<!doctype html>

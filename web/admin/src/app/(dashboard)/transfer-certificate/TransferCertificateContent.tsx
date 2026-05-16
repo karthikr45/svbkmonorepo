@@ -447,7 +447,9 @@ function TcDialog({
       await issueTcApi(enrollment.id, {
         reason: (duesNote + reason.trim()).trim() || undefined,
         certificateNo: certificateNo.trim() || undefined,
-        issuedAt: new Date(issuedAt).toISOString(),
+        // Anchor at local noon so the calendar date can't slip a day
+        // when stored as UTC / re-rendered in another timezone.
+        issuedAt: new Date(`${issuedAt}T12:00:00`).toISOString(),
       });
       onIssued();
     } catch (e2) {

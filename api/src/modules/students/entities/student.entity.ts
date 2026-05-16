@@ -65,6 +65,17 @@ export class Student {
   @Column({ name: 'img_url', type: 'text', nullable: true })
   imgUrl: string | null;
 
+  // ─── Particulars used on the Transfer Certificate ────────────────
+  // Optional; auto-filled on the printed TC when present.
+  @Column({ name: 'father_name', type: 'varchar', length: 150, nullable: true })
+  fatherName: string | null;
+
+  @Column({ name: 'mother_name', type: 'varchar', length: 150, nullable: true })
+  motherName: string | null;
+
+  @Column({ name: 'date_of_admission', type: 'date', nullable: true })
+  dateOfAdmission: string | null;
+
   // ─── Identity ─────────────────────────────────────────────────────
   /**
    * Canonical identity of the person this row represents. Nullable
