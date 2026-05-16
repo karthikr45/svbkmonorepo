@@ -9,6 +9,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import configuration from './config/configuration';
 import { HealthModule } from './modules/health/health.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminsModule } from './modules/admins/admins.module';
@@ -69,6 +70,7 @@ import { StudentIdentitiesModule } from './modules/student-identities/student-id
       },
       inject: [ConfigService],
     }),
+    AuditModule,
     AuthModule,
     AdminsModule,
     UsersModule,

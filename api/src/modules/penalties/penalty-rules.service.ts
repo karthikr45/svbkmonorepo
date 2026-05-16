@@ -64,6 +64,6 @@ export class PenaltyRulesService {
 
   async remove(tenantId: string, id: string): Promise<void> {
     const r = await this.findOneOrFail(tenantId, id);
-    await this.rulesRepo.remove(r);
+    await this.rulesRepo.softRemove(r);
   }
 }

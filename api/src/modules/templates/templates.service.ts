@@ -44,6 +44,6 @@ export class TemplatesService {
 
   async remove(tenantId: string, id: string): Promise<void> {
     const template = await this.findOne(tenantId, id);
-    await this.templatesRepository.remove(template);
+    await this.templatesRepository.softRemove(template);
   }
 }

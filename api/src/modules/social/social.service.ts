@@ -176,7 +176,7 @@ export class SocialService {
       await m.getRepository(SocialPostImage).delete({ postId });
       await m.getRepository(SocialComment).delete({ postId });
       await m.getRepository(SocialReaction).delete({ postId });
-      await m.getRepository(SocialPost).remove(post);
+      await m.getRepository(SocialPost).softRemove(post);
     });
     // Best-effort blob cleanup — runs outside the txn so a flaky
     // Azure call doesn't block the delete.
