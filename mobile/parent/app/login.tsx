@@ -10,15 +10,22 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { sendOtp, verifyOtp } from "../src/lib/parent-portal";
+import {
+  sendOtp,
+  verifyOtp,
+  selectTenant,
+  type TenantSelectionResponse,
+} from "../src/lib/parent-portal";
 import { apiErrorMessage } from "../src/lib/api";
 
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [stage, setStage] = useState<"email" | "otp">("email");
+  const [stage, setStage] = useState<"email" | "otp" | "select">("email");
   const [busy, setBusy] = useState(false);
+  const [selection, setSelection] =
+    useState<TenantSelectionResponse | null>(null);
 
   async function handleSendOtp() {
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -43,10 +50,28 @@ export default function LoginScreen() {
     }
     setBusy(true);
     try {
-      await verifyOtp(email.trim(), otp);
-      router.replace("/dashboard");
+      const result = await verifyOtp(email.trim(), otp);
+      if (result.kind === "selection") {
+        setSelection(result.selection);
+        setStage("select");
+      } else {
+        router.replace("/dashboard");
+      }
     } catch (err) {
       Alert.alert("Verification failed", apiErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePickTenant(parentId: string) {
+    if (!selection) return;
+    setBusy(true);
+    try {
+      await selectTenant(selection.selectionToken, parentId);
+      router.replace("/dashboard");
+    } catch (err) {
+      Alert.alert("Could not open school", apiErrorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -64,10 +89,12 @@ export default function LoginScreen() {
         <Text style={{ color: "#64748b", marginTop: 4 }}>
           {stage === "email"
             ? "Enter your registered email"
-            : `Enter the 6-digit OTP sent to ${email}`}
+            : stage === "otp"
+              ? `Enter the 6-digit OTP sent to ${email}`
+              : "Choose your school"}
         </Text>
 
-        {stage === "email" ? (
+        {stage === "email" && (
           <>
             <TextInput
               value={email}
@@ -90,7 +117,9 @@ export default function LoginScreen() {
               )}
             </Pressable>
           </>
-        ) : (
+        )}
+
+        {stage === "otp" && (
           <>
             <TextInput
               value={otp}
@@ -117,6 +146,38 @@ export default function LoginScreen() {
               </Text>
             </Pressable>
           </>
+        )}
+
+        {stage === "select" && selection && (
+          <View style={{ marginTop: 20 }}>
+            {selection.tenants.map((t) => (
+              <Pressable
+                key={t.parentId}
+                onPress={() => handlePickTenant(t.parentId)}
+                disabled={busy}
+                style={{
+                  marginTop: 10,
+                  padding: 16,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: "#cbd5e1",
+                  backgroundColor: "#fff",
+                  opacity: busy ? 0.6 : 1,
+                }}
+              >
+                <Text
+                  style={{ fontSize: 16, fontWeight: "700", color: "#0f172a" }}
+                >
+                  {t.tenantName || t.tenantCode || "School"}
+                </Text>
+                {t.tenantCode ? (
+                  <Text style={{ color: "#64748b", marginTop: 2 }}>
+                    {t.tenantCode}
+                  </Text>
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
         )}
       </View>
     </KeyboardAvoidingView>
