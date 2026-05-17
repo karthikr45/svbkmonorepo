@@ -119,3 +119,23 @@ body {
 .modal-card {
   animation: modal-in 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* Global contrast rule: never black text on a brand/dark background. */
+[style*="background-color: var(--app-brand)"],
+[style*="background-color:var(--app-brand)"],
+[style*="background: var(--app-brand)"],
+[style*="background-color: #6c739c"],
+[style*="background-color:#6c739c"],
+[style*="background-color: #565c82"],
+[style*="background-color: #474b6b"],
+[style*="linear-gradient(145deg, #6c739c"],
+[style*="linear-gradient(135deg, #6c739c"],
+[style*="linear-gradient(135deg,#6c739c"] {
+  color: #fff;
+}
+[style*="background-color: #6c739c"] svg,
+[style*="linear-gradient(135deg, #6c739c"] svg,
+[style*="linear-gradient(145deg, #6c739c"] svg {
+  color: #fff;
+  stroke: currentColor;
+}

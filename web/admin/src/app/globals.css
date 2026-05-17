@@ -262,6 +262,32 @@ h1, h2, h3, h4, h5, h6 {
 /* Brand color utility – use .bg-app-brand when var(--app-brand) is not visible */
 .bg-app-brand {
   background-color: #6c739c;
+  color: #fff;
+}
+.bg-app-brand * {
+  color: inherit;
+}
+
+/* Global contrast rule: never black text on a brand/dark-tinted
+   background. Any element whose inline background is the brand colour
+   (hex or token) gets white text + white icons. */
+[style*="background-color: var(--app-brand)"],
+[style*="background-color:var(--app-brand)"],
+[style*="background: var(--app-brand)"],
+[style*="background-color: #6c739c"],
+[style*="background-color:#6c739c"],
+[style*="background-color: #565c82"],
+[style*="background-color: #474b6b"],
+[style*="linear-gradient(135deg, #6c739c"],
+[style*="linear-gradient(135deg,#6c739c"] {
+  color: #fff;
+}
+[style*="background-color: var(--app-brand)"] svg,
+[style*="background: var(--app-brand)"] svg,
+[style*="background-color: #6c739c"] svg,
+[style*="linear-gradient(135deg, #6c739c"] svg {
+  color: #fff;
+  stroke: currentColor;
 }
 
 /* ========== Reusable auth layout classes (use in any auth page) ========== */
