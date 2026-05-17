@@ -30,10 +30,10 @@ import {
 } from "@/features/chat/api/chat.api";
 
 const POLL_MS = 5000;
-const BRAND = "#0b54ab";
+const BRAND = "#6c739c";
 
 const AVATAR_GRADIENTS = [
-  ["#0b54ab", "#1e3a8a"],
+  ["#6c739c", "#565c82"],
   ["#7c3aed", "#4c1d95"],
   ["#0891b2", "#155e75"],
   ["#db2777", "#9d174d"],
@@ -420,7 +420,7 @@ export function ChatPageContent() {
         <div
           className="px-5 py-4 text-white"
           style={{
-            background: `linear-gradient(135deg, ${BRAND}, #1e1b4b)`,
+            background: `linear-gradient(135deg, ${BRAND}, #3a3c5e)`,
           }}
         >
           <h2 className="text-base font-bold">Messages</h2>
@@ -449,7 +449,7 @@ export function ChatPageContent() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search people…"
-              className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+              className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
             />
           </div>
         </div>
@@ -597,7 +597,7 @@ export function ChatPageContent() {
               <div
                 className="mx-auto mb-4 w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl"
                 style={{
-                  background: `linear-gradient(135deg, ${BRAND}, #1e1b4b)`,
+                  background: `linear-gradient(135deg, ${BRAND}, #3a3c5e)`,
                 }}
               >
                 💬
@@ -716,13 +716,13 @@ export function ChatPageContent() {
                           style={
                             m.deleted
                               ? {
-                                  background: mine ? "#1e3a8a22" : "#f1f5f9",
+                                  background: mine ? "#565c8222" : "#f1f5f9",
                                   color: "#64748b",
                                   border: "1px dashed #cbd5e1",
                                 }
                               : mine
                                 ? {
-                                    background: `linear-gradient(135deg, ${BRAND}, #1e3a8a)`,
+                                    background: `linear-gradient(135deg, ${BRAND}, #565c82)`,
                                     color: "#fff",
                                     borderBottomRightRadius: 4,
                                   }
@@ -782,7 +782,7 @@ export function ChatPageContent() {
                                       ? "rgba(255,255,255,0.14)"
                                       : "#f1f5f9",
                                     borderLeft: `3px solid ${
-                                      mine ? "#bfdbfe" : BRAND
+                                      mine ? "#f0dad5" : BRAND
                                     }`,
                                   }}
                                 >
@@ -911,12 +911,12 @@ export function ChatPageContent() {
                   <div
                     className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px]"
                     style={{
-                      background: "#fff7ed",
-                      borderLeft: "3px solid #ea580c",
+                      background: "#fbeee9",
+                      borderLeft: "3px solid #d9a69f",
                     }}
                   >
                     <span className="flex-1 min-w-0 truncate text-slate-600">
-                      <span className="font-bold text-orange-600">
+                      <span className="font-bold text-[#c98c84]">
                         Editing message
                       </span>{" "}
                       · {editing.body.slice(0, 100)}
@@ -1012,7 +1012,7 @@ export function ChatPageContent() {
                 disabled={!!editing}
                 onClick={() => fileRef.current?.click()}
                 title={editing ? "Finish editing first" : "Attach a file"}
-                className="h-10 w-10 flex items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-[#0b54ab] disabled:opacity-40"
+                className="h-10 w-10 flex items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-[#6c739c] disabled:opacity-40"
               >
                 <svg
                   width="18"
@@ -1045,7 +1045,7 @@ export function ChatPageContent() {
                     ? "Edit your message…"
                     : "Type a message…  (Shift+Enter for a new line)"
                 }
-                className="flex-1 resize-none px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20 max-h-32"
+                className="flex-1 resize-none px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20 max-h-32"
               />
               <button
                 type="submit"
@@ -1058,8 +1058,8 @@ export function ChatPageContent() {
                 className="h-10 px-5 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-opacity"
                 style={{
                   background: editing
-                    ? "linear-gradient(135deg,#ea580c,#9a3412)"
-                    : `linear-gradient(135deg, ${BRAND}, #1e3a8a)`,
+                    ? "linear-gradient(135deg,#d9a69f,#c98c84)"
+                    : `linear-gradient(135deg, ${BRAND}, #565c82)`,
                 }}
               >
                 {sending ? "…" : editing ? "Save" : "Send"}
@@ -1096,7 +1096,7 @@ function ActionBtn({
       aria-label={title}
       onClick={onClick}
       className={`h-7 w-7 flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 ${
-        icon === "trash" ? "hover:text-rose-600" : "hover:text-[#0b54ab]"
+        icon === "trash" ? "hover:text-rose-600" : "hover:text-[#6c739c]"
       }`}
     >
       {icon === "reply" && (

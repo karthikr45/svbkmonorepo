@@ -25,17 +25,17 @@
   --app-sidebar-text: #475569;       /* slate-600 */
   --app-sidebar-border: #e2e8f0;     /* slate-200 */
   --app-sidebar-section: #94a3b8;    /* slate-400, used for section captions */
-  --app-nav-active-bg: #eff6ff;      /* blue-50 */
-  --app-nav-active-text: #0b54ab;    /* brand */
-  --app-nav-hover-bg: #f1f5f9;       /* slate-100 */
-  --app-nav-icon: #64748b;           /* slate-500 */
+  --app-nav-active-bg: #f0dad5;      /* palette: soft blush */
+  --app-nav-active-text: #6c739c;    /* palette: slate-blue */
+  --app-nav-hover-bg: #f7ece9;       /* palette: blush tint */
+  --app-nav-icon: #6c739c;           /* palette */
 
   --app-navbar-bg: #ffffff;
   --app-navbar-border: #e2e8f0;
   --app-search-bg: #f8fafc;          /* slate-50 */
   --app-search-border: #e2e8f0;
   --app-search-placeholder: #94a3b8;
-  --app-search-focus: #0b54ab;
+  --app-search-focus: #6c739c;
 
   --app-page-bg: #f8fafc;            /* slate-50 — main content background */
 
@@ -47,15 +47,16 @@
   --app-card-radius: 0.875rem;       /* 14px — premium, slightly larger */
 
   /* Stats / chart icons */
-  --app-stat-icon-blue: #0b54ab;
+  --app-stat-icon-blue: #6c739c;
   --app-stat-icon-purple: #8b5cf6;
   --app-stat-icon-green: #10b981;
   --app-stat-icon-amber: #f59e0b;
 
-  /* Brand */
-  --app-brand: #0b54ab;
-  --app-brand-hover: #094a96;
-  --app-brand-soft: #eff6ff;
+  /* Brand — palette: #6C739C primary · #D9A69F warm accent · #F0DAD5 soft */
+  --app-brand: #6c739c;
+  --app-brand-hover: #565c82;
+  --app-brand-soft: #f0dad5;
+  --app-accent: #d9a69f;
 
   /* Status */
   --app-success: #10b981;
@@ -67,8 +68,8 @@
   --app-danger: #dc2626;
   --app-danger-bg: #fee2e2;
   --app-danger-text: #b91c1c;
-  --app-link: #0b54ab;
-  --app-link-hover: #094a96;
+  --app-link: #6c739c;
+  --app-link-hover: #565c82;
 
   /* Text */
   --app-text-primary: #0f172a;       /* slate-900 */
@@ -133,7 +134,7 @@
     --app-text-muted: #64748b;
     --app-table-row-hover: #1e293b;
     --app-divider: #1e293b;
-    --app-brand-soft: #1e3a8a;
+    --app-brand-soft: #565c82;
   }
 }
 
@@ -166,12 +167,12 @@
   --auth-card-shadow: 0 20px 60px -10px rgb(15 23 42 / 0.15), 0 8px 24px -8px rgb(15 23 42 / 0.08);
   --auth-card-shadow-hover: 0 28px 70px -12px rgb(15 23 42 / 0.2), 0 12px 30px -10px rgb(15 23 42 / 0.1);
   --auth-input-border: #cbd5e1;
-  --auth-input-focus: #0b54ab;       /* brand */
-  --auth-label-accent: #0b54ab;
+  --auth-input-focus: #6c739c;       /* brand */
+  --auth-label-accent: #6c739c;
   --auth-label-default: #0f172a;
   --auth-required-asterisk: #ef4444;
-  --auth-btn-signin-bg: #0b54ab;     /* brand instead of dull gray */
-  --auth-btn-signin-hover: #094a96;
+  --auth-btn-signin-bg: #6c739c;     /* brand instead of dull gray */
+  --auth-btn-signin-hover: #565c82;
   --auth-btn-signin-active: #073f80;
   --auth-placeholder: #94a3b8;
   --auth-error: #dc2626;
@@ -260,7 +261,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Brand color utility – use .bg-app-brand when var(--app-brand) is not visible */
 .bg-app-brand {
-  background-color: #0b54ab;
+  background-color: #6c739c;
 }
 
 /* ========== Reusable auth layout classes (use in any auth page) ========== */
@@ -332,7 +333,7 @@ h1, h2, h3, h4, h5, h6 {
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(145deg, #0b54ab 0%, #1e3a8a 100%);
+  background: linear-gradient(145deg, #6c739c 0%, #d9a69f 100%);
   display: none;
 }
 .auth-card-media::before,

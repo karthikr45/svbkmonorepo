@@ -126,11 +126,11 @@ export default function DashboardPage() {
         className={`fixed top-0 left-0 h-full z-40 flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:static md:translate-x-0 md:z-auto`}
         style={{
           width: 264,
-          backgroundColor: "#0b1026",
+          backgroundColor: "#1c1d2e",
           backgroundImage:
-            "radial-gradient(120% 60% at 0% 0%, rgba(59,130,246,0.16), transparent 60%)," +
-            "radial-gradient(90% 50% at 100% 100%, rgba(99,102,241,0.14), transparent 60%)," +
-            "linear-gradient(180deg,#0b1026 0%,#111a3e 48%,#0a0f24 100%)",
+            "radial-gradient(120% 60% at 0% 0%, rgba(108,115,156,0.20), transparent 60%)," +
+            "radial-gradient(90% 50% at 100% 100%, rgba(217,166,159,0.16), transparent 60%)," +
+            "linear-gradient(180deg,#1c1d2e 0%,#2b2c44 48%,#191a27 100%)",
           borderRight: "1px solid rgba(255,255,255,0.07)",
         }}
       >
@@ -144,7 +144,7 @@ export default function DashboardPage() {
               background:
                 "linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04))",
               boxShadow:
-                "0 0 0 1px rgba(255,255,255,0.10), 0 8px 20px -8px rgba(37,99,235,0.6)",
+                "0 0 0 1px rgba(255,255,255,0.10), 0 8px 20px -8px rgba(108,115,156,0.6)",
             }}
           >
             <Image src="/svbk_logo.webp" alt="SVBK" width={34} height={34} className="w-full h-full object-contain" />
@@ -167,8 +167,8 @@ export default function DashboardPage() {
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-[13px] font-bold text-white"
               style={{
-                background: "linear-gradient(135deg,#3b82f6,#6366f1)",
-                boxShadow: "0 8px 18px -8px rgba(59,130,246,0.8)",
+                background: "linear-gradient(135deg,#6c739c,#d9a69f)",
+                boxShadow: "0 8px 18px -8px rgba(108,115,156,0.8)",
               }}
             >
               {getInitials(parent?.name ?? "P")}
@@ -212,9 +212,9 @@ export default function DashboardPage() {
                     isActive
                       ? {
                           backgroundImage:
-                            "linear-gradient(135deg, rgba(59,130,246,0.28), rgba(99,102,241,0.20))",
+                            "linear-gradient(135deg, rgba(108,115,156,0.34), rgba(217,166,159,0.22))",
                           boxShadow:
-                            "0 0 0 1px rgba(255,255,255,0.08), 0 10px 24px -14px rgba(37,99,235,0.9)",
+                            "0 0 0 1px rgba(255,255,255,0.08), 0 10px 24px -14px rgba(108,115,156,0.9)",
                         }
                       : undefined
                   }
@@ -223,8 +223,8 @@ export default function DashboardPage() {
                     <span
                       className="absolute left-0 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-r-full"
                       style={{
-                        background: "linear-gradient(180deg,#60a5fa,#6366f1)",
-                        boxShadow: "0 0 10px 1px rgba(96,165,250,0.7)",
+                        background: "linear-gradient(180deg,#d9a69f,#6c739c)",
+                        boxShadow: "0 0 10px 1px rgba(217,166,159,0.65)",
                       }}
                     />
                   )}

@@ -245,7 +245,7 @@ export function Sidebar() {
     setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const ACTIVE_BG =
-    "linear-gradient(135deg, rgba(59,130,246,0.28), rgba(99,102,241,0.20))";
+    "linear-gradient(135deg, rgba(108,115,156,0.34), rgba(217,166,159,0.22))";
 
   return (
     <>
@@ -263,11 +263,11 @@ export function Sidebar() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } md:sticky md:top-0 md:translate-x-0 md:h-screen md:z-30 md:max-w-none md:flex-shrink-0`}
         style={{
-          backgroundColor: "#0b1026",
+          backgroundColor: "#1c1d2e",
           backgroundImage:
-            "radial-gradient(120% 60% at 0% 0%, rgba(59,130,246,0.16), transparent 60%)," +
-            "radial-gradient(90% 50% at 100% 100%, rgba(99,102,241,0.14), transparent 60%)," +
-            "linear-gradient(180deg,#0b1026 0%,#111a3e 48%,#0a0f24 100%)",
+            "radial-gradient(120% 60% at 0% 0%, rgba(108,115,156,0.20), transparent 60%)," +
+            "radial-gradient(90% 50% at 100% 100%, rgba(217,166,159,0.16), transparent 60%)," +
+            "linear-gradient(180deg,#1c1d2e 0%,#2b2c44 48%,#191a27 100%)",
           borderRight: "1px solid rgba(255,255,255,0.07)",
           boxShadow: "inset -1px 0 0 rgba(255,255,255,0.03)",
         }}
@@ -289,7 +289,7 @@ export function Sidebar() {
                 background:
                   "linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04))",
                 boxShadow:
-                  "0 0 0 1px rgba(255,255,255,0.10), 0 8px 20px -8px rgba(37,99,235,0.6)",
+                  "0 0 0 1px rgba(255,255,255,0.10), 0 8px 20px -8px rgba(108,115,156,0.6)",
               }}
             >
               <Image
@@ -346,7 +346,7 @@ export function Sidebar() {
                       ? {
                           backgroundImage: ACTIVE_BG,
                           boxShadow:
-                            "0 0 0 1px rgba(255,255,255,0.08), 0 10px 24px -14px rgba(37,99,235,0.9)",
+                            "0 0 0 1px rgba(255,255,255,0.08), 0 10px 24px -14px rgba(108,115,156,0.9)",
                         }
                       : undefined
                   }
@@ -355,16 +355,16 @@ export function Sidebar() {
                     <span
                       className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full"
                       style={{
-                        background: "linear-gradient(180deg,#60a5fa,#6366f1)",
-                        boxShadow: "0 0 10px 1px rgba(96,165,250,0.7)",
+                        background: "linear-gradient(180deg,#d9a69f,#6c739c)",
+                        boxShadow: "0 0 10px 1px rgba(217,166,159,0.65)",
                       }}
                     />
                   )}
                   <span
                     className={
                       active
-                        ? "text-blue-300"
-                        : "text-slate-400 group-hover:text-blue-300 transition-colors"
+                        ? "text-[#d9a69f]"
+                        : "text-slate-400 group-hover:text-[#d9a69f] transition-colors"
                     }
                   >
                     <NavIcon name={item.icon} />
@@ -390,8 +390,8 @@ export function Sidebar() {
                   <span
                     className={
                       anyChildActive
-                        ? "text-blue-300"
-                        : "text-slate-400 group-hover:text-blue-300 transition-colors"
+                        ? "text-[#d9a69f]"
+                        : "text-slate-400 group-hover:text-[#d9a69f] transition-colors"
                     }
                   >
                     <NavIcon name={item.icon} />
@@ -436,10 +436,10 @@ export function Sidebar() {
                               className="h-1.5 w-1.5 rounded-full flex-shrink-0 transition-colors"
                               style={{
                                 background: active
-                                  ? "linear-gradient(135deg,#60a5fa,#6366f1)"
+                                  ? "linear-gradient(135deg,#d9a69f,#6c739c)"
                                   : "rgba(148,163,184,0.4)",
                                 boxShadow: active
-                                  ? "0 0 8px 1px rgba(96,165,250,0.7)"
+                                  ? "0 0 8px 1px rgba(217,166,159,0.65)"
                                   : "none",
                               }}
                             />
@@ -471,8 +471,8 @@ export function Sidebar() {
             <div
               className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white"
               style={{
-                background: "linear-gradient(135deg,#3b82f6,#6366f1)",
-                boxShadow: "0 8px 18px -8px rgba(59,130,246,0.8)",
+                background: "linear-gradient(135deg,#6c739c,#d9a69f)",
+                boxShadow: "0 8px 18px -8px rgba(108,115,156,0.8)",
               }}
             >
               {initials}
