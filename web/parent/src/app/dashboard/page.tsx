@@ -123,42 +123,77 @@ export default function DashboardPage() {
         />
       )}
       <aside
-        className={`fixed top-0 left-0 h-full z-40 flex flex-col bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:static md:translate-x-0 md:z-auto`}
-        style={{ width: 256 }}
+        className={`fixed top-0 left-0 h-full z-40 flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:static md:translate-x-0 md:z-auto`}
+        style={{
+          width: 264,
+          backgroundColor: "#0b1026",
+          backgroundImage:
+            "radial-gradient(120% 60% at 0% 0%, rgba(59,130,246,0.16), transparent 60%)," +
+            "radial-gradient(90% 50% at 100% 100%, rgba(99,102,241,0.14), transparent 60%)," +
+            "linear-gradient(180deg,#0b1026 0%,#111a3e 48%,#0a0f24 100%)",
+          borderRight: "1px solid rgba(255,255,255,0.07)",
+        }}
       >
-        <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-100">
-          <div className="w-10 h-10 rounded-xl overflow-hidden bg-white shadow border border-slate-100 flex-shrink-0 p-0.5">
-            <Image src="/svbk_logo.webp" alt="SVBK" width={36} height={36} className="w-full h-full object-contain" />
+        <div
+          className="flex items-center gap-3 px-5 py-[18px]"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+        >
+          <div
+            className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 p-1 flex items-center justify-center"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04))",
+              boxShadow:
+                "0 0 0 1px rgba(255,255,255,0.10), 0 8px 20px -8px rgba(37,99,235,0.6)",
+            }}
+          >
+            <Image src="/svbk_logo.webp" alt="SVBK" width={34} height={34} className="w-full h-full object-contain" />
           </div>
           <div className="min-w-0">
-            <p className="font-extrabold text-slate-800 text-sm leading-tight truncate">SVBK</p>
-            <p className="text-xs text-slate-500 truncate">Parent Portal</p>
+            <p className="font-extrabold text-white text-[15px] leading-tight truncate">SVBK</p>
+            <p className="text-[11px] text-blue-200/60 truncate">Parent Portal</p>
           </div>
         </div>
 
-        <div className="px-5 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
-              </svg>
+        <div className="px-4 pt-4">
+          <div
+            className="flex items-center gap-3 rounded-xl px-3 py-3"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
+              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)",
+            }}
+          >
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-[13px] font-bold text-white"
+              style={{
+                background: "linear-gradient(135deg,#3b82f6,#6366f1)",
+                boxShadow: "0 8px 18px -8px rgba(59,130,246,0.8)",
+              }}
+            >
+              {getInitials(parent?.name ?? "P")}
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-800 truncate">{parent?.name ?? "Parent"}</p>
-              <p className="text-xs text-slate-500 truncate">{parent?.email}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-white truncate">{parent?.name ?? "Parent"}</p>
+              <p className="text-[11px] text-blue-200/55 truncate">{parent?.email}</p>
             </div>
+            <span
+              className="h-2 w-2 rounded-full flex-shrink-0"
+              style={{ background: "#34d399", boxShadow: "0 0 8px 1px rgba(52,211,153,0.7)" }}
+            />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-3">
-          <p className="px-5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">My Children</p>
+        <div className="flex-1 overflow-y-auto py-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-track]:bg-transparent">
+          <p className="px-5 text-[10px] font-bold text-slate-500/80 uppercase tracking-[0.14em] mb-2">
+            My Children
+          </p>
           <nav className="flex flex-col gap-1 px-3">
             {!dashboard && (
-              <p className="px-3 py-2 text-xs text-slate-400">Loading…</p>
+              <p className="px-3 py-2 text-xs text-slate-400/70">Loading…</p>
             )}
             {dashboard?.children.length === 0 && (
-              <p className="px-3 py-2 text-xs text-slate-400">No children linked yet.</p>
+              <p className="px-3 py-2 text-xs text-slate-400/70">No children linked yet.</p>
             )}
             {dashboard?.children.map((child, i) => {
               const isActive = selectedChildId === child.student.id;
@@ -170,28 +205,57 @@ export default function DashboardPage() {
                     setSelectedChildId(child.student.id);
                     setSidebarOpen(false);
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all"
-                  style={{
-                    backgroundColor: isActive ? "#eff6ff" : "transparent",
-                    border: isActive ? "1.5px solid #bfdbfe" : "1.5px solid transparent",
-                  }}
+                  className={`group relative w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                    isActive ? "" : "hover:bg-white/[0.055]"
+                  }`}
+                  style={
+                    isActive
+                      ? {
+                          backgroundImage:
+                            "linear-gradient(135deg, rgba(59,130,246,0.28), rgba(99,102,241,0.20))",
+                          boxShadow:
+                            "0 0 0 1px rgba(255,255,255,0.08), 0 10px 24px -14px rgba(37,99,235,0.9)",
+                        }
+                      : undefined
+                  }
                 >
+                  {isActive && (
+                    <span
+                      className="absolute left-0 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-r-full"
+                      style={{
+                        background: "linear-gradient(180deg,#60a5fa,#6366f1)",
+                        boxShadow: "0 0 10px 1px rgba(96,165,250,0.7)",
+                      }}
+                    />
+                  )}
                   <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-sm"
-                    style={{ backgroundColor: avatar.bg, color: avatar.text }}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-sm text-white"
+                    style={{
+                      background: `linear-gradient(135deg, ${avatar.bg}, ${avatar.text})`,
+                    }}
                   >
                     {getInitials(child.student.name)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold leading-tight truncate" style={{ color: isActive ? "#1d4ed8" : "#1e293b" }}>
+                    <p
+                      className={`text-sm font-semibold leading-tight truncate ${
+                        isActive ? "text-white" : "text-slate-200/90"
+                      }`}
+                    >
                       {child.student.name}
                     </p>
-                    <p className="text-xs text-slate-500 mt-0.5 truncate">
+                    <p className="text-[11px] text-blue-200/55 mt-0.5 truncate">
                       {child.student.class} · {child.student.section}
                     </p>
                   </div>
                   {child.amountDue > 0 && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full text-amber-200"
+                      style={{
+                        background: "rgba(245,158,11,0.18)",
+                        boxShadow: "inset 0 0 0 1px rgba(245,158,11,0.35)",
+                      }}
+                    >
                       Due
                     </span>
                   )}
@@ -201,17 +265,20 @@ export default function DashboardPage() {
           </nav>
         </div>
 
-        <div className="p-3 border-t border-slate-100">
+        <div
+          className="p-3"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
+        >
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors text-sm font-medium"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300/80 hover:bg-rose-500/10 hover:text-rose-300 transition-all duration-300 text-sm font-medium"
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
               <polyline points="16,17 21,12 16,7"/>
               <line x1="21" y1="12" x2="9" y2="12"/>
             </svg>
-            Logout
+            Sign out
           </button>
         </div>
       </aside>

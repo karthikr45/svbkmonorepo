@@ -61,22 +61,56 @@ export default function DashboardScreen() {
     <View style={{ flex: 1, backgroundColor: "#f1f5f9" }}>
       <View
         style={{
-          paddingTop: 48,
+          paddingTop: 52,
           paddingHorizontal: 20,
-          paddingBottom: 16,
-          backgroundColor: "#fff",
-          borderBottomWidth: 1,
-          borderBottomColor: "#e2e8f0",
+          paddingBottom: 18,
+          backgroundColor: "#0b1026",
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
+          shadowColor: "#0b1026",
+          shadowOpacity: 0.35,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 8,
         }}
       >
-        <Text style={{ fontSize: 22, fontWeight: "800", color: "#0f172a" }}>
-          Dashboard
-        </Text>
-        <Pressable onPress={handleLogout}>
-          <Text style={{ color: "#dc2626", fontWeight: "700" }}>Logout</Text>
+        <View>
+          <Text
+            style={{
+              fontSize: 12,
+              fontWeight: "700",
+              color: "rgba(191,219,254,0.7)",
+              letterSpacing: 1,
+            }}
+          >
+            SVBK · PARENT PORTAL
+          </Text>
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "800",
+              color: "#fff",
+              marginTop: 2,
+            }}
+          >
+            Dashboard
+          </Text>
+        </View>
+        <Pressable
+          onPress={handleLogout}
+          style={{
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 999,
+            backgroundColor: "rgba(255,255,255,0.10)",
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.16)",
+          }}
+        >
+          <Text style={{ color: "#fecaca", fontWeight: "700", fontSize: 13 }}>
+            Sign out
+          </Text>
         </Pressable>
       </View>
 
@@ -181,13 +215,22 @@ function NavBtn({
       onPress={onPress}
       style={{
         flex: 1,
-        backgroundColor: "#0b54ab",
-        paddingVertical: 12,
-        borderRadius: 12,
+        backgroundColor: "#1e3a8a",
+        paddingVertical: 13,
+        borderRadius: 14,
         alignItems: "center",
+        borderWidth: 1,
+        borderColor: "rgba(99,102,241,0.45)",
+        shadowColor: "#1e3a8a",
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+        elevation: 5,
       }}
     >
-      <Text style={{ color: "#fff", fontWeight: "700" }}>{label}</Text>
+      <Text style={{ color: "#fff", fontWeight: "700", letterSpacing: 0.3 }}>
+        {label}
+      </Text>
     </Pressable>
   );
 }

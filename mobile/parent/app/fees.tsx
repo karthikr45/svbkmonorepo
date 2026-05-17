@@ -216,23 +216,36 @@ export function Header({
   return (
     <View
       style={{
-        paddingTop: 48,
+        paddingTop: 52,
         paddingHorizontal: 20,
-        paddingBottom: 16,
-        backgroundColor: "#fff",
-        borderBottomWidth: 1,
-        borderBottomColor: "#e2e8f0",
+        paddingBottom: 18,
+        backgroundColor: "#0b1026",
         flexDirection: "row",
         alignItems: "center",
-        gap: 12,
+        gap: 14,
+        shadowColor: "#0b1026",
+        shadowOpacity: 0.35,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 8,
       }}
     >
-      <Pressable onPress={onBack}>
-        <Text style={{ color: "#0b54ab", fontWeight: "700", fontSize: 16 }}>
+      <Pressable
+        onPress={onBack}
+        style={{
+          paddingHorizontal: 12,
+          paddingVertical: 7,
+          borderRadius: 999,
+          backgroundColor: "rgba(255,255,255,0.10)",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.16)",
+        }}
+      >
+        <Text style={{ color: "#bfdbfe", fontWeight: "700", fontSize: 14 }}>
           ‹ Back
         </Text>
       </Pressable>
-      <Text style={{ fontSize: 20, fontWeight: "800", color: "#0f172a" }}>
+      <Text style={{ fontSize: 20, fontWeight: "800", color: "#fff" }}>
         {title}
       </Text>
     </View>
