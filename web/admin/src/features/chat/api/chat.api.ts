@@ -1,4 +1,4 @@
-import { get, post, apiClient } from "@/lib/api-client";
+import { get, post, patch, del, apiClient } from "@/lib/api-client";
 
 export interface ChatContact {
   adminId: string;
@@ -29,6 +29,7 @@ export interface ReplyPreview {
   id: string;
   senderId: string;
   body: string;
+  deleted?: boolean;
   attachmentName: string | null;
 }
 
@@ -46,6 +47,8 @@ export interface ChatMessage {
   attachmentSize: number | null;
   /** Normalized by the API — always present (wraps legacy single). */
   attachments: MessageAttachment[];
+  editedAt: string | null;
+  deleted: boolean;
 }
 
 function unwrap<T>(res: unknown): T {
@@ -103,6 +106,28 @@ export async function sendMessageApi(
       replyToId: payload.replyToId ?? undefined,
       attachments: payload.attachments ?? undefined,
     }),
+  );
+}
+
+export async function editMessageApi(
+  conversationId: string,
+  messageId: string,
+  body: string,
+): Promise<ChatMessage> {
+  return unwrap<ChatMessage>(
+    await patch(
+      `/chat/conversations/${conversationId}/messages/${messageId}`,
+      { body },
+    ),
+  );
+}
+
+export async function deleteMessageApi(
+  conversationId: string,
+  messageId: string,
+): Promise<ChatMessage> {
+  return unwrap<ChatMessage>(
+    await del(`/chat/conversations/${conversationId}/messages/${messageId}`),
   );
 }
 

@@ -89,14 +89,26 @@ export class ChatGateway implements OnGatewayConnection {
     });
   }
 
-  /** Called by ChatService after a message is persisted. */
-  emitMessage(conversationId: string, message: unknown) {
+  private safeEmit(conversationId: string, event: string, payload: unknown) {
     try {
-      this.server?.to(room(conversationId)).emit('message', message);
+      this.server?.to(room(conversationId)).emit(event, payload);
     } catch (err) {
       this.logger.warn(
-        `emitMessage failed: ${(err as Error)?.message ?? err}`,
+        `${event} emit failed: ${(err as Error)?.message ?? err}`,
       );
     }
+  }
+
+  /** Called by ChatService after a message is persisted. */
+  emitMessage(conversationId: string, message: unknown) {
+    this.safeEmit(conversationId, 'message', message);
+  }
+
+  emitMessageUpdate(conversationId: string, message: unknown) {
+    this.safeEmit(conversationId, 'message-updated', message);
+  }
+
+  emitMessageDelete(conversationId: string, message: unknown) {
+    this.safeEmit(conversationId, 'message-deleted', message);
   }
 }

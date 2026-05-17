@@ -59,6 +59,14 @@ export class ChatMessage {
     | { url: string; name: string; mime: string; size: number }[]
     | null;
 
+  @Column({ name: 'edited_at', type: 'timestamptz', nullable: true })
+  editedAt: Date | null;
+
+  // Soft delete kept as a plain column (NOT @DeleteDateColumn) so the
+  // row is still returned and rendered as "This message was deleted".
+  @Column({ name: 'deleted_at', type: 'timestamptz', nullable: true })
+  deletedAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

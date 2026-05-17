@@ -335,24 +335,41 @@ export class ChatService {
     const byId = new Map(targets.map((t) => [t.id, t]));
 
     return rows.map((r) =>
-      Object.assign(r, {
-        attachments: this.normalizeAttachments(r),
-        replyTo: r.replyToId
-          ? (() => {
-              const t = byId.get(r.replyToId);
-              return t
-                ? {
-                    id: t.id,
-                    senderId: t.senderId,
-                    body: t.body,
-                    attachmentName:
-                      t.attachmentName ?? t.attachments?.[0]?.name ?? null,
-                  }
-                : null;
-            })()
-          : null,
-      }),
+      this.toWire(r, r.replyToId ? byId.get(r.replyToId) ?? null : null),
     ) as ChatMessage[];
+  }
+
+  /** Canonical wire shape. Deleted rows are blanked client-safe. */
+  private toWire(r: ChatMessage, replyTarget: ChatMessage | null): ChatMessage {
+    const deleted = !!r.deletedAt;
+    const replyTo =
+      r.replyToId && replyTarget
+        ? {
+            id: replyTarget.id,
+            senderId: replyTarget.senderId,
+            body: replyTarget.deletedAt ? '' : replyTarget.body,
+            deleted: !!replyTarget.deletedAt,
+            attachmentName: replyTarget.deletedAt
+              ? null
+              : (replyTarget.attachmentName ??
+                replyTarget.attachments?.[0]?.name ??
+                null),
+          }
+        : null;
+    return Object.assign({}, r, {
+      body: deleted ? '' : r.body,
+      attachments: deleted ? [] : this.normalizeAttachments(r),
+      deleted,
+      editedAt: r.editedAt ?? null,
+      replyTo,
+    }) as ChatMessage;
+  }
+
+  private async toWireWithReply(r: ChatMessage): Promise<ChatMessage> {
+    const target = r.replyToId
+      ? await this.msgRepo.findOne({ where: { id: r.replyToId } })
+      : null;
+    return this.toWire(r, target);
   }
 
   /** Always expose attachments as an array (wraps the legacy columns). */
@@ -483,12 +500,87 @@ export class ChatService {
       return msg;
     });
 
-    const enriched = Object.assign(saved, {
-      attachments: this.normalizeAttachments(saved),
-    }) as ChatMessage;
+    const enriched = await this.toWireWithReply(saved);
     // Fire-and-forget realtime fan-out to the conversation room.
     this.gateway?.emitMessage(conversationId, enriched);
     return enriched;
+  }
+
+  /** Edit own message body. Sender-only, not after delete. */
+  async editMessage(
+    caller: ChatCaller,
+    conversationId: string,
+    messageId: string,
+    body: string,
+  ): Promise<ChatMessage> {
+    const text = (body ?? '').trim();
+    if (!text) throw new BadRequestException('Message body required.');
+    if (text.length > 4000) {
+      throw new BadRequestException('Message too long (max 4000 chars).');
+    }
+    await this.assertParticipant(caller, conversationId);
+    const msg = await this.msgRepo.findOne({ where: { id: messageId } });
+    if (!msg || msg.conversationId !== conversationId) {
+      throw new NotFoundException('Message not found in this conversation.');
+    }
+    if (msg.senderId !== caller.userId) {
+      throw new ForbiddenException('You can only edit your own messages.');
+    }
+    if (msg.deletedAt) {
+      throw new BadRequestException('This message was deleted.');
+    }
+    msg.body = text;
+    msg.editedAt = new Date();
+    await this.msgRepo.save(msg);
+
+    // Refresh the conversation preview if this was the latest message.
+    const latest = await this.msgRepo.findOne({
+      where: { conversationId },
+      order: { createdAt: 'DESC' },
+    });
+    if (latest?.id === msg.id) {
+      await this.convRepo.update(
+        { id: conversationId },
+        { lastMessagePreview: text.slice(0, 200) },
+      );
+    }
+
+    const wire = await this.toWireWithReply(msg);
+    this.gateway?.emitMessageUpdate(conversationId, wire);
+    return wire;
+  }
+
+  /** Soft-delete own message ("This message was deleted"). */
+  async deleteMessage(
+    caller: ChatCaller,
+    conversationId: string,
+    messageId: string,
+  ): Promise<ChatMessage> {
+    await this.assertParticipant(caller, conversationId);
+    const msg = await this.msgRepo.findOne({ where: { id: messageId } });
+    if (!msg || msg.conversationId !== conversationId) {
+      throw new NotFoundException('Message not found in this conversation.');
+    }
+    if (msg.senderId !== caller.userId) {
+      throw new ForbiddenException('You can only delete your own messages.');
+    }
+    if (!msg.deletedAt) {
+      msg.deletedAt = new Date();
+      await this.msgRepo.save(msg);
+      const latest = await this.msgRepo.findOne({
+        where: { conversationId },
+        order: { createdAt: 'DESC' },
+      });
+      if (latest?.id === msg.id) {
+        await this.convRepo.update(
+          { id: conversationId },
+          { lastMessagePreview: 'This message was deleted' },
+        );
+      }
+    }
+    const wire = this.toWire(msg, null);
+    this.gateway?.emitMessageDelete(conversationId, wire);
+    return wire;
   }
 
   async markRead(

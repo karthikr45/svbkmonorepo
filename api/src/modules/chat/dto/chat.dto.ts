@@ -67,6 +67,14 @@ export class SendMessageDto {
   attachments?: MessageAttachmentDto[];
 }
 
+export class EditMessageDto {
+  @ApiProperty({ maxLength: 4000 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4000)
+  body: string;
+}
+
 export class MarkReadDto {
   @ApiProperty({ description: 'Last message id this user has seen' })
   @IsString()

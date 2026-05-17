@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -28,6 +30,7 @@ import {
   SendMessageDto,
   StartConversationDto,
   ListMessagesQueryDto,
+  EditMessageDto,
 } from './dto/chat.dto';
 
 function caller(req: Request): ChatCaller {
@@ -118,6 +121,32 @@ export class ChatController {
       attachment: dto.attachment ?? null,
       attachments: dto.attachments ?? null,
     });
+  }
+
+  @Patch('conversations/:id/messages/:messageId')
+  @ApiOperation({ summary: 'Edit your own message' })
+  editMessage(
+    @Req() req: Request,
+    @Param('id') conversationId: string,
+    @Param('messageId') messageId: string,
+    @Body() dto: EditMessageDto,
+  ) {
+    return this.chat.editMessage(
+      caller(req),
+      conversationId,
+      messageId,
+      dto.body,
+    );
+  }
+
+  @Delete('conversations/:id/messages/:messageId')
+  @ApiOperation({ summary: 'Delete your own message' })
+  deleteMessage(
+    @Req() req: Request,
+    @Param('id') conversationId: string,
+    @Param('messageId') messageId: string,
+  ) {
+    return this.chat.deleteMessage(caller(req), conversationId, messageId);
   }
 
   @Post('conversations/:id/read')
