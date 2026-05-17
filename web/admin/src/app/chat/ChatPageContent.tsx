@@ -119,6 +119,7 @@ export function ChatPageContent() {
   const [dragOver, setDragOver] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
   const [editing, setEditing] = useState<ChatMessage | null>(null);
+  const [menuId, setMenuId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -280,6 +281,7 @@ export function ChatPageContent() {
     setReplyTo(null);
     setPendingFiles([]);
     setPeerTyping(false);
+    setMenuId(null);
     try {
       const conv = await startConversationApi(peer.adminId);
       setActiveConvId(conv.id);
@@ -296,6 +298,7 @@ export function ChatPageContent() {
     setReplyTo(null);
     setPendingFiles([]);
     setPeerTyping(false);
+    setMenuId(null);
     loadMessages(c.conversationId);
   }
 
@@ -353,17 +356,29 @@ export function ChatPageContent() {
   }
 
   function startReply(m: ChatMessage) {
+    setMenuId(null);
     setEditing(null);
     setReplyTo(m);
   }
 
   function startEdit(m: ChatMessage) {
+    setMenuId(null);
     setReplyTo(null);
     setEditing(m);
     setDraft(m.body);
   }
 
+  async function copyMessage(m: ChatMessage) {
+    setMenuId(null);
+    try {
+      await navigator.clipboard.writeText(m.body ?? "");
+    } catch {
+      /* clipboard blocked — non-fatal */
+    }
+  }
+
   async function removeMessage(m: ChatMessage) {
+    setMenuId(null);
     if (!activeConvId) return;
     if (!confirm("Delete this message for everyone?")) return;
     try {
@@ -734,33 +749,73 @@ export function ChatPageContent() {
                                   }
                           }
                         >
-                          {/* Hover action toolbar — floats above the bubble */}
+                          {/* Kebab (⋮) — appears on hover; opens the menu */}
                           {!m.deleted && (
-                            <div
-                              className={`absolute -top-4 ${
-                                mine ? "right-1" : "left-1"
-                              } z-10 hidden group-hover:flex items-center gap-0.5 rounded-full bg-white px-1 py-0.5 shadow-md ring-1 ring-slate-200`}
-                            >
-                              <ActionBtn
-                                title="Reply"
-                                onClick={() => startReply(m)}
-                                icon="reply"
-                              />
-                              {mine && (
+                            <>
+                              <button
+                                type="button"
+                                aria-label="Message options"
+                                onClick={() =>
+                                  setMenuId(menuId === m.id ? null : m.id)
+                                }
+                                className={`absolute -top-3 ${
+                                  mine ? "right-1" : "left-1"
+                                } z-10 h-7 w-7 items-center justify-center rounded-full bg-white text-slate-500 shadow-md ring-1 ring-slate-200 hover:text-[#6c739c] ${
+                                  menuId === m.id
+                                    ? "flex"
+                                    : "hidden group-hover:flex"
+                                }`}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                  <circle cx="12" cy="5" r="2" />
+                                  <circle cx="12" cy="12" r="2" />
+                                  <circle cx="12" cy="19" r="2" />
+                                </svg>
+                              </button>
+
+                              {menuId === m.id && (
                                 <>
-                                  <ActionBtn
-                                    title="Edit"
-                                    onClick={() => startEdit(m)}
-                                    icon="edit"
+                                  <div
+                                    className="fixed inset-0 z-20"
+                                    onClick={() => setMenuId(null)}
                                   />
-                                  <ActionBtn
-                                    title="Delete"
-                                    onClick={() => removeMessage(m)}
-                                    icon="trash"
-                                  />
+                                  <div
+                                    className={`absolute top-5 ${
+                                      mine ? "right-1" : "left-1"
+                                    } z-30 w-44 rounded-xl bg-white py-1.5 shadow-xl ring-1 ring-slate-200 overflow-hidden`}
+                                  >
+                                    <MenuRow
+                                      icon="reply"
+                                      label="Reply"
+                                      onClick={() => startReply(m)}
+                                    />
+                                    {m.body && (
+                                      <MenuRow
+                                        icon="copy"
+                                        label="Copy"
+                                        onClick={() => copyMessage(m)}
+                                      />
+                                    )}
+                                    {mine && (
+                                      <>
+                                        <MenuRow
+                                          icon="edit"
+                                          label="Edit"
+                                          onClick={() => startEdit(m)}
+                                        />
+                                        <div className="my-1 h-px bg-slate-100" />
+                                        <MenuRow
+                                          icon="trash"
+                                          label="Delete"
+                                          danger
+                                          onClick={() => removeMessage(m)}
+                                        />
+                                      </>
+                                    )}
+                                  </div>
                                 </>
                               )}
-                            </div>
+                            </>
                           )}
 
                           {m.deleted ? (
@@ -1080,43 +1135,54 @@ function RailLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ActionBtn({
-  title,
-  onClick,
+function MenuRow({
   icon,
+  label,
+  onClick,
+  danger,
 }: {
-  title: string;
+  icon: "reply" | "copy" | "edit" | "trash";
+  label: string;
   onClick: () => void;
-  icon: "reply" | "edit" | "trash";
+  danger?: boolean;
 }) {
   return (
     <button
       type="button"
-      title={title}
-      aria-label={title}
       onClick={onClick}
-      className={`h-7 w-7 flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 ${
-        icon === "trash" ? "hover:text-rose-600" : "hover:text-[#6c739c]"
+      className={`flex w-full items-center gap-3 px-3.5 py-2 text-[13px] font-medium transition-colors ${
+        danger
+          ? "text-rose-600 hover:bg-rose-50"
+          : "text-slate-700 hover:bg-slate-50"
       }`}
     >
-      {icon === "reply" && (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="9 17 4 12 9 7" />
-          <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
-        </svg>
-      )}
-      {icon === "edit" && (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 20h9" />
-          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-        </svg>
-      )}
-      {icon === "trash" && (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="3 6 5 6 21 6" />
-          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-        </svg>
-      )}
+      <span className="text-slate-400">
+        {icon === "reply" && (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 17 4 12 9 7" />
+            <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+          </svg>
+        )}
+        {icon === "copy" && (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+        )}
+        {icon === "edit" && (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+          </svg>
+        )}
+        {icon === "trash" && (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
+        )}
+      </span>
+      {label}
     </button>
   );
 }
