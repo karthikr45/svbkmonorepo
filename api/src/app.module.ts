@@ -3,6 +3,7 @@ import {
   Module,
   NestModule,
 } from '@nestjs/common';
+import { existsSync, readdirSync } from 'fs';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD } from '@nestjs/core';
@@ -52,7 +53,28 @@ import { StudentIdentitiesModule } from './modules/student-identities/student-id
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => {
-        const sync = config.get<boolean>('database.sync');
+        const isProd = process.env.NODE_ENV === 'production';
+        // Defense in depth: even if config is bypassed, synchronize is
+        // hard-off in production. Schema changes only via migrations.
+        const sync = isProd
+          ? false
+          : (config.get<boolean>('database.sync') ?? false);
+
+        const migrationsDir = __dirname + '/migrations';
+        const hasMigrations =
+          existsSync(migrationsDir) &&
+          readdirSync(migrationsDir).some((f) => /\.(ts|js)$/.test(f));
+
+        // Fail fast: a prod deploy with neither synchronize nor any
+        // migration would silently come up with an empty schema.
+        if (isProd && !sync && !hasMigrations) {
+          throw new Error(
+            'FATAL: production has synchronize disabled and no migrations. ' +
+              'Generate + commit the baseline (pnpm migration:generate ' +
+              'src/migrations/Init) before deploying. Refusing to start.',
+          );
+        }
+
         return {
           type: 'postgres' as const,
           host: config.get<string>('database.host'),
@@ -61,9 +83,9 @@ import { StudentIdentitiesModule } from './modules/student-identities/student-id
           password: config.get<string>('database.password'),
           database: config.get<string>('database.name'),
           entities: [__dirname + '/**/*.entity{.ts,.js}'],
-          migrations: [__dirname + '/migrations/*{.ts,.js}'],
+          migrations: [migrationsDir + '/*{.ts,.js}'],
           synchronize: sync,
-          // When not auto-syncing (prod), apply pending migrations on boot.
+          // In prod (and any non-sync env) apply pending migrations on boot.
           migrationsRun: !sync,
           logging: false,
         };

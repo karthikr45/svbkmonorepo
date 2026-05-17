@@ -41,3 +41,46 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  # Banking-grade guard: entity changes must ship with a migration.
+  # Skips cleanly until the baseline (src/migrations/*.ts) is committed.
+  db-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: svbk
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Migration drift check
+        working-directory: api
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: svbk
+        run: |
+          if ! ls src/migrations/*.ts >/dev/null 2>&1; then
+            echo "No baseline migration yet — skipping drift gate."
+            exit 0
+          fi
+          pnpm migration:run
+          pnpm migration:check

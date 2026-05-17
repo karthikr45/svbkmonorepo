@@ -3,6 +3,24 @@
 // out of the box.
 const isProd = process.env.NODE_ENV === 'production';
 
+/**
+ * Banking-grade rule: TypeORM `synchronize` is destructive (it will drop
+ * columns/tables to match entities) and is FORBIDDEN in production.
+ * Schema in prod changes only via reviewed, versioned migrations. We
+ * refuse to boot rather than silently risk data loss.
+ */
+function resolveDbSync(): boolean {
+  const requested = process.env.DB_SYNC === 'true';
+  if (requested && isProd) {
+    throw new Error(
+      'FATAL: DB_SYNC=true is not allowed when NODE_ENV=production. ' +
+        'Auto-synchronize can drop columns and lose data. Use migrations ' +
+        '(pnpm migration:run). Refusing to start.',
+    );
+  }
+  return requested && !isProd;
+}
+
 function required(name: string, devDefault: string): string {
   const v = process.env[name];
   if (v && v.length > 0) return v;
@@ -22,7 +40,7 @@ export default () => ({
     username: process.env.DB_USERNAME || 'postgres',
     password: required('DB_PASSWORD', 'postgres'),
     name: process.env.DB_NAME || 'svbk',
-    sync: process.env.DB_SYNC === 'true',
+    sync: resolveDbSync(),
   },
   jwt: {
     secret: required('JWT_SECRET', 'dev-only-jwt-secret-do-not-use-in-prod'),
