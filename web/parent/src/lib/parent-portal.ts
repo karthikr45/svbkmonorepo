@@ -235,3 +235,69 @@ export async function verifyParentPayment(args: {
   const { data } = await api.post("/parent/payments/verify", args);
   return unwrap<{ payment: Payment }>(data);
 }
+
+// ── Full overview: every kid, school + hostel + transport ──
+export interface OverviewTerm {
+  feeId: string;
+  term: string;
+  originalAmount: string;
+  totalPenalty: string;
+  totalDiscount: string;
+  netAmount: string;
+  paidAmount: string;
+  balance: string;
+  paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
+}
+export interface OverviewPayment {
+  feePaymentId: string;
+  amount: string;
+  paymentType: string;
+  paidAt: string;
+  receiptNumber: string | null;
+  clearanceStatus: string;
+  bounced: boolean;
+  term: string | null;
+}
+export interface OverviewCategory {
+  type: "School" | "Hostel" | "Transport";
+  tenantId: string;
+  tenantName: string;
+  years: {
+    academicYear: string;
+    terms: OverviewTerm[];
+    payments: OverviewPayment[];
+  }[];
+}
+export interface OverviewChild {
+  student: {
+    id: string;
+    name: string;
+    admissionNumber: string;
+    branch: string;
+    class: string;
+    section: string;
+    rollNo: string;
+    academicYear: string;
+    imgUrl: string | null;
+  };
+  tc: {
+    issued: boolean;
+    issuedAt: string | null;
+    reason: string | null;
+    certificateNo: string | null;
+  };
+  categories: OverviewCategory[];
+}
+
+export async function fetchOverview(): Promise<{ children: OverviewChild[] }> {
+  const { data } = await api.get("/parent/overview");
+  return unwrap<{ children: OverviewChild[] }>(data);
+}
+
+/** Absolute URL to a printable receipt (auth-fetched as a blob). */
+export function parentReceiptUrl(feePaymentId: string): string {
+  const base =
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
+    "http://localhost:3001/api";
+  return `${base}/parent/payments/receipt/${feePaymentId}`;
+}

@@ -2,10 +2,13 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -40,6 +43,32 @@ export class ParentPortalController {
   @ApiOperation({ summary: 'Parent dashboard summary' })
   dashboard(@CurrentUser() user: any) {
     return this.portal.dashboard(user.tenantId, user.userId);
+  }
+
+  @Get('overview')
+  @ApiOperation({
+    summary:
+      'Every child: school + hostel + transport fees by year & term, ' +
+      'payment history, receipts and TC status',
+  })
+  overview(@CurrentUser() user: any) {
+    return this.portal.childrenOverview(user.tenantId, user.userId);
+  }
+
+  @Get('payments/receipt/:feePaymentId')
+  @ApiOperation({ summary: 'Download a printable receipt (own children only)' })
+  async receipt(
+    @CurrentUser() user: any,
+    @Param('feePaymentId') feePaymentId: string,
+    @Res() res: Response,
+  ) {
+    const html = await this.portal.renderReceiptForParent(
+      user.tenantId,
+      user.userId,
+      feePaymentId,
+    );
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
   }
 
   @Get('fees')

@@ -18,8 +18,10 @@ import {
   PaymentType,
 } from '../payments/entities/payment.entity';
 import { ParentStudent } from '../parents/entities/parent-student.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 import { ParentsService } from '../parents/parents.service';
 import { PaymentsService } from '../payments/payments.service';
+import { FeesService } from '../fees/fees.service';
 import { AcademicYearsService } from '../academic-years/academic-years.service';
 
 @Injectable()
@@ -29,12 +31,17 @@ export class ParentPortalService {
     private readonly studentRepo: Repository<Student>,
     @InjectRepository(Fee)
     private readonly feeRepo: Repository<Fee>,
+    @InjectRepository(FeePayment)
+    private readonly feePaymentRepo: Repository<FeePayment>,
     @InjectRepository(Payment)
     private readonly paymentRepo: Repository<Payment>,
     @InjectRepository(ParentStudent)
     private readonly linkRepo: Repository<ParentStudent>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
     private readonly parentsService: ParentsService,
     private readonly paymentsService: PaymentsService,
+    private readonly feesService: FeesService,
     private readonly academicYearsService: AcademicYearsService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
@@ -315,5 +322,181 @@ export class ParentPortalService {
       gatewayPaymentId: args.gatewayPaymentId,
       signature: args.signature,
     });
+  }
+
+  // ─── Full overview: every kid, school + hostel + transport, all
+  //     years/terms, payment history, receipts, TC status ──────────────
+
+  private async buildCategory(
+    categoryTenantId: string,
+    tenantName: string,
+    type: 'School' | 'Hostel' | 'Transport',
+    studentRows: Student[],
+  ) {
+    const ids = studentRows.map((s) => s.id);
+    if (!ids.length) return null;
+    const fees = await this.feeRepo.find({
+      where: { tenantId: categoryTenantId, studentId: In(ids) },
+      order: { academicYear: 'DESC', term: 'ASC' },
+    });
+    if (!fees.length) return null;
+    const payments = await this.feePaymentRepo.find({
+      where: {
+        tenantId: categoryTenantId,
+        feeId: In(fees.map((f) => f.id)),
+      },
+      order: { paidAt: 'DESC' },
+    });
+    const feeTermById = new Map(fees.map((f) => [f.id, f.term]));
+    const byYear = new Map<
+      string,
+      { terms: any[]; payments: any[] }
+    >();
+    for (const f of fees) {
+      if (!byYear.has(f.academicYear)) {
+        byYear.set(f.academicYear, { terms: [], payments: [] });
+      }
+      byYear.get(f.academicYear)!.terms.push({
+        feeId: f.id,
+        term: f.term,
+        originalAmount: f.originalAmount,
+        totalPenalty: f.totalPenalty,
+        totalDiscount: f.totalDiscount,
+        netAmount: f.netAmount,
+        paidAmount: f.paidAmount,
+        balance: (Number(f.netAmount) - Number(f.paidAmount)).toFixed(2),
+        paymentStatus: f.paymentStatus,
+      });
+    }
+    const yearOfFee = new Map(fees.map((f) => [f.id, f.academicYear]));
+    for (const p of payments) {
+      const yr = yearOfFee.get(p.feeId);
+      if (!yr || !byYear.has(yr)) continue;
+      byYear.get(yr)!.payments.push({
+        feePaymentId: p.id,
+        amount: p.amount,
+        paymentType: p.paymentType,
+        paidAt: p.paidAt,
+        receiptNumber: p.receiptNumber,
+        clearanceStatus: p.clearanceStatus,
+        bounced: p.clearanceStatus === ClearanceStatus.BOUNCED,
+        term: feeTermById.get(p.feeId) ?? null,
+      });
+    }
+    const years = [...byYear.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([academicYear, v]) => ({ academicYear, ...v }));
+    return { type, tenantId: categoryTenantId, tenantName, years };
+  }
+
+  /** Everything the parent portal needs per child, in one call. */
+  async childrenOverview(tenantId: string, parentId: string) {
+    const children = await this.listChildren(tenantId, parentId);
+    if (!children.length) return { children: [] };
+
+    const school = await this.tenantRepo.findOne({
+      where: { id: tenantId },
+    });
+    const siblings = await this.tenantRepo
+      .createQueryBuilder('t')
+      .where('t.type IN (:...types)', { types: ['Hostel', 'Transport'] })
+      .andWhere('t.id != :id', { id: tenantId })
+      .getMany();
+
+    const out: any[] = [];
+    for (const child of children) {
+      // All school enrolment rows for this admission across years.
+      const schoolRows = await this.studentRepo.find({
+        where: {
+          tenantId,
+          branch: child.branch,
+          admissionNumber: child.admissionNumber,
+        },
+        order: { academicYear: 'DESC' },
+      });
+      const categories: any[] = [];
+      const schoolCat = await this.buildCategory(
+        tenantId,
+        school?.tenantName ?? school?.name ?? 'School',
+        'School',
+        schoolRows,
+      );
+      if (schoolCat) categories.push(schoolCat);
+
+      for (const sib of siblings) {
+        const sibRows = await this.studentRepo
+          .createQueryBuilder('s')
+          .where('s.tenant_id = :tid', { tid: sib.id })
+          .andWhere('s.admission_number = :adm', {
+            adm: child.admissionNumber,
+          })
+          .andWhere('LOWER(s.name) = LOWER(:nm)', { nm: child.name })
+          .getMany();
+        const cat = await this.buildCategory(
+          sib.id,
+          sib.tenantName ?? sib.name ?? sib.type,
+          (sib.type as 'Hostel' | 'Transport') ?? 'Hostel',
+          sibRows,
+        );
+        if (cat) categories.push(cat);
+      }
+
+      const latest = schoolRows[0] ?? child;
+      out.push({
+        student: {
+          id: child.id,
+          name: child.name,
+          admissionNumber: child.admissionNumber,
+          branch: child.branch,
+          class: child.class,
+          section: child.section,
+          rollNo: child.rollNo,
+          academicYear: child.academicYear,
+          imgUrl: child.imgUrl ?? null,
+        },
+        tc: {
+          issued: !!latest.tcIssuedAt,
+          issuedAt: latest.tcIssuedAt ?? null,
+          reason: latest.tcReason ?? null,
+          certificateNo: latest.tcCertificateNo ?? null,
+        },
+        categories,
+      });
+    }
+    return { children: out };
+  }
+
+  /**
+   * Renders a printable receipt for a fee_payment, only if it belongs to
+   * one of this parent's children (school or sibling hostel/transport).
+   */
+  async renderReceiptForParent(
+    tenantId: string,
+    parentId: string,
+    feePaymentId: string,
+  ): Promise<string> {
+    const fp = await this.feePaymentRepo.findOne({
+      where: { id: feePaymentId },
+    });
+    if (!fp) throw new NotFoundException('Receipt not found');
+    const fee = await this.feeRepo.findOne({
+      where: { id: fp.feeId, tenantId: fp.tenantId },
+    });
+    if (!fee) throw new NotFoundException('Receipt not found');
+    const student = await this.studentRepo.findOne({
+      where: { id: fee.studentId, tenantId: fp.tenantId },
+    });
+    if (!student) throw new NotFoundException('Receipt not found');
+
+    const children = await this.listChildren(tenantId, parentId);
+    const ok = children.some(
+      (c) =>
+        c.admissionNumber === student.admissionNumber &&
+        c.name.trim().toLowerCase() === student.name.trim().toLowerCase(),
+    );
+    if (!ok) {
+      throw new ForbiddenException('This receipt is not for your child.');
+    }
+    return this.feesService.renderReceipt(fp.tenantId, feePaymentId);
   }
 }
