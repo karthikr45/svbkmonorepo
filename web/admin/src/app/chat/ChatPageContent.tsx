@@ -122,6 +122,17 @@ export function ChatPageContent() {
   const [peerTyping, setPeerTyping] = useState(false);
   const [editing, setEditing] = useState<ChatMessage | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showTools = (id: string) => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setHoverId(id);
+  };
+  const hideToolsSoon = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHoverId(null), 160);
+  };
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -757,6 +768,8 @@ export function ChatPageContent() {
                           ))}
 
                         <div
+                          onMouseEnter={() => showTools(m.id)}
+                          onMouseLeave={hideToolsSoon}
                           className="relative max-w-[68%] rounded-2xl px-3.5 py-2 text-sm leading-snug shadow-sm"
                           style={
                             m.deleted
@@ -780,16 +793,20 @@ export function ChatPageContent() {
                           }
                         >
                           {/* Teams-style reaction + actions bar — floats
-                              ABOVE the bubble so it never covers text */}
-                          {!m.deleted && (
+                              ABOVE the bubble. Wrapper has bottom padding
+                              so there is NO dead gap between bubble and
+                              bar (the cursor path stays hoverable). */}
+                          {!m.deleted &&
+                            (hoverId === m.id || menuId === m.id) && (
                             <div
-                              className={`absolute bottom-full mb-1.5 ${
+                              onMouseEnter={() => showTools(m.id)}
+                              onMouseLeave={hideToolsSoon}
+                              className={`absolute bottom-full pb-2 ${
                                 mine ? "right-0" : "left-0"
-                              } z-30 ${
-                                menuId === m.id
-                                  ? "flex"
-                                  : "hidden group-hover:flex"
-                              } items-center gap-0.5 rounded-full bg-white px-1.5 py-1 shadow-lg ring-1 ring-slate-200`}
+                              } z-30 flex`}
+                            >
+                            <div
+                              className="flex items-center gap-0.5 rounded-full bg-white px-1.5 py-1 shadow-lg ring-1 ring-slate-200"
                             >
                               {QUICK_EMOJI.map((em) => (
                                 <button
@@ -860,6 +877,7 @@ export function ChatPageContent() {
                                   </div>
                                 </>
                               )}
+                            </div>
                             </div>
                           )}
 
