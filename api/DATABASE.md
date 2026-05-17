@@ -49,12 +49,18 @@ pnpm migration:generate src/migrations/AddStudentDateOfAdmission
 where a down would lose data, document it in the migration and require
 explicit sign-off.
 
-## CI drift gate
+## CI guards
 
-`pnpm migration:check` regenerates against a fresh DB and **fails if any
-entity change lacks a migration**. CI runs it once a baseline migration
-exists, so "schema in code" can never diverge from "schema in
-migrations".
+- **Safety lint** — `pnpm migration:lint` (static, every PR) flags
+  destructive / table-locking DDL (`DROP`, type change, `RENAME`,
+  `TRUNCATE`, bulk `DELETE`, `NOT NULL` without `DEFAULT`). A reviewed
+  contract step opts in with a `// migration-allow: <reason>` comment.
+  (SQL-only linters like `squawk` can't parse TypeScript migrations,
+  so this is the TS-aware equivalent.)
+- **Drift gate** — `pnpm migration:check` regenerates against a fresh
+  Postgres and **fails if any entity change lacks a migration**, so
+  "schema in code" can never diverge from "schema in migrations". Runs
+  once the baseline exists.
 
 ## Production deployment runbook
 
@@ -78,18 +84,21 @@ bash scripts/db-restore.sh ./backups/svbk_pre-migrate_<stamp>.dump
 
 | Script | Purpose |
 |--------|---------|
+| `scripts/db-generate-baseline.sh` | Emit the `Init` migration via a throwaway Postgres (`pnpm db:baseline`). |
+| `scripts/lint-migrations.sh` | Static safety gate (`pnpm migration:lint`). |
 | `scripts/db-backup.sh`  | Timestamped `pg_dump` (custom format); keeps last 20. |
 | `scripts/db-migrate.sh` | Sanctioned prod path: backup → show → confirm → run → verify. |
 | `scripts/db-restore.sh` | Restore a dump (destructive; double-confirms DB name). |
 
 ## First production deploy
 
-Dev DBs were built by `synchronize`. Before the first prod deploy,
-generate the baseline from the current entities against a clean
-synchronized staging DB and commit it:
+Dev DBs were built by `synchronize`. Generate the baseline against a
+**throwaway** Postgres (never a real DB) — one command, needs Docker:
 
 ```bash
-pnpm migration:generate src/migrations/Init
+pnpm db:baseline           # spins up disposable PG, emits src/migrations/Init, tears down
+# review the generated SQL, then:
+git add src/migrations && git commit -m "db: baseline migration"
 ```
 
 Until that exists, `app.module` refuses to boot in production (by

@@ -42,6 +42,10 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Migration safety lint
+        working-directory: api
+        run: pnpm migration:lint
+
   # Banking-grade guard: entity changes must ship with a migration.
   # Skips cleanly until the baseline (src/migrations/*.ts) is committed.
   db-drift:
