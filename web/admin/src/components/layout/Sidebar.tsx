@@ -263,12 +263,12 @@ export function Sidebar() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } md:sticky md:top-0 md:translate-x-0 md:h-screen md:z-30 md:max-w-none md:flex-shrink-0`}
         style={{
-          backgroundColor: "#1c1d2e",
+          backgroundColor: "#6c739c",
           backgroundImage:
-            "radial-gradient(120% 60% at 0% 0%, rgba(108,115,156,0.20), transparent 60%)," +
-            "radial-gradient(90% 50% at 100% 100%, rgba(217,166,159,0.16), transparent 60%)," +
-            "linear-gradient(180deg,#1c1d2e 0%,#2b2c44 48%,#191a27 100%)",
-          borderRight: "1px solid rgba(255,255,255,0.07)",
+            "radial-gradient(110% 60% at 0% 0%, rgba(255,255,255,0.10), transparent 55%)," +
+            "radial-gradient(90% 60% at 100% 100%, rgba(217,166,159,0.18), transparent 60%)," +
+            "linear-gradient(160deg,#6c739c 0%,#5b6188 55%,#565c82 100%)",
+          borderRight: "1px solid rgba(255,255,255,0.12)",
           boxShadow: "inset -1px 0 0 rgba(255,255,255,0.03)",
         }}
         aria-label="Main navigation"
@@ -305,7 +305,7 @@ export function Sidebar() {
               <span className="block truncate text-[15px] font-extrabold tracking-tight text-white">
                 SVBK
               </span>
-              <span className="block truncate text-[11px] font-medium text-blue-200/60">
+              <span className="block truncate text-[11px] font-medium text-white/65">
                 School Console
               </span>
             </span>
@@ -323,7 +323,7 @@ export function Sidebar() {
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-track]:bg-transparent">
-          <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500/80">
+          <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-white/55">
             Workspace
           </p>
 
@@ -364,7 +364,7 @@ export function Sidebar() {
                     className={
                       active
                         ? "text-[#d9a69f]"
-                        : "text-slate-400 group-hover:text-[#d9a69f] transition-colors"
+                        : "text-white/70 group-hover:text-[#f0dad5] transition-colors"
                     }
                   >
                     <NavIcon name={item.icon} />
@@ -391,7 +391,7 @@ export function Sidebar() {
                     className={
                       anyChildActive
                         ? "text-[#d9a69f]"
-                        : "text-slate-400 group-hover:text-[#d9a69f] transition-colors"
+                        : "text-white/70 group-hover:text-[#f0dad5] transition-colors"
                     }
                   >
                     <NavIcon name={item.icon} />
@@ -400,7 +400,7 @@ export function Sidebar() {
                     {item.label}
                   </span>
                   <svg
-                    className={`h-3.5 w-3.5 text-slate-500 transition-transform duration-300 ${
+                    className={`h-3.5 w-3.5 text-white/55 transition-transform duration-300 ${
                       open ? "rotate-90" : ""
                     }`}
                     viewBox="0 0 16 16"
@@ -481,7 +481,7 @@ export function Sidebar() {
               <p className="truncate text-[13px] font-semibold leading-tight text-white">
                 {displayName}
               </p>
-              <p className="truncate text-[11px] leading-tight text-blue-200/55">
+              <p className="truncate text-[11px] leading-tight text-white/60">
                 {prettyRole(user?.role)}
               </p>
             </div>

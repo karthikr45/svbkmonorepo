@@ -126,12 +126,12 @@ export default function DashboardPage() {
         className={`fixed top-0 left-0 h-full z-40 flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:static md:translate-x-0 md:z-auto`}
         style={{
           width: 264,
-          backgroundColor: "#1c1d2e",
+          backgroundColor: "#6c739c",
           backgroundImage:
-            "radial-gradient(120% 60% at 0% 0%, rgba(108,115,156,0.20), transparent 60%)," +
-            "radial-gradient(90% 50% at 100% 100%, rgba(217,166,159,0.16), transparent 60%)," +
-            "linear-gradient(180deg,#1c1d2e 0%,#2b2c44 48%,#191a27 100%)",
-          borderRight: "1px solid rgba(255,255,255,0.07)",
+            "radial-gradient(110% 60% at 0% 0%, rgba(255,255,255,0.10), transparent 55%)," +
+            "radial-gradient(90% 60% at 100% 100%, rgba(217,166,159,0.18), transparent 60%)," +
+            "linear-gradient(160deg,#6c739c 0%,#5b6188 55%,#565c82 100%)",
+          borderRight: "1px solid rgba(255,255,255,0.12)",
         }}
       >
         <div
@@ -151,7 +151,7 @@ export default function DashboardPage() {
           </div>
           <div className="min-w-0">
             <p className="font-extrabold text-white text-[15px] leading-tight truncate">SVBK</p>
-            <p className="text-[11px] text-blue-200/60 truncate">Parent Portal</p>
+            <p className="text-[11px] text-white/65 truncate">Parent Portal</p>
           </div>
         </div>
 
@@ -175,7 +175,7 @@ export default function DashboardPage() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-semibold text-white truncate">{parent?.name ?? "Parent"}</p>
-              <p className="text-[11px] text-blue-200/55 truncate">{parent?.email}</p>
+              <p className="text-[11px] text-white/60 truncate">{parent?.email}</p>
             </div>
             <span
               className="h-2 w-2 rounded-full flex-shrink-0"
@@ -185,15 +185,15 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto py-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-track]:bg-transparent">
-          <p className="px-5 text-[10px] font-bold text-slate-500/80 uppercase tracking-[0.14em] mb-2">
+          <p className="px-5 text-[10px] font-bold text-white/55 uppercase tracking-[0.14em] mb-2">
             My Children
           </p>
           <nav className="flex flex-col gap-1 px-3">
             {!dashboard && (
-              <p className="px-3 py-2 text-xs text-slate-400/70">Loading…</p>
+              <p className="px-3 py-2 text-xs text-white/55">Loading…</p>
             )}
             {dashboard?.children.length === 0 && (
-              <p className="px-3 py-2 text-xs text-slate-400/70">No children linked yet.</p>
+              <p className="px-3 py-2 text-xs text-white/55">No children linked yet.</p>
             )}
             {dashboard?.children.map((child, i) => {
               const isActive = selectedChildId === child.student.id;
@@ -244,7 +244,7 @@ export default function DashboardPage() {
                     >
                       {child.student.name}
                     </p>
-                    <p className="text-[11px] text-blue-200/55 mt-0.5 truncate">
+                    <p className="text-[11px] text-white/60 mt-0.5 truncate">
                       {child.student.class} · {child.student.section}
                     </p>
                   </div>
