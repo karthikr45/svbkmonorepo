@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Fee } from './entities/fee.entity';
 import { FeePayment } from './entities/fee-payment.entity';
@@ -9,11 +9,13 @@ import { FeesService } from './fees.service';
 import { StudentFeesService } from './student-fees.service';
 import { FeesController } from './fees.controller';
 import { ReceiptTemplatesModule } from '../receipt-templates/receipt-templates.module';
+import { ApprovalsModule } from '../approvals/approvals.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Fee, FeePayment, FeeAdjustment, ReceiptSequence, Tenant]),
     ReceiptTemplatesModule,
+    forwardRef(() => ApprovalsModule),
   ],
   controllers: [FeesController],
   providers: [FeesService, StudentFeesService],

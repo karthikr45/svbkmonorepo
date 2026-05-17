@@ -28,6 +28,7 @@ const tenantAdminNav: NavItem[] = [
   },
   { type: "item", href: "/payments", label: "Payment Details", icon: "payment" },
   { type: "item", href: "/pay-now", label: "Pay Now", icon: "paynow" },
+  { type: "item", href: "/approvals", label: "Approvals", icon: "approve" },
   { type: "item", href: "/chat", label: "Chat", icon: "chat" },
   { type: "item", href: "/social", label: "Social Feed", icon: "feed" },
   {
@@ -143,6 +144,12 @@ function NavIcon({ name }: { name: string }) {
       <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7" />
         <circle cx="6.5" cy="17.5" r="1.5" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  if (name === "approve")
+    return (
+      <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     );
   if (name === "media")

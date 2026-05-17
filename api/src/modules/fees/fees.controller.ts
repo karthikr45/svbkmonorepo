@@ -6,6 +6,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -14,7 +15,10 @@ import {
   Req,
   UnauthorizedException,
   UseGuards,
+  forwardRef,
 } from '@nestjs/common';
+import { ApprovalsService } from '../approvals/approvals.service';
+import { ApprovalAction } from '../approvals/entities/adjustment-approval.entity';
 import type { Request } from 'express';
 import { FeesService } from './fees.service';
 import {
@@ -43,7 +47,11 @@ import { Role } from '../../common/enums/roles.enum';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('fees')
 export class FeesController {
-  constructor(private readonly feesService: FeesService) {}
+  constructor(
+    private readonly feesService: FeesService,
+    @Inject(forwardRef(() => ApprovalsService))
+    private readonly approvals: ApprovalsService,
+  ) {}
 
   @Get('dashboard/stats')
   @ApiOperation({
@@ -137,10 +145,12 @@ export class FeesController {
   })
   async waivePenalty(@Body() dto: WaivePenaltyDto, @Req() req: Request) {
     const { tenantId, branch } = ctxWithBranch(req);
-    return this.feesService.waivePenaltyForStudents(
-      tenantId,
-      { ...dto, branch },
-      actorOf(req),
+    return this.approvals.gate(
+      callerOf(req),
+      ApprovalAction.PENALTY_WAIVE_BULK,
+      branch,
+      { tenantId, dto: { ...dto, branch }, actor: actorOf(req) },
+      summarize("Waive penalty", dto, branch),
     );
   }
 
@@ -157,10 +167,12 @@ export class FeesController {
   })
   async addDiscountBulk(@Body() dto: BulkAddDiscountDto, @Req() req: Request) {
     const { tenantId, branch } = ctxWithBranch(req);
-    return this.feesService.addDiscountForStudents(
-      tenantId,
-      { ...dto, branch },
-      actorOf(req),
+    return this.approvals.gate(
+      callerOf(req),
+      ApprovalAction.DISCOUNT_ADD_BULK,
+      branch,
+      { tenantId, dto: { ...dto, branch }, actor: actorOf(req) },
+      summarize("Add discount", dto, branch),
     );
   }
 
@@ -175,10 +187,12 @@ export class FeesController {
   })
   async waiveDiscountBulk(@Body() dto: WaiveDiscountDto, @Req() req: Request) {
     const { tenantId, branch } = ctxWithBranch(req);
-    return this.feesService.waiveDiscountForStudents(
-      tenantId,
-      { ...dto, branch },
-      actorOf(req),
+    return this.approvals.gate(
+      callerOf(req),
+      ApprovalAction.DISCOUNT_WAIVE_BULK,
+      branch,
+      { tenantId, dto: { ...dto, branch }, actor: actorOf(req) },
+      summarize("Waive discount", dto, branch),
     );
   }
 
@@ -196,12 +210,12 @@ export class FeesController {
     @Req() req: Request,
   ) {
     const { tenantId } = ctx(req);
-    return this.feesService.addDiscount(
-      tenantId,
-      feeId,
-      dto.amount,
-      dto.reason,
-      actorOf(req),
+    return this.approvals.gate(
+      callerOf(req),
+      ApprovalAction.DISCOUNT_ADD_SINGLE,
+      null,
+      { tenantId, feeId, amount: dto.amount, reason: dto.reason, actor: actorOf(req) },
+      `Add discount ₹${dto.amount} on one fee${dto.reason ? ` — ${dto.reason}` : ""}`,
     );
   }
 
@@ -242,12 +256,12 @@ export class FeesController {
     @Req() req: Request,
   ) {
     const { tenantId } = ctx(req);
-    return this.feesService.waivePenaltyOnFee(
-      tenantId,
-      feeId,
-      dto.amount,
-      dto.reason,
-      actorOf(req),
+    return this.approvals.gate(
+      callerOf(req),
+      ApprovalAction.PENALTY_WAIVE_SINGLE,
+      null,
+      { tenantId, feeId, amount: dto.amount, reason: dto.reason, actor: actorOf(req) },
+      `Waive penalty${dto.amount ? ` ₹${dto.amount}` : " (full)"} on one fee${dto.reason ? ` — ${dto.reason}` : ""}`,
     );
   }
 
@@ -265,12 +279,12 @@ export class FeesController {
     @Req() req: Request,
   ) {
     const { tenantId } = ctx(req);
-    return this.feesService.waiveDiscountOnFee(
-      tenantId,
-      feeId,
-      dto.amount,
-      dto.reason,
-      actorOf(req),
+    return this.approvals.gate(
+      callerOf(req),
+      ApprovalAction.DISCOUNT_WAIVE_SINGLE,
+      null,
+      { tenantId, feeId, amount: dto.amount, reason: dto.reason, actor: actorOf(req) },
+      `Waive discount${dto.amount ? ` ₹${dto.amount}` : " (full)"} on one fee${dto.reason ? ` — ${dto.reason}` : ""}`,
     );
   }
 
@@ -523,6 +537,50 @@ function actorOf(req: Request): { userId: string; email: string | null } {
   return {
     userId: user.userId,
     email: typeof user.email === 'string' ? user.email : null,
+  };
+}
+
+/** Human one-liner for a bulk concession (shown in the approvals list). */
+function summarize(
+  label: string,
+  dto: {
+    amount?: number;
+    reason?: string;
+    applyToAll?: boolean;
+    admissionNumbers?: string[];
+    academicYear?: string;
+    term?: string;
+  },
+  branch: string,
+): string {
+  const who = dto.applyToAll
+    ? "all students"
+    : `${dto.admissionNumbers?.length ?? 0} student(s)`;
+  const amt = dto.amount != null ? ` ₹${dto.amount}` : "";
+  const scope = [branch, dto.academicYear, dto.term]
+    .filter(Boolean)
+    .join(" · ");
+  return `${label}${amt} for ${who}${scope ? ` (${scope})` : ""}${
+    dto.reason ? ` — ${dto.reason}` : ""
+  }`;
+}
+
+/** Caller identity (incl. role + tenant) for the approval gate. */
+function callerOf(req: Request): {
+  userId: string;
+  email: string | null;
+  role: string;
+  tenantId: string;
+} {
+  const u = (req as any).user ?? {};
+  if (!u.userId || !u.tenantId) {
+    throw new UnauthorizedException('Authentication required');
+  }
+  return {
+    userId: u.userId,
+    email: typeof u.email === 'string' ? u.email : null,
+    role: u.role,
+    tenantId: u.tenantId,
   };
 }
 

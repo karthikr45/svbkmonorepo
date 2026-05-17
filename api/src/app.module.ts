@@ -21,6 +21,7 @@ import { TenantAdminsModule } from './modules/tenant-admins/tenant-admins.module
 import { AcademicYearsModule } from './modules/academic-years/academic-years.module';
 import { StudentsModule } from './modules/students/students.module';
 import { FeesModule } from './modules/fees/fees.module';
+import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { PenaltiesModule } from './modules/penalties/penalties.module';
 import { TemplatesModule } from './modules/templates/templates.module';
@@ -102,6 +103,7 @@ import { StudentIdentitiesModule } from './modules/student-identities/student-id
     AcademicYearsModule,
     StudentsModule,
     FeesModule,
+    ApprovalsModule,
     PaymentsModule,
     PenaltiesModule,
     TemplatesModule,
