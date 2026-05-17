@@ -1,9 +1,12 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
+import { ChatGateway } from './chat.gateway';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, LessThan, Repository } from 'typeorm';
 import { Conversation } from './entities/conversation.entity';
@@ -56,6 +59,8 @@ export class ChatService {
     private readonly tenantRepo: Repository<Tenant>,
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly storage: AzureStorageService,
+    @Inject(forwardRef(() => ChatGateway))
+    private readonly gateway: ChatGateway,
   ) {}
 
   // ─── Permission rules ────────────────────────────────────────────
@@ -321,28 +326,58 @@ export class ChatService {
     const rows = await qb.getMany();
     rows.reverse();
 
-    // Attach a small preview of each replied-to message so the client
-    // can render the quoted snippet without an extra round-trip.
     const replyIds = [
       ...new Set(rows.map((r) => r.replyToId).filter(Boolean) as string[]),
     ];
-    if (replyIds.length === 0) return rows as ChatMessage[];
-    const targets = await this.msgRepo.find({ where: { id: In(replyIds) } });
+    const targets = replyIds.length
+      ? await this.msgRepo.find({ where: { id: In(replyIds) } })
+      : [];
     const byId = new Map(targets.map((t) => [t.id, t]));
-    return rows.map((r) => {
-      if (!r.replyToId) return r;
-      const t = byId.get(r.replyToId);
-      return Object.assign(r, {
-        replyTo: t
-          ? {
-              id: t.id,
-              senderId: t.senderId,
-              body: t.body,
-              attachmentName: t.attachmentName,
-            }
+
+    return rows.map((r) =>
+      Object.assign(r, {
+        attachments: this.normalizeAttachments(r),
+        replyTo: r.replyToId
+          ? (() => {
+              const t = byId.get(r.replyToId);
+              return t
+                ? {
+                    id: t.id,
+                    senderId: t.senderId,
+                    body: t.body,
+                    attachmentName:
+                      t.attachmentName ?? t.attachments?.[0]?.name ?? null,
+                  }
+                : null;
+            })()
           : null,
-      });
-    }) as ChatMessage[];
+      }),
+    ) as ChatMessage[];
+  }
+
+  /** Always expose attachments as an array (wraps the legacy columns). */
+  private normalizeAttachments(m: ChatMessage): MessageAttachment[] {
+    if (Array.isArray(m.attachments) && m.attachments.length > 0) {
+      return m.attachments;
+    }
+    if (m.attachmentUrl) {
+      return [
+        {
+          url: m.attachmentUrl,
+          name: m.attachmentName ?? 'file',
+          mime: m.attachmentMime ?? 'application/octet-stream',
+          size: m.attachmentSize ?? 0,
+        },
+      ];
+    }
+    return [];
+  }
+
+  /** Used by the websocket gateway to authorize room joins. */
+  async isParticipant(userId: string, conversationId: string): Promise<boolean> {
+    return !!(await this.partRepo.findOne({
+      where: { conversationId, adminId: userId },
+    }));
   }
 
   /** Tenant whose Azure storage holds chat blobs for this conversation. */
@@ -392,11 +427,15 @@ export class ChatService {
       body?: string;
       replyToId?: string | null;
       attachment?: MessageAttachment | null;
+      attachments?: MessageAttachment[] | null;
     },
   ): Promise<ChatMessage> {
     const text = (input.body ?? '').trim();
-    const att = input.attachment ?? null;
-    if (!text && !att) {
+    const atts: MessageAttachment[] = [
+      ...(input.attachments ?? []),
+      ...(input.attachment ? [input.attachment] : []),
+    ].slice(0, 10);
+    if (!text && atts.length === 0) {
       throw new BadRequestException('A message or an attachment is required.');
     }
     if (text.length > 4000) {
@@ -415,28 +454,41 @@ export class ChatService {
       }
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const first = atts[0] ?? null;
       const msg = await manager.getRepository(ChatMessage).save(
         manager.getRepository(ChatMessage).create({
           conversationId,
           senderId: caller.userId,
           body: text,
           replyToId: input.replyToId ?? null,
-          attachmentUrl: att?.url ?? null,
-          attachmentName: att?.name ?? null,
-          attachmentMime: att?.mime ?? null,
-          attachmentSize: att?.size ?? null,
+          attachments: atts.length ? atts : null,
+          // Mirror the first file into the legacy columns so old
+          // readers still work.
+          attachmentUrl: first?.url ?? null,
+          attachmentName: first?.name ?? null,
+          attachmentMime: first?.mime ?? null,
+          attachmentSize: first?.size ?? null,
         }),
       );
       const preview = text
         ? text.slice(0, 200)
-        : `📎 ${att?.name ?? 'Attachment'}`;
+        : atts.length > 1
+          ? `📎 ${atts.length} files`
+          : `📎 ${first?.name ?? 'Attachment'}`;
       await manager.getRepository(Conversation).update(
         { id: conversationId },
         { lastMessagePreview: preview, lastMessageAt: msg.createdAt },
       );
       return msg;
     });
+
+    const enriched = Object.assign(saved, {
+      attachments: this.normalizeAttachments(saved),
+    }) as ChatMessage;
+    // Fire-and-forget realtime fan-out to the conversation room.
+    this.gateway?.emitMessage(conversationId, enriched);
+    return enriched;
   }
 
   async markRead(

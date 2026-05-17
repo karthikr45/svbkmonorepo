@@ -52,6 +52,13 @@ export class ChatMessage {
   @Column({ name: 'attachment_size', type: 'int', nullable: true })
   attachmentSize: number | null;
 
+  // Multi-file attachments (preferred). The legacy single columns above
+  // remain readable for old rows.
+  @Column({ type: 'jsonb', nullable: true })
+  attachments:
+    | { url: string; name: string; mime: string; size: number }[]
+    | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

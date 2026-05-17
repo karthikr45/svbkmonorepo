@@ -7,9 +7,12 @@ import {
   useRef,
   useState,
 } from "react";
+import { io, type Socket } from "socket.io-client";
 import { useAuth } from "@/features/auth";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { getStoredToken } from "@/features/auth/services";
 import {
+  getChatSocketOrigin,
   getUnreadCountApi,
   listContactsApi,
   listConversationsApi,
@@ -110,10 +113,23 @@ export function ChatPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [peerTyping, setPeerTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const activeConvRef = useRef<string | null>(null);
+  const typingSentRef = useRef(false);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const peerTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  activeConvRef.current = activeConvId;
+
+  const addFiles = (fl: FileList | null) => {
+    if (!fl?.length) return;
+    setPendingFiles((p) => [...p, ...Array.from(fl)].slice(0, 10));
+  };
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -172,10 +188,84 @@ export function ChatPageContent() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages.length]);
 
+  // ── Realtime: connect once, live messages + typing ──
+  useEffect(() => {
+    const token = getStoredToken();
+    if (!token) return;
+    const socket = io(`${getChatSocketOrigin()}/chat`, {
+      auth: { token },
+      transports: ["websocket", "polling"],
+      reconnection: true,
+    });
+    socketRef.current = socket;
+
+    socket.on("message", (msg: ChatMessage) => {
+      if (msg.conversationId === activeConvRef.current) {
+        setMessages((prev) =>
+          prev.some((m) => m.id === msg.id) ? prev : [...prev, msg],
+        );
+        markReadApi(msg.conversationId, msg.id).catch(() => undefined);
+      }
+      listConversationsApi().then(setConversations).catch(() => undefined);
+    });
+
+    socket.on(
+      "peer-typing",
+      (p: { conversationId: string; userId: string; isTyping: boolean }) => {
+        if (
+          p.conversationId !== activeConvRef.current ||
+          p.userId === user?.id
+        )
+          return;
+        setPeerTyping(p.isTyping);
+        if (peerTypingTimer.current) clearTimeout(peerTypingTimer.current);
+        if (p.isTyping)
+          peerTypingTimer.current = setTimeout(
+            () => setPeerTyping(false),
+            4000,
+          );
+      },
+    );
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Join / leave the active conversation room.
+  useEffect(() => {
+    const s = socketRef.current;
+    if (!s || !activeConvId) return;
+    const join = () => s.emit("join", { conversationId: activeConvId });
+    join();
+    s.on("connect", join);
+    return () => {
+      s.emit("leave", { conversationId: activeConvId });
+      s.off("connect", join);
+    };
+  }, [activeConvId]);
+
+  function emitTyping() {
+    const s = socketRef.current;
+    if (!s || !activeConvId) return;
+    if (!typingSentRef.current) {
+      typingSentRef.current = true;
+      s.emit("typing", { conversationId: activeConvId, isTyping: true });
+    }
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    typingTimer.current = setTimeout(() => {
+      typingSentRef.current = false;
+      s.emit("typing", { conversationId: activeConvId, isTyping: false });
+    }, 1800);
+  }
+
   async function openConversationWith(peer: ChatContact) {
     setActivePeer(peer);
     setReplyTo(null);
-    setPendingFile(null);
+    setPendingFiles([]);
+    setPeerTyping(false);
     try {
       const conv = await startConversationApi(peer.adminId);
       setActiveConvId(conv.id);
@@ -190,29 +280,32 @@ export function ChatPageContent() {
     setActivePeer(c.peer);
     setActiveConvId(c.conversationId);
     setReplyTo(null);
-    setPendingFile(null);
+    setPendingFiles([]);
+    setPeerTyping(false);
     loadMessages(c.conversationId);
   }
 
   async function send() {
     if (!activeConvId) return;
     const text = draft.trim();
-    if (!text && !pendingFile) return;
+    if (!text && pendingFiles.length === 0) return;
     setSending(true);
     try {
-      let attachment: MessageAttachment | null = null;
-      if (pendingFile) {
-        attachment = await uploadAttachmentApi(activeConvId, pendingFile);
+      const attachments: MessageAttachment[] = [];
+      for (const f of pendingFiles) {
+        attachments.push(await uploadAttachmentApi(activeConvId, f));
       }
       const msg = await sendMessageApi(activeConvId, {
         body: text || undefined,
         replyToId: replyTo?.id ?? null,
-        attachment,
+        attachments: attachments.length ? attachments : null,
       });
-      setMessages((prev) => [...prev, msg]);
+      setMessages((prev) =>
+        prev.some((m) => m.id === msg.id) ? prev : [...prev, msg],
+      );
       setDraft("");
       setReplyTo(null);
-      setPendingFile(null);
+      setPendingFiles([]);
       setConversations(await listConversationsApi());
     } catch (err) {
       setError(getApiErrorMessage(err, "Could not send message"));
@@ -432,8 +525,7 @@ export function ChatPageContent() {
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
-          const f = e.dataTransfer.files?.[0];
-          if (f && activeConvId) setPendingFile(f);
+          if (activeConvId) addFiles(e.dataTransfer.files);
         }}
       >
         {!activeConvId ? (
@@ -468,15 +560,24 @@ export function ChatPageContent() {
                 <h2 className="text-sm font-bold text-slate-900 truncate">
                   {activePeer?.firstName} {activePeer?.lastName}
                 </h2>
-                <p className="text-[11px] text-slate-500 truncate">
-                  <span className="uppercase tracking-[0.04em] font-bold text-slate-400">
-                    {activePeer?.role?.replace("_", " ")}
-                  </span>
-                  {activePeer?.tenantName
-                    ? ` · ${activePeer.tenantName}`
-                    : ""}{" "}
-                  · {activePeer?.email}
-                </p>
+                {peerTyping ? (
+                  <p
+                    className="text-[11px] font-semibold truncate animate-pulse"
+                    style={{ color: BRAND }}
+                  >
+                    typing…
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-500 truncate">
+                    <span className="uppercase tracking-[0.04em] font-bold text-slate-400">
+                      {activePeer?.role?.replace("_", " ")}
+                    </span>
+                    {activePeer?.tenantName
+                      ? ` · ${activePeer.tenantName}`
+                      : ""}{" "}
+                    · {activePeer?.email}
+                  </p>
+                )}
               </div>
             </header>
 
@@ -598,54 +699,61 @@ export function ChatPageContent() {
                             </button>
                           )}
 
-                          {m.attachmentUrl &&
-                            (isImage(m.attachmentMime) ? (
-                              <a
-                                href={m.attachmentUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block mb-1"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={m.attachmentUrl}
-                                  alt={m.attachmentName ?? "image"}
-                                  className="rounded-xl max-h-64 object-cover"
-                                />
-                              </a>
-                            ) : (
-                              <a
-                                href={m.attachmentUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                download
-                                className="flex items-center gap-2.5 mb-1 px-2.5 py-2 rounded-xl"
-                                style={{
-                                  background: mine
-                                    ? "rgba(255,255,255,0.15)"
-                                    : "#f8fafc",
-                                  border: mine
-                                    ? "none"
-                                    : "1px solid #e2e8f0",
-                                }}
-                              >
-                                <span className="text-lg">📄</span>
-                                <span className="min-w-0">
-                                  <span className="block text-[13px] font-semibold truncate">
-                                    {m.attachmentName}
-                                  </span>
-                                  <span
-                                    className={`block text-[11px] ${
-                                      mine
-                                        ? "text-blue-100"
-                                        : "text-slate-500"
-                                    }`}
+                          {(m.attachments ?? []).length > 0 && (
+                            <div className="mb-1 flex flex-col gap-1.5">
+                              {m.attachments.map((at, ai) =>
+                                isImage(at.mime) ? (
+                                  <a
+                                    key={ai}
+                                    href={at.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block"
                                   >
-                                    {fileSize(m.attachmentSize)} · Download
-                                  </span>
-                                </span>
-                              </a>
-                            ))}
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={at.url}
+                                      alt={at.name}
+                                      className="rounded-xl max-h-64 object-cover"
+                                    />
+                                  </a>
+                                ) : (
+                                  <a
+                                    key={ai}
+                                    href={at.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    download
+                                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl"
+                                    style={{
+                                      background: mine
+                                        ? "rgba(255,255,255,0.15)"
+                                        : "#f8fafc",
+                                      border: mine
+                                        ? "none"
+                                        : "1px solid #e2e8f0",
+                                    }}
+                                  >
+                                    <span className="text-lg">📄</span>
+                                    <span className="min-w-0">
+                                      <span className="block text-[13px] font-semibold truncate">
+                                        {at.name}
+                                      </span>
+                                      <span
+                                        className={`block text-[11px] ${
+                                          mine
+                                            ? "text-blue-100"
+                                            : "text-slate-500"
+                                        }`}
+                                      >
+                                        {fileSize(at.size)} · Download
+                                      </span>
+                                    </span>
+                                  </a>
+                                ),
+                              )}
+                            </div>
+                          )}
 
                           {m.body && (
                             <div className="whitespace-pre-wrap break-words">
@@ -678,7 +786,7 @@ export function ChatPageContent() {
             </div>
 
             {/* Reply / attachment preview strip */}
-            {(replyTo || pendingFile) && (
+            {(replyTo || pendingFiles.length > 0) && (
               <div className="px-4 pt-2.5 space-y-2">
                 {replyTo && (
                   <div
@@ -705,21 +813,32 @@ export function ChatPageContent() {
                     </button>
                   </div>
                 )}
-                {pendingFile && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] bg-blue-50 border border-blue-100">
-                    <span className="text-base">📎</span>
-                    <span className="flex-1 min-w-0 truncate text-slate-700 font-medium">
-                      {pendingFile.name}
-                    </span>
-                    <span className="text-slate-500">
-                      {fileSize(pendingFile.size)}
-                    </span>
-                    <button
-                      onClick={() => setPendingFile(null)}
-                      className="text-slate-400 hover:text-slate-700 text-sm"
-                    >
-                      ✕
-                    </button>
+                {pendingFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {pendingFiles.map((f, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] bg-blue-50 border border-blue-100"
+                      >
+                        <span className="text-base">📎</span>
+                        <span className="max-w-[160px] truncate text-slate-700 font-medium">
+                          {f.name}
+                        </span>
+                        <span className="text-slate-500">
+                          {fileSize(f.size)}
+                        </span>
+                        <button
+                          onClick={() =>
+                            setPendingFiles((p) =>
+                              p.filter((_, idx) => idx !== i),
+                            )
+                          }
+                          className="text-slate-400 hover:text-slate-700 text-sm"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -735,10 +854,10 @@ export function ChatPageContent() {
               <input
                 ref={fileRef}
                 type="file"
+                multiple
                 hidden
                 onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) setPendingFile(f);
+                  addFiles(e.target.files);
                   e.target.value = "";
                 }}
               />
@@ -764,7 +883,10 @@ export function ChatPageContent() {
               <textarea
                 rows={1}
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  emitTyping();
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -776,7 +898,9 @@ export function ChatPageContent() {
               />
               <button
                 type="submit"
-                disabled={sending || (!draft.trim() && !pendingFile)}
+                disabled={
+                  sending || (!draft.trim() && pendingFiles.length === 0)
+                }
                 className="h-10 px-5 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-opacity"
                 style={{
                   background: `linear-gradient(135deg, ${BRAND}, #1e3a8a)`,

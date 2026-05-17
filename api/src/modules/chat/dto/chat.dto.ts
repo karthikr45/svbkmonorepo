@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -57,6 +58,13 @@ export class SendMessageDto {
   @ValidateNested()
   @Type(() => MessageAttachmentDto)
   attachment?: MessageAttachmentDto;
+
+  @ApiPropertyOptional({ type: [MessageAttachmentDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MessageAttachmentDto)
+  attachments?: MessageAttachmentDto[];
 }
 
 export class MarkReadDto {

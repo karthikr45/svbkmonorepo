@@ -116,6 +116,7 @@ export class ChatController {
       body: dto.body,
       replyToId: dto.replyToId ?? null,
       attachment: dto.attachment ?? null,
+      attachments: dto.attachments ?? null,
     });
   }
 

@@ -44,6 +44,8 @@ export interface ChatMessage {
   attachmentName: string | null;
   attachmentMime: string | null;
   attachmentSize: number | null;
+  /** Normalized by the API — always present (wraps legacy single). */
+  attachments: MessageAttachment[];
 }
 
 function unwrap<T>(res: unknown): T {
@@ -92,16 +94,27 @@ export async function sendMessageApi(
   payload: {
     body?: string;
     replyToId?: string | null;
-    attachment?: MessageAttachment | null;
+    attachments?: MessageAttachment[] | null;
   },
 ): Promise<ChatMessage> {
   return unwrap<ChatMessage>(
     await post(`/chat/conversations/${conversationId}/messages`, {
       body: payload.body,
       replyToId: payload.replyToId ?? undefined,
-      attachment: payload.attachment ?? undefined,
+      attachments: payload.attachments ?? undefined,
     }),
   );
+}
+
+/** API origin (no /api suffix) for the websocket connection. */
+export function getChatSocketOrigin(): string {
+  // getApiBaseUrl() looks like http://host:3001/api
+  // socket.io server is mounted at the /chat namespace on the origin.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const base = (
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001/api"
+  ).replace(/\/$/, "");
+  return base.replace(/\/api$/, "");
 }
 
 export async function uploadAttachmentApi(
