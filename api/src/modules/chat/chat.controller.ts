@@ -31,6 +31,7 @@ import {
   StartConversationDto,
   ListMessagesQueryDto,
   EditMessageDto,
+  ReactDto,
 } from './dto/chat.dto';
 
 function caller(req: Request): ChatCaller {
@@ -147,6 +148,22 @@ export class ChatController {
     @Param('messageId') messageId: string,
   ) {
     return this.chat.deleteMessage(caller(req), conversationId, messageId);
+  }
+
+  @Post('conversations/:id/messages/:messageId/reactions')
+  @ApiOperation({ summary: 'Toggle an emoji reaction on a message' })
+  react(
+    @Req() req: Request,
+    @Param('id') conversationId: string,
+    @Param('messageId') messageId: string,
+    @Body() dto: ReactDto,
+  ) {
+    return this.chat.reactToMessage(
+      caller(req),
+      conversationId,
+      messageId,
+      dto.emoji,
+    );
   }
 
   @Post('conversations/:id/read')

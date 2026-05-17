@@ -75,6 +75,14 @@ export class EditMessageDto {
   body: string;
 }
 
+export class ReactDto {
+  @ApiProperty({ example: '👍' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(16)
+  emoji: string;
+}
+
 export class MarkReadDto {
   @ApiProperty({ description: 'Last message id this user has seen' })
   @IsString()

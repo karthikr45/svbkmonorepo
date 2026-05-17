@@ -59,6 +59,10 @@ export class ChatMessage {
     | { url: string; name: string; mime: string; size: number }[]
     | null;
 
+  // Emoji reactions: { "👍": [adminId, ...], "❤️": [...] }.
+  @Column({ type: 'jsonb', nullable: true })
+  reactions: Record<string, string[]> | null;
+
   @Column({ name: 'edited_at', type: 'timestamptz', nullable: true })
   editedAt: Date | null;
 

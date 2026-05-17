@@ -49,6 +49,7 @@ export interface ChatMessage {
   attachments: MessageAttachment[];
   editedAt: string | null;
   deleted: boolean;
+  reactions: Record<string, string[]>;
 }
 
 function unwrap<T>(res: unknown): T {
@@ -128,6 +129,19 @@ export async function deleteMessageApi(
 ): Promise<ChatMessage> {
   return unwrap<ChatMessage>(
     await del(`/chat/conversations/${conversationId}/messages/${messageId}`),
+  );
+}
+
+export async function reactToMessageApi(
+  conversationId: string,
+  messageId: string,
+  emoji: string,
+): Promise<ChatMessage> {
+  return unwrap<ChatMessage>(
+    await post(
+      `/chat/conversations/${conversationId}/messages/${messageId}/reactions`,
+      { emoji },
+    ),
   );
 }
 

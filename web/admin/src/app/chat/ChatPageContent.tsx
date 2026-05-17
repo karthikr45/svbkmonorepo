@@ -21,6 +21,7 @@ import {
   sendMessageApi,
   editMessageApi,
   deleteMessageApi,
+  reactToMessageApi,
   startConversationApi,
   uploadAttachmentApi,
   type ChatContact,
@@ -31,6 +32,7 @@ import {
 
 const POLL_MS = 5000;
 const BRAND = "#6c739c";
+const QUICK_EMOJI = ["👍", "❤️", "😆", "😮", "🙏"];
 
 const AVATAR_GRADIENTS = [
   ["#6c739c", "#565c82"],
@@ -374,6 +376,34 @@ export function ChatPageContent() {
       await navigator.clipboard.writeText(m.body ?? "");
     } catch {
       /* clipboard blocked — non-fatal */
+    }
+  }
+
+  async function react(m: ChatMessage, emoji: string) {
+    setMenuId(null);
+    if (!activeConvId) return;
+    const me = user?.id ?? "";
+    // Optimistic single-reaction-per-user toggle.
+    setMessages((prev) =>
+      prev.map((x) => {
+        if (x.id !== m.id) return x;
+        const next: Record<string, string[]> = {};
+        const had = (x.reactions?.[emoji] ?? []).includes(me);
+        for (const [k, arr] of Object.entries(x.reactions ?? {})) {
+          const f = arr.filter((u) => u !== me);
+          if (f.length) next[k] = f;
+        }
+        if (!had) next[emoji] = [...(next[emoji] ?? []), me];
+        return { ...x, reactions: next };
+      }),
+    );
+    try {
+      const updated = await reactToMessageApi(activeConvId, m.id, emoji);
+      setMessages((prev) =>
+        prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)),
+      );
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Could not react"));
     }
   }
 
@@ -749,27 +779,42 @@ export function ChatPageContent() {
                                   }
                           }
                         >
-                          {/* Kebab (⋮) — appears on hover; opens the menu */}
+                          {/* Teams-style reaction + actions bar — floats
+                              ABOVE the bubble so it never covers text */}
                           {!m.deleted && (
-                            <>
+                            <div
+                              className={`absolute bottom-full mb-1.5 ${
+                                mine ? "right-0" : "left-0"
+                              } z-30 ${
+                                menuId === m.id
+                                  ? "flex"
+                                  : "hidden group-hover:flex"
+                              } items-center gap-0.5 rounded-full bg-white px-1.5 py-1 shadow-lg ring-1 ring-slate-200`}
+                            >
+                              {QUICK_EMOJI.map((em) => (
+                                <button
+                                  key={em}
+                                  type="button"
+                                  title={`React ${em}`}
+                                  onClick={() => react(m, em)}
+                                  className="h-7 w-7 flex items-center justify-center rounded-full text-[15px] hover:bg-slate-100 hover:scale-110 transition-transform"
+                                >
+                                  {em}
+                                </button>
+                              ))}
+                              <span className="mx-0.5 h-4 w-px bg-slate-200" />
                               <button
                                 type="button"
-                                aria-label="Message options"
+                                aria-label="More options"
                                 onClick={() =>
                                   setMenuId(menuId === m.id ? null : m.id)
                                 }
-                                className={`absolute -top-3 ${
-                                  mine ? "right-1" : "left-1"
-                                } z-10 h-7 w-7 items-center justify-center rounded-full bg-white text-slate-500 shadow-md ring-1 ring-slate-200 hover:text-[#6c739c] ${
-                                  menuId === m.id
-                                    ? "flex"
-                                    : "hidden group-hover:flex"
-                                }`}
+                                className="h-7 w-7 flex items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-[#6c739c]"
                               >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                  <circle cx="12" cy="5" r="2" />
+                                  <circle cx="5" cy="12" r="2" />
                                   <circle cx="12" cy="12" r="2" />
-                                  <circle cx="12" cy="19" r="2" />
+                                  <circle cx="19" cy="12" r="2" />
                                 </svg>
                               </button>
 
@@ -780,8 +825,8 @@ export function ChatPageContent() {
                                     onClick={() => setMenuId(null)}
                                   />
                                   <div
-                                    className={`absolute top-5 ${
-                                      mine ? "right-1" : "left-1"
+                                    className={`absolute top-full mt-1 ${
+                                      mine ? "right-0" : "left-0"
                                     } z-30 w-44 rounded-xl bg-white py-1.5 shadow-xl ring-1 ring-slate-200 overflow-hidden`}
                                   >
                                     <MenuRow
@@ -815,7 +860,7 @@ export function ChatPageContent() {
                                   </div>
                                 </>
                               )}
-                            </>
+                            </div>
                           )}
 
                           {m.deleted ? (
@@ -951,6 +996,46 @@ export function ChatPageContent() {
                               { hour: "2-digit", minute: "2-digit" },
                             )}
                           </div>
+
+                          {!m.deleted &&
+                            Object.keys(m.reactions ?? {}).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {Object.entries(m.reactions).map(
+                                  ([em, users]) => {
+                                    if (!users.length) return null;
+                                    const reacted = users.includes(
+                                      user?.id ?? "",
+                                    );
+                                    return (
+                                      <button
+                                        key={em}
+                                        type="button"
+                                        onClick={() => react(m, em)}
+                                        className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] leading-none transition-colors"
+                                        style={{
+                                          background: reacted
+                                            ? mine
+                                              ? "rgba(255,255,255,0.28)"
+                                              : "#e7e9f3"
+                                            : mine
+                                              ? "rgba(255,255,255,0.14)"
+                                              : "#f1f5f9",
+                                          border: reacted
+                                            ? `1px solid ${mine ? "rgba(255,255,255,0.5)" : BRAND}`
+                                            : "1px solid transparent",
+                                          color: mine ? "#fff" : "#475569",
+                                        }}
+                                      >
+                                        <span>{em}</span>
+                                        <span className="font-semibold">
+                                          {users.length}
+                                        </span>
+                                      </button>
+                                    );
+                                  },
+                                )}
+                              </div>
+                            )}
                         </div>
                       </div>
                     </div>

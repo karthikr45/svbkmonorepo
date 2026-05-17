@@ -361,6 +361,7 @@ export class ChatService {
       attachments: deleted ? [] : this.normalizeAttachments(r),
       deleted,
       editedAt: r.editedAt ?? null,
+      reactions: deleted ? {} : (r.reactions ?? {}),
       replyTo,
     }) as ChatMessage;
   }
@@ -580,6 +581,44 @@ export class ChatService {
     }
     const wire = this.toWire(msg, null);
     this.gateway?.emitMessageDelete(conversationId, wire);
+    return wire;
+  }
+
+  /** Toggle the caller's emoji reaction on a message (Teams-style). */
+  async reactToMessage(
+    caller: ChatCaller,
+    conversationId: string,
+    messageId: string,
+    emoji: string,
+  ): Promise<ChatMessage> {
+    const e = (emoji ?? '').trim();
+    if (!e || e.length > 16) {
+      throw new BadRequestException('Invalid emoji.');
+    }
+    await this.assertParticipant(caller, conversationId);
+    const msg = await this.msgRepo.findOne({ where: { id: messageId } });
+    if (!msg || msg.conversationId !== conversationId) {
+      throw new NotFoundException('Message not found in this conversation.');
+    }
+    if (msg.deletedAt) {
+      throw new BadRequestException('Cannot react to a deleted message.');
+    }
+    const reactions: Record<string, string[]> = { ...(msg.reactions ?? {}) };
+    const who = caller.userId;
+    const had = (reactions[e] ?? []).includes(who);
+    // One reaction per user per message (Teams/WhatsApp): clear the
+    // user from every emoji first, then re-add unless they toggled off.
+    for (const k of Object.keys(reactions)) {
+      reactions[k] = reactions[k].filter((u) => u !== who);
+      if (reactions[k].length === 0) delete reactions[k];
+    }
+    if (!had) {
+      reactions[e] = [...(reactions[e] ?? []), who];
+    }
+    msg.reactions = Object.keys(reactions).length ? reactions : null;
+    await this.msgRepo.save(msg);
+    const wire = await this.toWireWithReply(msg);
+    this.gateway?.emitMessageUpdate(conversationId, wire);
     return wire;
   }
 
