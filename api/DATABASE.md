@@ -84,7 +84,7 @@ bash scripts/db-restore.sh ./backups/svbk_pre-migrate_<stamp>.dump
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/db-generate-baseline.sh` | Emit the `Init` migration via a throwaway Postgres (`pnpm db:baseline`). |
+| `scripts/db-generate-baseline.sh` | Emit `Init` via a temp scratch DB, no Docker (`pnpm db:baseline`). |
 | `scripts/lint-migrations.sh` | Static safety gate (`pnpm migration:lint`). |
 | `scripts/db-backup.sh`  | Timestamped `pg_dump` (custom format); keeps last 20. |
 | `scripts/db-migrate.sh` | Sanctioned prod path: backup → show → confirm → run → verify. |
@@ -93,10 +93,11 @@ bash scripts/db-restore.sh ./backups/svbk_pre-migrate_<stamp>.dump
 ## First production deploy
 
 Dev DBs were built by `synchronize`. Generate the baseline against a
-**throwaway** Postgres (never a real DB) — one command, needs Docker:
+temporary **empty scratch database** on your existing Postgres (the real
+DB is never touched; no Docker needed):
 
 ```bash
-pnpm db:baseline           # spins up disposable PG, emits src/migrations/Init, tears down
+pnpm db:baseline           # creates+drops a scratch DB, emits src/migrations/Init
 # review the generated SQL, then:
 git add src/migrations && git commit -m "db: baseline migration"
 ```

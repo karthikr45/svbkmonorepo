@@ -1,40 +1,39 @@
 #!/usr/bin/env bash
-# Generate the baseline (Init) migration safely, against a THROWAWAY
-# Postgres — never touches any real database.
+# Generate the baseline (Init) migration safely — NO Docker.
 #
 #   pnpm db:baseline
 #
-# TypeORM diffs the entities against the empty throwaway DB and emits a
-# full-schema migration into src/migrations/. Review the SQL, then commit
-# the entity + migration together.
+# Creates a temporary EMPTY scratch database on the Postgres you already
+# run (from .env / env), lets TypeORM diff the entities against it to
+# emit a full-schema migration into src/migrations/, then DROPS the
+# scratch DB. Your real database is never touched.
+#
+# Requires the psql client on PATH and a reachable Postgres.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+[ -f .env ] && set -a && . ./.env && set +a
 
+: "${DB_HOST:=localhost}" "${DB_PORT:=5432}" "${DB_USERNAME:=postgres}" "${DB_NAME:=svbk}"
 NAME="${1:-Init}"
-CT="svbk-baseline-pg-$$"
-PORT="${BASELINE_PG_PORT:-55432}"
+SCRATCH="${DB_NAME}_baseline_$$"
+export PGPASSWORD="${DB_PASSWORD:-}"
+ADMIN=( psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME" -d postgres -v ON_ERROR_STOP=1 -tAc )
 
-cleanup() { docker rm -f "$CT" >/dev/null 2>&1 || true; }
+[ "$SCRATCH" = "$DB_NAME" ] && { echo "✖  scratch == real db; aborting"; exit 1; }
+
+cleanup() {
+  "${ADMIN[@]}" "DROP DATABASE IF EXISTS \"$SCRATCH\"" >/dev/null 2>&1 || true
+}
 trap cleanup EXIT
 
-echo "▶  Starting throwaway Postgres ($CT) on :$PORT …"
-docker run -d --name "$CT" \
-  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=svbk -p "$PORT:5432" \
-  postgres:16-alpine >/dev/null
+echo "▶  Creating empty scratch DB \"$SCRATCH\" on $DB_HOST:$DB_PORT …"
+"${ADMIN[@]}" "CREATE DATABASE \"$SCRATCH\"" >/dev/null
 
-echo "▶  Waiting for it to accept connections …"
-for i in $(seq 1 30); do
-  if docker exec "$CT" pg_isready -U postgres >/dev/null 2>&1; then break; fi
-  sleep 1
-  [ "$i" = "30" ] && { echo "✖  Postgres did not start"; exit 1; }
-done
-
-echo "▶  Generating migration src/migrations/$NAME …"
-DB_HOST=localhost DB_PORT="$PORT" DB_USERNAME=postgres \
-  DB_PASSWORD=postgres DB_NAME=svbk \
+echo "▶  Generating src/migrations/$NAME from entities …"
+DB_HOST="$DB_HOST" DB_PORT="$DB_PORT" DB_USERNAME="$DB_USERNAME" \
+  DB_PASSWORD="${DB_PASSWORD:-}" DB_NAME="$SCRATCH" \
   pnpm --silent typeorm migration:generate "src/migrations/$NAME"
 
 echo
-echo "✔  Done. Review the generated SQL, then:"
-echo "     git add src/migrations/ && git commit -m 'db: baseline migration'"
+echo "✔  Done (scratch DB dropped). Review the SQL, then:"
+echo "     git add src/migrations && git commit -m 'db: baseline migration'"
