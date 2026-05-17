@@ -20,7 +20,7 @@ export function WelcomeCard() {
       className="relative overflow-hidden rounded-[var(--app-card-radius)] p-6 sm:p-8 mb-6 text-white"
       style={{
         background:
-          "linear-gradient(135deg, #0b54ab 0%, #1e3a8a 65%, #1e1b4b 100%)",
+          "linear-gradient(135deg, #6c739c 0%, #565c82 65%, #3a3c5e 100%)",
       }}
     >
       {/* Decorative blobs */}

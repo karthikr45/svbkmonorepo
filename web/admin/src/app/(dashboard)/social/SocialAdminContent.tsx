@@ -268,7 +268,7 @@ export function SocialAdminContent() {
                 <div className="mt-3 flex items-center gap-3 text-xs">
                   <button
                     onClick={() => openEdit(p)}
-                    className="font-semibold text-[#0b54ab] hover:underline"
+                    className="font-semibold text-[#6c739c] hover:underline"
                   >
                     Edit
                   </button>
@@ -290,7 +290,7 @@ export function SocialAdminContent() {
 
       <p className="mt-6 text-xs text-slate-500">
         Public feed:{" "}
-        <Link href="/feed" target="_blank" className="text-[#0b54ab] font-semibold hover:underline">
+        <Link href="/feed" target="_blank" className="text-[#6c739c] font-semibold hover:underline">
           /feed →
         </Link>
       </p>
@@ -386,7 +386,7 @@ export function SocialAdminContent() {
                     type="button"
                     onClick={() => fileRef.current?.click()}
                     disabled={uploading}
-                    className="text-xs font-semibold text-[#0b54ab] hover:underline disabled:opacity-50"
+                    className="text-xs font-semibold text-[#6c739c] hover:underline disabled:opacity-50"
                   >
                     {uploading ? "Uploading…" : "+ Add images"}
                   </button>
@@ -434,7 +434,7 @@ export function SocialAdminContent() {
                           </button>
                         </div>
                         {i === 0 && (
-                          <span className="absolute top-1 left-1 bg-[#0b54ab] text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                          <span className="absolute top-1 left-1 bg-[#6c739c] text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
                             COVER
                           </span>
                         )}
@@ -502,7 +502,7 @@ export function SocialAdminContent() {
           transition: border-color 0.15s, box-shadow 0.15s;
         }
         :global(.form-input-x:focus) {
-          border-color: #0b54ab;
+          border-color: #6c739c;
           box-shadow: 0 0 0 3px rgb(11 84 171 / 0.15);
         }
       `}</style>
@@ -513,7 +513,7 @@ export function SocialAdminContent() {
 function kindBadge(k: string): string {
   if (k === "EVENT") return "bg-amber-50 text-amber-700";
   if (k === "ANNOUNCEMENT") return "bg-violet-50 text-violet-700";
-  return "bg-blue-50 text-[#0b54ab]";
+  return "bg-[#f7ece9] text-[#6c739c]";
 }
 
 function Field({

@@ -50,7 +50,7 @@ export default function ParentPaymentsPage() {
       <header className="h-16 flex items-center px-4 sm:px-6 gap-4 bg-white border-b border-slate-200 sticky top-0 z-20">
         <Link
           href="/dashboard"
-          className="text-sm font-semibold text-[#0b54ab] hover:underline"
+          className="text-sm font-semibold text-[#6c739c] hover:underline"
         >
           ‹ Dashboard
         </Link>

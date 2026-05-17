@@ -71,7 +71,7 @@ export function LoginPage() {
       className="min-h-screen w-full flex items-center justify-center p-4 sm:p-8 relative overflow-hidden"
       style={{
         background:
-          "radial-gradient(60% 50% at 0% 0%, rgba(11,84,171,0.10), transparent 60%)," +
+          "radial-gradient(60% 50% at 0% 0%, rgba(108,115,156,0.10), transparent 60%)," +
           "radial-gradient(60% 50% at 100% 100%, rgba(139,92,246,0.08), transparent 60%)," +
           "#f1f5f9",
       }}
@@ -100,7 +100,7 @@ export function LoginPage() {
           className="relative hidden md:flex flex-col justify-between p-10 text-white overflow-hidden min-h-[640px]"
           style={{
             background:
-              "linear-gradient(150deg, #0b54ab 0%, #1e3a8a 60%, #1e1b4b 100%)",
+              "linear-gradient(150deg, #6c739c 0%, #565c82 60%, #3a3c5e 100%)",
           }}
         >
           {/* Decorative blurred blobs */}
@@ -230,7 +230,7 @@ function Spinner() {
   return (
     <svg
       className="h-10 w-10 animate-spin"
-      style={{ color: "#0b54ab" }}
+      style={{ color: "#6c739c" }}
       fill="none"
       viewBox="0 0 24 24"
     >

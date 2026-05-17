@@ -186,7 +186,7 @@ export default function DashboardScreen() {
                 {item.amountDue > 0 ? `Due ${inr(item.amountDue)}` : "Up to date"}
               </Text>
             </View>
-            <Text style={{ color: "#0b54ab", fontWeight: "700", marginTop: 10 }}>
+            <Text style={{ color: "#6c739c", fontWeight: "700", marginTop: 10 }}>
               View fees ›
             </Text>
           </Pressable>
@@ -215,13 +215,13 @@ function NavBtn({
       onPress={onPress}
       style={{
         flex: 1,
-        backgroundColor: "#1e3a8a",
+        backgroundColor: "#565c82",
         paddingVertical: 13,
         borderRadius: 14,
         alignItems: "center",
         borderWidth: 1,
         borderColor: "rgba(99,102,241,0.45)",
-        shadowColor: "#1e3a8a",
+        shadowColor: "#565c82",
         shadowOpacity: 0.4,
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 6 },

@@ -133,7 +133,7 @@ export function ReportsContent() {
             onClick={() => setTab(t.key)}
             className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
             style={{
-              backgroundColor: tab === t.key ? "#0b54ab" : "#e2e8f0",
+              backgroundColor: tab === t.key ? "#6c739c" : "#e2e8f0",
               color: tab === t.key ? "#fff" : "#0f172a",
             }}
           >

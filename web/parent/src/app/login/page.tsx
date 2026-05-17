@@ -69,7 +69,7 @@ export default function LoginPage() {
           {/* Left panel – logo / branding */}
           <div
             className="hidden md:flex flex-col items-center justify-center w-[45%] flex-shrink-0 relative overflow-hidden"
-            style={{ background: "linear-gradient(145deg, #0b54ab 0%, #1e3a8a 100%)" }}
+            style={{ background: "linear-gradient(145deg, #6c739c 0%, #565c82 100%)" }}
           >
             {/* Decorative circles */}
             <div
@@ -170,7 +170,7 @@ export default function LoginPage() {
                         color: "#0f172a",
                       }}
                       onFocus={(e) => {
-                        e.currentTarget.style.borderColor = "#0b54ab";
+                        e.currentTarget.style.borderColor = "#6c739c";
                         e.currentTarget.style.boxShadow = "0 0 0 3px rgb(11 84 171 / 0.15)";
                         e.currentTarget.style.backgroundColor = "#fff";
                       }}
@@ -196,7 +196,7 @@ export default function LoginPage() {
                   type="submit"
                   disabled={submitting}
                   className="h-12 w-full rounded-xl text-white font-bold text-sm tracking-wide transition-all hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: "#0b54ab" }}
+                  style={{ backgroundColor: "#6c739c" }}
                 >
                   {submitting ? "Sending OTP…" : "Send OTP"}
                   {!submitting && (

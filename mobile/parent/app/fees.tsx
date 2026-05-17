@@ -152,7 +152,7 @@ export default function FeesScreen() {
                     marginTop: 12,
                     height: 40,
                     borderRadius: 10,
-                    backgroundColor: "#0b54ab",
+                    backgroundColor: "#6c739c",
                     alignItems: "center",
                     justifyContent: "center",
                   }}

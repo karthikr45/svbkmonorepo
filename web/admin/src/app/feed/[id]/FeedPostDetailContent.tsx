@@ -67,7 +67,7 @@ export function FeedPostDetailContent({ id }: { id: string }) {
             Not found
           </p>
           <p className="text-sm text-slate-500 mb-4">{error ?? "This story isn’t available."}</p>
-          <Link href="/feed" className="text-[#0b54ab] font-semibold hover:underline">
+          <Link href="/feed" className="text-[#6c739c] font-semibold hover:underline">
             ← Back to feed
           </Link>
         </div>
@@ -122,7 +122,7 @@ export function FeedPostDetailContent({ id }: { id: string }) {
           {post.kind === "EVENT" && post.eventAt && (
             <>
               <span>·</span>
-              <span className="text-[#0b54ab] font-semibold">
+              <span className="text-[#6c739c] font-semibold">
                 🗓{" "}
                 {new Date(post.eventAt).toLocaleString("en-IN", {
                   day: "2-digit",
@@ -153,7 +153,7 @@ export function FeedPostDetailContent({ id }: { id: string }) {
                     key={i}
                     onClick={() => setActive(i)}
                     className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-colors ${
-                      i === active ? "border-[#0b54ab]" : "border-transparent opacity-60 hover:opacity-100"
+                      i === active ? "border-[#6c739c]" : "border-transparent opacity-60 hover:opacity-100"
                     }`}
                   >
                     <img src={img.url} alt={img.alt ?? ""} className="w-full h-full object-cover" />
@@ -187,7 +187,7 @@ export function FeedPostDetailContent({ id }: { id: string }) {
           {comments.length === 0 ? (
             <p className="text-sm text-slate-500">
               Sign in to leave a comment.{" "}
-              <Link href="/" className="text-[#0b54ab] font-semibold hover:underline">
+              <Link href="/" className="text-[#6c739c] font-semibold hover:underline">
                 Sign in →
               </Link>
             </p>
@@ -195,7 +195,7 @@ export function FeedPostDetailContent({ id }: { id: string }) {
             <ul className="space-y-5">
               {comments.map((c) => (
                 <li key={c.id} className="flex gap-3">
-                  <div className="h-9 w-9 flex-shrink-0 rounded-full bg-[#0b54ab]/10 text-[#0b54ab] font-bold flex items-center justify-center text-sm">
+                  <div className="h-9 w-9 flex-shrink-0 rounded-full bg-[#6c739c]/10 text-[#6c739c] font-bold flex items-center justify-center text-sm">
                     {(c.authorName ?? "?").slice(0, 1).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -238,11 +238,11 @@ export function FeedPostDetailContent({ id }: { id: string }) {
         .prose-feed h2 { font-size: 1.5em; font-weight: 800; }
         .prose-feed h3 { font-size: 1.2em; font-weight: 700; }
         .prose-feed p { margin: 1em 0; }
-        .prose-feed a { color: #0b54ab; text-decoration: underline; text-underline-offset: 3px; }
+        .prose-feed a { color: #6c739c; text-decoration: underline; text-underline-offset: 3px; }
         .prose-feed img { border-radius: 12px; margin: 1.5em auto; max-width: 100%; }
         .prose-feed ul, .prose-feed ol { padding-left: 1.5em; margin: 1em 0; }
         .prose-feed li { margin: 0.4em 0; }
-        .prose-feed blockquote { border-left: 3px solid #0b54ab; padding-left: 1em; color: #475569; font-style: italic; margin: 1.5em 0; }
+        .prose-feed blockquote { border-left: 3px solid #6c739c; padding-left: 1em; color: #475569; font-style: italic; margin: 1.5em 0; }
       `}</style>
     </main>
   );

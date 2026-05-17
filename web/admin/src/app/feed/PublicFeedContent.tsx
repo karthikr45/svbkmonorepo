@@ -39,7 +39,7 @@ export function PublicFeedContent() {
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 opacity-[0.04] pointer-events-none">
-          <div className="absolute -top-32 -right-24 h-[480px] w-[480px] rounded-full bg-[#0b54ab] blur-3xl" />
+          <div className="absolute -top-32 -right-24 h-[480px] w-[480px] rounded-full bg-[#6c739c] blur-3xl" />
           <div className="absolute -bottom-32 -left-24 h-[480px] w-[480px] rounded-full bg-amber-500 blur-3xl" />
         </div>
         <div className="relative max-w-6xl mx-auto px-6 pt-20 pb-12">
@@ -49,7 +49,7 @@ export function PublicFeedContent() {
               className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-900"
             >
               <span
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#0b54ab] text-white font-black"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#6c739c] text-white font-black"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 S
@@ -63,7 +63,7 @@ export function PublicFeedContent() {
               Sign in →
             </Link>
           </div>
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#0b54ab] mb-3">
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#6c739c] mb-3">
             Our Story · Live Feed
           </p>
           <h1
@@ -73,7 +73,7 @@ export function PublicFeedContent() {
               letterSpacing: "-0.02em",
             }}
           >
-            Where every child's milestone <em className="italic text-[#0b54ab]">is celebrated</em>.
+            Where every child's milestone <em className="italic text-[#6c739c]">is celebrated</em>.
           </h1>
           <p className="mt-5 text-lg text-slate-600 max-w-2xl leading-relaxed">
             Annual day, sports, science fair, art exhibitions — moments from
@@ -144,7 +144,7 @@ function FeedCard({ post, featured }: { post: SocialPost; featured?: boolean }) 
           </span>
         </div>
       ) : (
-        <div className="h-56 bg-gradient-to-br from-[#0b54ab]/10 via-amber-50 to-violet-50 flex items-center justify-center">
+        <div className="h-56 bg-gradient-to-br from-[#6c739c]/10 via-amber-50 to-violet-50 flex items-center justify-center">
           <span className="text-5xl">{isEvent ? "🗓" : post.kind === "ANNOUNCEMENT" ? "📣" : "📝"}</span>
         </div>
       )}
@@ -166,7 +166,7 @@ function FeedCard({ post, featured }: { post: SocialPost; featured?: boolean }) 
           </p>
         )}
         {isEvent && post.eventAt && (
-          <p className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-[#0b54ab]">
+          <p className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-[#6c739c]">
             <span>🗓</span>
             {new Date(post.eventAt).toLocaleString("en-IN", {
               day: "2-digit",

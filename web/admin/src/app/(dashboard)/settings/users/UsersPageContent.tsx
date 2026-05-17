@@ -155,7 +155,7 @@ export function UsersPageContent() {
                   </td>
                   <td className="px-5 py-3.5 text-slate-600">{r.email}</td>
                   <td className="px-5 py-3.5">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-[0.06em] bg-blue-50 text-[#0b54ab]">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-[0.06em] bg-[#f7ece9] text-[#6c739c]">
                       {ROLE_LABEL[r.role] ?? r.role}
                     </span>
                   </td>
@@ -176,7 +176,7 @@ export function UsersPageContent() {
                       <>
                         <button
                           onClick={() => setEdit({ mode: "edit", row: r })}
-                          className="text-xs font-semibold text-[#0b54ab] hover:underline"
+                          className="text-xs font-semibold text-[#6c739c] hover:underline"
                         >
                           Edit
                         </button>
@@ -446,7 +446,7 @@ function UserEditDialog({
             transition: border-color 0.15s, box-shadow 0.15s;
           }
           :global(.form-input-x:focus) {
-            border-color: #0b54ab;
+            border-color: #6c739c;
             box-shadow: 0 0 0 3px rgb(11 84 171 / 0.15);
           }
           :global(.form-input-x:disabled) {

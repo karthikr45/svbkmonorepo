@@ -183,7 +183,7 @@ export function ReceiptSequenceContent() {
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">Next receipt will be</p>
-                <p className="font-mono font-bold text-lg text-[#0b54ab]">{livePreview}</p>
+                <p className="font-mono font-bold text-lg text-[#6c739c]">{livePreview}</p>
               </div>
             </div>
           </Card>
@@ -325,7 +325,7 @@ export function ReceiptSequenceContent() {
               transition: border-color 0.15s, box-shadow 0.15s;
             }
             :global(.form-input-x:focus) {
-              border-color: #0b54ab;
+              border-color: #6c739c;
               box-shadow: 0 0 0 3px rgb(11 84 171 / 0.15);
             }
           `}</style>

@@ -1398,8 +1398,8 @@ async waivePenaltyForStudents(
     .receipt-wrap{margin:0}
   }
   .toolbar{position:sticky;top:0;z-index:10;background:#fff;padding:12px 16px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#0f172a;box-shadow:0 1px 2px rgba(15,23,42,.04)}
-  .toolbar button{background:#0b54ab;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer}
-  .toolbar button:hover{background:#094a96}
+  .toolbar button{background:#6c739c;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer}
+  .toolbar button:hover{background:#565c82}
   @media print{.toolbar{display:none}}
 </style>
 </head>

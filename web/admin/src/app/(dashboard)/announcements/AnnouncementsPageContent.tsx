@@ -369,7 +369,7 @@ export function AnnouncementsPageContent() {
 
               {form.message && form.message !== "<p><br></p>" ? (
                 <div
-                  className="text-xs leading-relaxed [&_p]:m-0 [&_h1]:text-sm [&_h1]:font-bold [&_h2]:text-xs [&_h2]:font-bold [&_h3]:text-[11px] [&_h3]:font-bold [&_ul]:ml-3 [&_ul]:list-disc [&_ol]:ml-3 [&_ol]:list-decimal [&_a]:text-blue-600 [&_a]:underline"
+                  className="text-xs leading-relaxed [&_p]:m-0 [&_h1]:text-sm [&_h1]:font-bold [&_h2]:text-xs [&_h2]:font-bold [&_h3]:text-[11px] [&_h3]:font-bold [&_ul]:ml-3 [&_ul]:list-disc [&_ol]:ml-3 [&_ol]:list-decimal [&_a]:text-[#6c739c] [&_a]:underline"
                   style={{ color: "var(--app-text-primary)" }}
                   dangerouslySetInnerHTML={{ __html: form.message }}
                 />

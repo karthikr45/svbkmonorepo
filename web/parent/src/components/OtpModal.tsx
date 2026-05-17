@@ -159,7 +159,7 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
             <p className="mt-1 text-sm text-slate-500">
               We sent a 6-digit OTP to
             </p>
-            <p className="text-sm font-semibold text-[#0b54ab] break-all">{email}</p>
+            <p className="text-sm font-semibold text-[#6c739c] break-all">{email}</p>
           </div>
           <button
             onClick={onClose}
@@ -187,7 +187,7 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
                   key={t.parentId}
                   onClick={() => handlePickTenant(t.parentId)}
                   disabled={picking}
-                  className="w-full text-left rounded-xl border border-slate-200 px-4 py-3 hover:border-[#0b54ab] hover:bg-blue-50/40 transition-colors disabled:opacity-50"
+                  className="w-full text-left rounded-xl border border-slate-200 px-4 py-3 hover:border-[#6c739c] hover:bg-[#f7ece9]/40 transition-colors disabled:opacity-50"
                 >
                   <p className="font-semibold text-slate-900">
                     {t.tenantName || t.tenantCode || "School"}
@@ -236,7 +236,7 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
             {canResend ? (
               <button
                 onClick={handleResend}
-                className="text-sm font-semibold text-[#0b54ab] hover:underline"
+                className="text-sm font-semibold text-[#6c739c] hover:underline"
               >
                 Resend OTP
               </button>
@@ -254,7 +254,7 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
             disabled={!isFilled || isVerifying}
             className="mt-5 w-full h-12 rounded-xl font-bold text-white text-sm tracking-wide transition-all"
             style={{
-              backgroundColor: isFilled && !isVerifying ? "#0b54ab" : "#94a3b8",
+              backgroundColor: isFilled && !isVerifying ? "#6c739c" : "#94a3b8",
               cursor: isFilled && !isVerifying ? "pointer" : "not-allowed",
             }}
           >

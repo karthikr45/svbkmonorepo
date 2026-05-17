@@ -488,8 +488,8 @@ async function ensureSystemMetadata(app: any): Promise<void> {
   // HTML body of that section.
   const starterTemplate: Record<'header' | 'body' | 'footer', string> = {
     header: `
-<div style="text-align:center;border-bottom:2px solid #0b54ab;padding-bottom:12px;margin-bottom:16px">
-  <h1 style="margin:0;font-size:22px;color:#0b54ab">{{tenant.tenantName}}</h1>
+<div style="text-align:center;border-bottom:2px solid #6c739c;padding-bottom:12px;margin-bottom:16px">
+  <h1 style="margin:0;font-size:22px;color:#6c739c">{{tenant.tenantName}}</h1>
   <p style="margin:4px 0 0;color:#475569;font-size:13px">{{tenant.address}}, {{tenant.city}}, {{tenant.state}}</p>
   <h2 style="margin:10px 0 0;font-size:14px;color:#334155;letter-spacing:.15em">FEE RECEIPT</h2>
 </div>`.trim(),

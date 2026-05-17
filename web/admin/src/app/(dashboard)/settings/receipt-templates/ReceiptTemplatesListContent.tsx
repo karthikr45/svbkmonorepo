@@ -103,7 +103,7 @@ export function ReceiptTemplatesListContent() {
                   <td className="px-5 py-3 text-slate-600">{KIND_LABEL[r.kind] ?? r.kind}</td>
                   <td className="px-5 py-3">
                     {r.isDefault && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-[#0b54ab]">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#f7ece9] text-[#6c739c]">
                         Default
                       </span>
                     )}
@@ -127,7 +127,7 @@ export function ReceiptTemplatesListContent() {
                   <td className="px-5 py-3 text-right space-x-3">
                     <Link
                       href={`/settings/receipt-templates/${r.id}`}
-                      className="text-xs font-semibold text-[#0b54ab] hover:underline"
+                      className="text-xs font-semibold text-[#6c739c] hover:underline"
                     >
                       Edit
                     </Link>
@@ -149,7 +149,7 @@ export function ReceiptTemplatesListContent() {
         Need to print one off manually?{" "}
         <Link
           href="/settings/receipt-templates/generate"
-          className="text-[#0b54ab] font-semibold hover:underline"
+          className="text-[#6c739c] font-semibold hover:underline"
         >
           Generate a receipt →
         </Link>

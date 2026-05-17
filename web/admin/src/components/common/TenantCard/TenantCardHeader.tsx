@@ -57,7 +57,7 @@ function avatarFromName(name: string): { initials: string; color: string } {
     .slice(0, 2)
     .toUpperCase();
   const palette = [
-    "linear-gradient(135deg,#0b54ab,#1e3a8a)",
+    "linear-gradient(135deg,#6c739c,#565c82)",
     "linear-gradient(135deg,#7c3aed,#4f46e5)",
     "linear-gradient(135deg,#0f766e,#0e7490)",
     "linear-gradient(135deg,#b45309,#7c2d12)",

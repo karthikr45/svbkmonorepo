@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
             </p>
             <Link
               href="/"
-              className="mt-6 inline-block text-sm font-semibold text-[#0b54ab] hover:underline"
+              className="mt-6 inline-block text-sm font-semibold text-[#6c739c] hover:underline"
             >
               ← Back to sign in
             </Link>

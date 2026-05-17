@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --brand: #0b54ab;
+  --brand: #6c739c;
   --brand-hover: #0943891;
   --brand-light: #e8f0fb;
   --background: #f8fafc;
@@ -25,7 +25,7 @@
   --danger: #dc2626;
   --danger-bg: #fee2e2;
   --input-border: #cbd5e1;
-  --input-focus: #0b54ab;
+  --input-focus: #6c739c;
 }
 
 @theme inline {

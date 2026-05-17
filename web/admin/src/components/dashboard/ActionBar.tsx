@@ -41,7 +41,7 @@ export function ActionBar({
             type="button"
             onClick={onPrimary}
             className={"inline-flex h-11 items-center justify-center rounded-xl px-4 font-medium " + transitionClass + " hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-search-focus)] focus-visible:ring-offset-2"}
-            style={{ backgroundColor: "var(--app-brand, #0b54ab)", color: "var(--app-nav-active-bg)", cursor: "pointer" }}
+            style={{ backgroundColor: "var(--app-brand, #6c739c)", color: "var(--app-nav-active-bg)", cursor: "pointer" }}
           >
             {primaryLabel}
           </button>
@@ -61,7 +61,7 @@ export function ActionBar({
             type="button"
             onClick={onTertiary}
             className={"inline-flex h-11 items-center justify-center rounded-xl px-4 font-medium " + transitionClass + " hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-search-focus)] focus-visible:ring-offset-2"}
-            style={{ backgroundColor: "var(--app-brand, #0b54ab)", color: "var(--app-nav-active-bg)", cursor: "pointer" }}
+            style={{ backgroundColor: "var(--app-brand, #6c739c)", color: "var(--app-nav-active-bg)", cursor: "pointer" }}
           >
             {tertiaryLabel}
           </button>

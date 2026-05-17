@@ -471,7 +471,7 @@ export function ChatPageContent() {
                     key={c.conversationId}
                     onClick={() => openExistingConv(c)}
                     className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition-colors ${
-                      isActive ? "bg-blue-50/70" : "hover:bg-slate-50"
+                      isActive ? "bg-[#f7ece9]/70" : "hover:bg-slate-50"
                     }`}
                     style={
                       isActive
@@ -648,7 +648,7 @@ export function ChatPageContent() {
               <div
                 className="absolute inset-0 z-20 flex items-center justify-center text-sm font-semibold"
                 style={{
-                  background: "rgba(11,84,171,0.08)",
+                  background: "rgba(108,115,156,0.08)",
                   border: `2px dashed ${BRAND}`,
                   color: BRAND,
                 }}
@@ -964,7 +964,7 @@ export function ChatPageContent() {
                     {pendingFiles.map((f, i) => (
                       <div
                         key={i}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] bg-blue-50 border border-blue-100"
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] bg-[#f7ece9] border border-[#e7c9c2]"
                       >
                         <span className="text-base">📎</span>
                         <span className="max-w-[160px] truncate text-slate-700 font-medium">

@@ -127,7 +127,7 @@ export function SystemMetadataContent() {
             onClick={() => setActiveType(t)}
             className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-[0.06em] transition-colors"
             style={{
-              backgroundColor: activeType === t ? "#0b54ab" : "#f1f5f9",
+              backgroundColor: activeType === t ? "#6c739c" : "#f1f5f9",
               color: activeType === t ? "#fff" : "#475569",
             }}
           >
@@ -187,7 +187,7 @@ export function SystemMetadataContent() {
               transition: border-color .15s, box-shadow .15s;
             }
             :global(.form-input:focus) {
-              border-color: #0b54ab; box-shadow: 0 0 0 3px rgb(11 84 171 / 0.15);
+              border-color: #6c739c; box-shadow: 0 0 0 3px rgb(11 84 171 / 0.15);
             }
           `}</style>
         </Card>

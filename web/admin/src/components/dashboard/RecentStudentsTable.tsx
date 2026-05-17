@@ -16,7 +16,7 @@ function Avatar({ name, imgUrl }: { name: string; imgUrl: string | null }) {
   }
   const initials = name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
   return (
-    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[var(--app-brand,#0b54ab)] text-xs font-bold text-white shadow-sm">
+    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[var(--app-brand,#6c739c)] text-xs font-bold text-white shadow-sm">
       {initials}
     </div>
   );

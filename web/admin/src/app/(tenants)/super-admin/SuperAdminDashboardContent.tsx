@@ -199,7 +199,7 @@ export function SuperAdminDashboardContent() {
           </div>
           <Link
             href="/tenants"
-            className="text-xs font-semibold text-[#0b54ab] hover:underline"
+            className="text-xs font-semibold text-[#6c739c] hover:underline"
           >
             View all →
           </Link>
@@ -242,7 +242,7 @@ export function SuperAdminDashboardContent() {
                   <td className="px-5 py-3 text-right">
                     <Link
                       href={`/tenants/${t.id}`}
-                      className="text-xs font-semibold text-[#0b54ab] hover:underline"
+                      className="text-xs font-semibold text-[#6c739c] hover:underline"
                     >
                       Open →
                     </Link>

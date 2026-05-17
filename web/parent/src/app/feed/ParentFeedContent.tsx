@@ -114,7 +114,7 @@ export function ParentFeedContent() {
                   </h2>
                   {p.excerpt && <p className="text-sm text-slate-600 mt-1">{p.excerpt}</p>}
                   {p.kind === "EVENT" && p.eventAt && (
-                    <p className="mt-2 text-xs font-semibold text-[#0b54ab]">
+                    <p className="mt-2 text-xs font-semibold text-[#6c739c]">
                       🗓{" "}
                       {new Date(p.eventAt).toLocaleString("en-IN", {
                         day: "2-digit",

@@ -162,7 +162,7 @@ export function TransferCertificateContent() {
               <select
                 value={year}
                 onChange={(e) => setYear(e.target.value)}
-                className="h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                className="h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
               >
                 {yearOpts.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -175,7 +175,7 @@ export function TransferCertificateContent() {
                 value={year}
                 onChange={(e) => setYear(e.target.value)}
                 placeholder="2025-2026"
-                className="h-10 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                className="h-10 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
               />
             )}
           </label>
@@ -187,7 +187,7 @@ export function TransferCertificateContent() {
             <select
               value={klass}
               onChange={(e) => setKlass(e.target.value)}
-              className="h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+              className="h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
             >
               <option value="">All classes</option>
               {classOpts.map((o) => (
@@ -206,7 +206,7 @@ export function TransferCertificateContent() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Type a name or admission no."
-              className="h-10 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+              className="h-10 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
             />
           </label>
         </div>
@@ -224,7 +224,7 @@ export function TransferCertificateContent() {
               onClick={() => setStatus(val)}
               className={`px-4 py-2 text-xs font-bold ${
                 status === val
-                  ? "bg-[#0b54ab] text-white"
+                  ? "bg-[#6c739c] text-white"
                   : "bg-white text-slate-600 hover:bg-slate-50"
               }`}
             >
@@ -240,7 +240,7 @@ export function TransferCertificateContent() {
         </div>
       )}
       {info && (
-        <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-700">
+        <div className="mb-4 p-3 rounded-lg bg-[#f7ece9] border border-[#e7c9c2] text-sm text-[#565c82]">
           {info}
         </div>
       )}
@@ -336,7 +336,7 @@ export function TransferCertificateContent() {
                   </button>
                   <Link
                     href={`/payments?admission=${encodeURIComponent(r.admissionNumber)}&academicYear=${encodeURIComponent(r.academicYear)}`}
-                    className="text-xs font-semibold text-[#0b54ab] hover:underline"
+                    className="text-xs font-semibold text-[#6c739c] hover:underline"
                   >
                     Payments
                   </Link>
@@ -521,7 +521,7 @@ function TcDialog({
               value={issuedAt}
               onChange={(e) => setIssuedAt(e.target.value)}
               max={new Date().toISOString().slice(0, 10)}
-              className="h-10 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+              className="h-10 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
             />
           </label>
           <label className="flex flex-col gap-1.5">
@@ -532,7 +532,7 @@ function TcDialog({
               value={certificateNo}
               onChange={(e) => setCertificateNo(e.target.value)}
               placeholder="e.g. TC-2025-042"
-              className="h-10 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+              className="h-10 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
               maxLength={50}
             />
           </label>
@@ -545,7 +545,7 @@ function TcDialog({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Moving abroad / parent transfer / etc."
-              className="px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+              className="px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
               maxLength={500}
             />
           </label>

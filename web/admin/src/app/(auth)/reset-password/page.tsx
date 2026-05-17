@@ -62,7 +62,7 @@ function ResetPasswordForm() {
         </p>
         <Link
           href="/forgot-password"
-          className="mt-6 inline-block text-sm font-semibold text-[#0b54ab] hover:underline"
+          className="mt-6 inline-block text-sm font-semibold text-[#6c739c] hover:underline"
         >
           Request a new link
         </Link>
@@ -81,7 +81,7 @@ function ResetPasswordForm() {
         </p>
         <Link
           href="/"
-          className="mt-6 inline-block text-sm font-semibold text-[#0b54ab] hover:underline"
+          className="mt-6 inline-block text-sm font-semibold text-[#6c739c] hover:underline"
         >
           Go to sign in now
         </Link>

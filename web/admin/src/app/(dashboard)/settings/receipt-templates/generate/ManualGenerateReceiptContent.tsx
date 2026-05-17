@@ -97,7 +97,7 @@ export function ManualGenerateReceiptContent() {
         </div>
         <Link
           href="/settings/receipt-templates"
-          className="text-sm text-[#0b54ab] hover:underline"
+          className="text-sm text-[#6c739c] hover:underline"
         >
           ← All templates
         </Link>
@@ -207,7 +207,7 @@ export function ManualGenerateReceiptContent() {
           transition: border-color 0.15s, box-shadow 0.15s;
         }
         :global(.form-input-x:focus) {
-          border-color: #0b54ab;
+          border-color: #6c739c;
           box-shadow: 0 0 0 3px rgb(11 84 171 / 0.15);
         }
       `}</style>

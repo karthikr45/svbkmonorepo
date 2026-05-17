@@ -69,7 +69,7 @@ function VerifyEmailInner() {
         {state === "ok" && (
           <Link
             href="/"
-            className="mt-6 inline-block text-sm font-semibold text-[#0b54ab] hover:underline"
+            className="mt-6 inline-block text-sm font-semibold text-[#6c739c] hover:underline"
           >
             Continue to sign in
           </Link>
@@ -79,7 +79,7 @@ function VerifyEmailInner() {
           <button
             onClick={handleResend}
             disabled={resent}
-            className="mt-6 inline-block text-sm font-semibold text-[#0b54ab] hover:underline disabled:opacity-60"
+            className="mt-6 inline-block text-sm font-semibold text-[#6c739c] hover:underline disabled:opacity-60"
           >
             {resent
               ? "If the account needs it, a new link was sent."

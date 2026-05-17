@@ -256,10 +256,10 @@ export function AddStudentModal({
         <form onSubmit={handleSubmit} className="px-6 py-5 max-h-[calc(100vh-140px)] overflow-y-auto">
           {/* ─── Re-admission search ─── */}
           {linkedIdentity ? (
-            <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50/60 p-4">
+            <div className="mb-6 rounded-xl border border-[#dcb3ab] bg-[#f7ece9]/60 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#0b54ab]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-[#6c739c]">
                     Re-enrolling
                   </p>
                   <p className="font-bold text-slate-900 mt-0.5">
@@ -390,7 +390,7 @@ export function AddStudentModal({
                       <button
                         type="button"
                         onClick={() => linkIdentity(m)}
-                        className="text-xs font-semibold text-[#0b54ab] hover:underline"
+                        className="text-xs font-semibold text-[#6c739c] hover:underline"
                       >
                         Re-enrol →
                       </button>

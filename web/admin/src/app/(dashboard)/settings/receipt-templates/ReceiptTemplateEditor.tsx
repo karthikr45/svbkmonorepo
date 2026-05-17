@@ -244,7 +244,7 @@ export function ReceiptTemplateEditor({ templateId }: { templateId?: string }) {
                   onClick={() => setActiveSection(s)}
                   className={`px-4 py-2.5 text-xs font-bold uppercase tracking-[0.06em] transition-colors ${
                     activeSection === s
-                      ? "text-[#0b54ab] border-b-2 border-[#0b54ab] bg-blue-50/40"
+                      ? "text-[#6c739c] border-b-2 border-[#6c739c] bg-[#f7ece9]/40"
                       : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
@@ -307,7 +307,7 @@ export function ReceiptTemplateEditor({ templateId }: { templateId?: string }) {
                           className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono border transition-colors ${
                             just
                               ? "bg-emerald-50 border-emerald-300 text-emerald-700"
-                              : "bg-slate-50 border-slate-200 hover:bg-blue-50 hover:border-[#0b54ab]"
+                              : "bg-slate-50 border-slate-200 hover:bg-[#f7ece9] hover:border-[#6c739c]"
                           }`}
                           title={`${k.label} — click to copy`}
                         >
@@ -355,7 +355,7 @@ export function ReceiptTemplateEditor({ templateId }: { templateId?: string }) {
           transition: border-color 0.15s, box-shadow 0.15s;
         }
         :global(.form-input-x:focus) {
-          border-color: #0b54ab;
+          border-color: #6c739c;
           box-shadow: 0 0 0 3px rgb(11 84 171 / 0.15);
         }
       `}</style>

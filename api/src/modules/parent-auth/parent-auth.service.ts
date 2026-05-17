@@ -344,11 +344,11 @@ export class ParentAuthService {
 
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
-        <h2 style="color:#1a3c8f">Sri Venkateswara Bala Kuteer</h2>
+        <h2 style="color:#6c739c">Sri Venkateswara Bala Kuteer</h2>
         <p>Hello <strong>${name}</strong>,</p>
         <p>Your one-time password for the Parent Portal is:</p>
         <div style="font-size:36px;font-weight:bold;letter-spacing:8px;text-align:center;
-                    padding:16px;background:#f0f4ff;border-radius:8px;color:#1a3c8f">
+                    padding:16px;background:#f0dad5;border-radius:8px;color:#6c739c">
           ${otp}
         </div>
         <p style="color:#888;font-size:13px">

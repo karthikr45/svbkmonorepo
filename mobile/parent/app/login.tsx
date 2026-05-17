@@ -141,7 +141,7 @@ export default function LoginScreen() {
               )}
             </Pressable>
             <Pressable onPress={() => setStage("email")} style={{ marginTop: 12 }}>
-              <Text style={{ color: "#0b54ab", textAlign: "center" }}>
+              <Text style={{ color: "#6c739c", textAlign: "center" }}>
                 Use a different email
               </Text>
             </Pressable>
@@ -200,7 +200,7 @@ const buttonStyle = {
   marginTop: 16,
   height: 48,
   borderRadius: 12,
-  backgroundColor: "#0b54ab",
+  backgroundColor: "#6c739c",
   alignItems: "center" as const,
   justifyContent: "center" as const,
 };

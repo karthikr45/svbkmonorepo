@@ -88,7 +88,7 @@ export function IdentityProfileContent({ identityId }: { identityId: string }) {
         <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
           {error ?? "Not found."}
         </div>
-        <Link href="/students" className="text-sm text-[#0b54ab] hover:underline mt-3 inline-block">
+        <Link href="/students" className="text-sm text-[#6c739c] hover:underline mt-3 inline-block">
           ← Students
         </Link>
       </div>
@@ -110,7 +110,7 @@ export function IdentityProfileContent({ identityId }: { identityId: string }) {
           {i.photoUrl ? (
             <img src={i.photoUrl} alt={i.displayName} className="h-16 w-16 rounded-full object-cover" />
           ) : (
-            <div className="h-16 w-16 rounded-full bg-[#0b54ab]/10 text-[#0b54ab] flex items-center justify-center text-2xl font-black">
+            <div className="h-16 w-16 rounded-full bg-[#6c739c]/10 text-[#6c739c] flex items-center justify-center text-2xl font-black">
               {i.displayName.slice(0, 1).toUpperCase()}
             </div>
           )}
@@ -262,7 +262,7 @@ function EnrollmentTable({
                 )}
                 <Link
                   href={`/payments?admission=${encodeURIComponent(e.admissionNumber)}&academicYear=${encodeURIComponent(e.academicYear)}`}
-                  className="font-semibold text-[#0b54ab] hover:underline"
+                  className="font-semibold text-[#6c739c] hover:underline"
                 >
                   Payments
                 </Link>
@@ -440,7 +440,7 @@ function TcDialog({
             width: 100%;
           }
           :global(.form-input-x:focus) {
-            border-color: #0b54ab;
+            border-color: #6c739c;
             box-shadow: 0 0 0 3px rgb(11 84 171 / 0.15);
           }
         `}</style>

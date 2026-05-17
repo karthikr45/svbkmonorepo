@@ -392,7 +392,7 @@ export function PendingClearancePanel() {
                 <td className="px-5 py-3.5">
                   <span
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold"
-                    style={{ backgroundColor: "#dbeafe", color: "#1d4ed8" }}
+                    style={{ backgroundColor: "#dbeafe", color: "#6c739c" }}
                   >
                     {p.paymentType}
                     <span className="font-normal opacity-70">
@@ -669,7 +669,7 @@ function PaymentDetailsView() {
             {student.identityId && (
               <a
                 href={`/students/identity/${student.identityId}`}
-                className="ml-auto text-sm font-semibold text-[#0b54ab] hover:underline"
+                className="ml-auto text-sm font-semibold text-[#6c739c] hover:underline"
               >
                 Full history →
               </a>
@@ -683,7 +683,7 @@ function PaymentDetailsView() {
               {student.identityId && !student.tcIssuedAt && (
                 <a
                   href={`/students/identity/${student.identityId}`}
-                  className="order-last ml-auto text-xs font-semibold text-[#0b54ab] hover:underline"
+                  className="order-last ml-auto text-xs font-semibold text-[#6c739c] hover:underline"
                 >
                   Full history →
                 </a>
@@ -1122,7 +1122,7 @@ function StatusPill({ status }: { status: "UNPAID" | "PARTIAL" | "PAID" }) {
 
 function ClearancePill({ status }: { status: string }) {
   const styles: Record<string, { bg: string; fg: string }> = {
-    PENDING: { bg: "#dbeafe", fg: "#1d4ed8" },
+    PENDING: { bg: "#dbeafe", fg: "#6c739c" },
     CLEARED: { bg: "#dcfce7", fg: "#15803d" },
     BOUNCED: { bg: "#fee2e2", fg: "#b91c1c" },
     NA: { bg: "#f1f5f9", fg: "#475569" },
@@ -1313,7 +1313,7 @@ function AdjustFeeModal({
                 max={isWaive ? currentMax : undefined}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                 autoFocus
               />
             </label>
@@ -1337,7 +1337,7 @@ function AdjustFeeModal({
                     ? "e.g. Cheque cleared on time"
                     : "e.g. Late payment, cheque bounce charges"
               }
-              className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+              className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
             />
           </label>
 
@@ -1516,7 +1516,7 @@ function RecordPaymentModal({
               <select
                 value={mode}
                 onChange={(e) => setMode(e.target.value as OfflinePaymentType)}
-                className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
               >
                 {modes.map((m) => (
                   <option key={m.value} value={m.value}>
@@ -1536,7 +1536,7 @@ function RecordPaymentModal({
                 max={balance}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                 autoFocus
               />
               <span className="text-[10px] text-slate-400">
@@ -1552,7 +1552,7 @@ function RecordPaymentModal({
                 max={today}
                 value={paidAt}
                 onChange={(e) => setPaidAt(e.target.value)}
-                className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                className="h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
               />
             </label>
           </div>
@@ -1570,7 +1570,7 @@ function RecordPaymentModal({
                       ? setChequeNumber(e.target.value)
                       : setDdNumber(e.target.value)
                   }
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                 />
               </label>
               <label className="flex flex-col gap-1.5">
@@ -1585,7 +1585,7 @@ function RecordPaymentModal({
                       ? setChequeDate(e.target.value)
                       : setDdDate(e.target.value)
                   }
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                 />
               </label>
               <label className="flex flex-col gap-1.5">
@@ -1596,7 +1596,7 @@ function RecordPaymentModal({
                   value={drawerName}
                   onChange={(e) => setDrawerName(e.target.value)}
                   placeholder="As written on the instrument"
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                 />
               </label>
               <label className="flex flex-col gap-1.5">
@@ -1606,7 +1606,7 @@ function RecordPaymentModal({
                 <input
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                 />
               </label>
               <label className="flex flex-col gap-1.5 sm:col-span-2">
@@ -1616,7 +1616,7 @@ function RecordPaymentModal({
                 <input
                   value={bankBranch}
                   onChange={(e) => setBankBranch(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                 />
               </label>
               <p className="sm:col-span-2 text-[11px] text-slate-500">
@@ -1636,7 +1636,7 @@ function RecordPaymentModal({
                 <input
                   value={transactionId}
                   onChange={(e) => setTransactionId(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                 />
               </label>
               <label className="flex flex-col gap-1.5">
@@ -1647,7 +1647,7 @@ function RecordPaymentModal({
                   maxLength={4}
                   value={cardLast4}
                   onChange={(e) => setCardLast4(e.target.value.replace(/\D/g, ""))}
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                 />
               </label>
             </div>
@@ -1662,7 +1662,7 @@ function RecordPaymentModal({
                 <input
                   value={transactionId}
                   onChange={(e) => setTransactionId(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                 />
               </label>
               <label className="flex flex-col gap-1.5">
@@ -1672,7 +1672,7 @@ function RecordPaymentModal({
                 <input
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                 />
               </label>
               <label className="flex flex-col gap-1.5">
@@ -1682,7 +1682,7 @@ function RecordPaymentModal({
                 <input
                   value={bankBranch}
                   onChange={(e) => setBankBranch(e.target.value)}
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                 />
               </label>
             </div>
@@ -1698,7 +1698,7 @@ function RecordPaymentModal({
               maxLength={500}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Any extra context for the receipt or audit"
-              className="px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+              className="px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
             />
           </label>
 

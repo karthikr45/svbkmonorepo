@@ -76,7 +76,7 @@ export function LoginForm({ showBackLink = true }: { showBackLink?: boolean }) {
                 type="button"
                 disabled={isLoading}
                 onClick={() => chooseTenant(t.adminId)}
-                className="w-full text-left rounded-xl border border-slate-200 bg-white px-4 py-3.5 hover:border-[#0b54ab] hover:bg-blue-50/40 transition-colors disabled:opacity-50"
+                className="w-full text-left rounded-xl border border-slate-200 bg-white px-4 py-3.5 hover:border-[#6c739c] hover:bg-[#f7ece9]/40 transition-colors disabled:opacity-50"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -91,7 +91,7 @@ export function LoginForm({ showBackLink = true }: { showBackLink?: boolean }) {
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                     <path
                       d="M5 12h14M12 5l7 7-7 7"
-                      stroke="#0b54ab"
+                      stroke="#6c739c"
                       strokeWidth="2.2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -163,7 +163,7 @@ export function LoginForm({ showBackLink = true }: { showBackLink?: boolean }) {
             </FormLabel>
             <a
               href="/forgot-password"
-              className="text-xs font-semibold text-[#0b54ab] hover:underline"
+              className="text-xs font-semibold text-[#6c739c] hover:underline"
             >
               Forgot password?
             </a>
@@ -221,7 +221,7 @@ export function LoginForm({ showBackLink = true }: { showBackLink?: boolean }) {
         <p className="text-center text-xs mt-3">
           <a
             href="/feed"
-            className="font-semibold text-[#0b54ab] hover:underline"
+            className="font-semibold text-[#6c739c] hover:underline"
           >
             Browse the public school feed →
           </a>

@@ -539,7 +539,7 @@ function TenantManagement() {
                         receiptResetPolicy: e.target.value as Tenant["receiptResetPolicy"],
                       })
                     }
-                    className="h-10 px-3 rounded-lg border border-zinc-200 bg-white text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+                    className="h-10 px-3 rounded-lg border border-zinc-200 bg-white text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
                   >
                     {RESET_POLICY_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>

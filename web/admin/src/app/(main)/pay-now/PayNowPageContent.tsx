@@ -123,7 +123,7 @@ export function PayNowPageContent() {
   };
 
   const brand     = "var(--app-brand)";
-  const brandGrad = `linear-gradient(135deg, ${brand}, color-mix(in srgb, ${brand} 68%, #1e3a8a))`;
+  const brandGrad = `linear-gradient(135deg, ${brand}, color-mix(in srgb, ${brand} 68%, #565c82))`;
 
   const fieldBase: React.CSSProperties = {
     backgroundColor: "var(--app-search-bg)",

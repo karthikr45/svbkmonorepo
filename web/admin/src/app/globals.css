@@ -13,7 +13,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  --brand: #1d4ed8;
+  --brand: #6c739c;
   --brand-hover: #1e40af;
 }
 
@@ -110,7 +110,7 @@
     --app-sidebar-text: #cbd5e1;     /* slate-300 */
     --app-sidebar-border: #1e293b;   /* slate-800 */
     --app-sidebar-section: #64748b;
-    --app-nav-active-bg: #1e3a8a;    /* blue-900 */
+    --app-nav-active-bg: #565c82;    /* blue-900 */
     --app-nav-active-text: #93c5fd;  /* blue-300 */
     --app-nav-hover-bg: #1e293b;
     --app-nav-icon: #94a3b8;
@@ -173,7 +173,7 @@
   --auth-required-asterisk: #ef4444;
   --auth-btn-signin-bg: #6c739c;     /* brand instead of dull gray */
   --auth-btn-signin-hover: #565c82;
-  --auth-btn-signin-active: #073f80;
+  --auth-btn-signin-active: #474b6b;
   --auth-placeholder: #94a3b8;
   --auth-error: #dc2626;
   --auth-back-link: #64748b;

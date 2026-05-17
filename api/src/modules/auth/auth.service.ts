@@ -86,12 +86,12 @@ export class AuthService {
     const name = admins[0].firstName || 'there';
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
-        <h2 style="color:#1a3c8f">Sri Venkateswara Bala Kuteer</h2>
+        <h2 style="color:#6c739c">Sri Venkateswara Bala Kuteer</h2>
         <p>Hello <strong>${name}</strong>,</p>
         <p>We received a request to reset your admin password. Click the
            button below to choose a new one:</p>
         <p style="text-align:center;margin:24px 0">
-          <a href="${link}" style="background:#1a3c8f;color:#fff;padding:12px 24px;
+          <a href="${link}" style="background:#6c739c;color:#fff;padding:12px 24px;
              border-radius:8px;text-decoration:none;font-weight:bold">
             Reset Password
           </a>
@@ -183,12 +183,12 @@ export class AuthService {
     const name = admins[0].firstName || 'there';
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
-        <h2 style="color:#1a3c8f">Sri Venkateswara Bala Kuteer</h2>
+        <h2 style="color:#6c739c">Sri Venkateswara Bala Kuteer</h2>
         <p>Hello <strong>${name}</strong>,</p>
         <p>Please confirm your email address to finish setting up your
            admin account:</p>
         <p style="text-align:center;margin:24px 0">
-          <a href="${link}" style="background:#1a3c8f;color:#fff;padding:12px 24px;
+          <a href="${link}" style="background:#6c739c;color:#fff;padding:12px 24px;
              border-radius:8px;text-decoration:none;font-weight:bold">
             Verify Email
           </a>

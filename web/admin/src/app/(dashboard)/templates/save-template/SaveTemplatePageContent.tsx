@@ -34,7 +34,7 @@ function PhonePreview({ form }: { form: FormState }) {
           <div className="max-w-[210px] sm:max-w-[220px] rounded-xl rounded-tl-sm bg-white p-3 shadow-sm">
             {form.message && form.message !== "<p><br></p>" ? (
               <div
-                className="prose-preview whitespace-pre-wrap text-[11px] leading-relaxed text-zinc-700 [&_p]:m-0 [&_h1]:text-sm [&_h1]:font-bold [&_h2]:text-xs [&_h2]:font-bold [&_h3]:text-[11px] [&_h3]:font-bold [&_ul]:ml-3 [&_ul]:list-disc [&_ol]:ml-3 [&_ol]:list-decimal [&_a]:text-blue-600 [&_a]:underline"
+                className="prose-preview whitespace-pre-wrap text-[11px] leading-relaxed text-zinc-700 [&_p]:m-0 [&_h1]:text-sm [&_h1]:font-bold [&_h2]:text-xs [&_h2]:font-bold [&_h3]:text-[11px] [&_h3]:font-bold [&_ul]:ml-3 [&_ul]:list-disc [&_ol]:ml-3 [&_ol]:list-decimal [&_a]:text-[#6c739c] [&_a]:underline"
                 dangerouslySetInnerHTML={{ __html: form.message }}
               />
             ) : (

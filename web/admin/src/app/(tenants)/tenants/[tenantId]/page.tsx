@@ -526,7 +526,7 @@ function TenantDetailsPageContent() {
         <div className="flex items-start gap-4 min-w-0">
           <div
             className="h-14 w-14 flex-shrink-0 rounded-2xl flex items-center justify-center text-lg font-bold text-white shadow-sm"
-            style={{ background: "linear-gradient(135deg, #0b54ab 0%, #1e3a8a 100%)" }}
+            style={{ background: "linear-gradient(135deg, #6c739c 0%, #565c82 100%)" }}
           >
             {(visibleTenant.name || "?").split(" ").map((w) => w[0]).filter(Boolean).join("").slice(0, 2).toUpperCase()}
           </div>

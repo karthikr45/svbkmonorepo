@@ -200,7 +200,7 @@ export function FeeCard({
               onClick={() => handlePay("razorpay")}
               disabled={paying}
               className="flex-1 h-9 rounded-lg text-white text-xs font-bold disabled:opacity-60"
-              style={{ backgroundColor: "#0b54ab" }}
+              style={{ backgroundColor: "#6c739c" }}
             >
               {paying ? "Working…" : "Pay via Razorpay"}
             </button>

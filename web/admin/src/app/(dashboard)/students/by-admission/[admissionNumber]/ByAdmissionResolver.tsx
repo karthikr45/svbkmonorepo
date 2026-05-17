@@ -92,7 +92,7 @@ export function ByAdmissionResolver({
       <div className="p-6 sm:p-8 max-w-[700px] mx-auto">
         <Card padding="default">
           <p className="text-sm text-red-700">{state.message}</p>
-          <Link href="/students" className="text-sm text-[#0b54ab] hover:underline mt-3 inline-block">
+          <Link href="/students" className="text-sm text-[#6c739c] hover:underline mt-3 inline-block">
             ← Back to Students
           </Link>
         </Card>
@@ -115,7 +115,7 @@ export function ByAdmissionResolver({
           As a super-admin, hit <code className="font-mono">POST /api/student-identities/backfill</code>{" "}
           once. New students created after that point are automatically linked.
         </p>
-        <Link href="/students" className="text-sm text-[#0b54ab] hover:underline">
+        <Link href="/students" className="text-sm text-[#6c739c] hover:underline">
           ← Back to Students
         </Link>
       </Card>

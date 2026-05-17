@@ -16,7 +16,7 @@ import { apiErrorMessage } from "@/lib/api";
 import { FeeCard } from "@/components/FeeCard";
 
 const AVATAR_COLORS = [
-  { bg: "#dbeafe", text: "#1d4ed8" },
+  { bg: "#dbeafe", text: "#6c739c" },
   { bg: "#fce7f3", text: "#be185d" },
   { bg: "#d1fae5", text: "#065f46" },
   { bg: "#fef3c7", text: "#92400e" },
@@ -315,13 +315,13 @@ export default function DashboardPage() {
           <div className="ml-auto flex items-center gap-4">
             <a
               href="/payments"
-              className="text-sm font-semibold text-[#0b54ab] hover:underline"
+              className="text-sm font-semibold text-[#6c739c] hover:underline"
             >
               Payments
             </a>
             <a
               href="/feed"
-              className="text-sm font-semibold text-[#0b54ab] hover:underline"
+              className="text-sm font-semibold text-[#6c739c] hover:underline"
             >
               School feed →
             </a>
@@ -348,7 +348,7 @@ export default function DashboardPage() {
                 />
               </div>
               {dashboard.summary.totalPendingClearance > 0 && (
-                <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-800">
+                <div className="mb-4 p-3 rounded-lg bg-[#f7ece9] border border-[#e7c9c2] text-sm text-[#474b6b]">
                   You have <strong>{inr(dashboard.summary.totalPendingClearance)}</strong>{" "}
                   in cheque/DD payments awaiting bank clearance — they're with the
                   school but not yet recognised. Once cleared they'll move to
@@ -413,7 +413,7 @@ function StatCard({
     green: { bg: "#dcfce7", text: "#15803d" },
     amber: { bg: "#fef3c7", text: "#92400e" },
     slate: { bg: "#f1f5f9", text: "#334155" },
-    blue: { bg: "#dbeafe", text: "#1d4ed8" },
+    blue: { bg: "#dbeafe", text: "#6c739c" },
   }[tone];
   return (
     <div
@@ -433,8 +433,8 @@ function StatCard({
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (
     <div className="flex flex-col items-center justify-center h-64 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0b54ab" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <div className="w-16 h-16 rounded-2xl bg-[#f7ece9] flex items-center justify-center mb-4">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6c739c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
           <circle cx="12" cy="7" r="4"/>
         </svg>
