@@ -31,17 +31,12 @@ const tenantAdminNav: NavItem[] = [
   { type: "item", href: "/chat", label: "Chat", icon: "chat" },
   { type: "item", href: "/social", label: "Social Feed", icon: "feed" },
   {
-    type: "group",
-    key: "communications",
+    type: "item",
+    href: "/announcements",
     label: "Communications",
     icon: "megaphone",
-    children: [
-      { href: "/announcements", label: "Announcements" },
-      { href: "/templates", label: "Templates" },
-      { href: "/media", label: "View Media" },
-      { href: "/save-media", label: "Save Media" },
-    ],
   },
+  { type: "item", href: "/media", label: "Media", icon: "media" },
   {
     type: "group",
     key: "configuration",
@@ -148,6 +143,14 @@ function NavIcon({ name }: { name: string }) {
       <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7" />
         <circle cx="6.5" cy="17.5" r="1.5" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  if (name === "media")
+    return (
+      <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={2} />
+        <circle cx="8.5" cy="8.5" r="1.5" strokeWidth={2} />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 15l-5-5L5 21" />
       </svg>
     );
   if (name === "settings")

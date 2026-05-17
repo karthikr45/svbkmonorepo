@@ -1,15 +1,11 @@
 import type { Metadata } from "next";
-import { ViewMediaPageContainer } from "./ViewMediaPageContainer";
+import { MediaWorkspace } from "./MediaWorkspace";
 
 export const metadata: Metadata = {
   title: "Media",
-  description: "Manage media",
+  description: "Browse and upload media in one place",
 };
 
 export default function MediaPage() {
-  return (
-    <div>
-      <ViewMediaPageContainer />
-    </div>
-  );
+  return <MediaWorkspace />;
 }

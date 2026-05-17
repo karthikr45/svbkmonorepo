@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { AnnouncementsPageContent } from "./AnnouncementsPageContent";
+import { CommunicationsWorkspace } from "./CommunicationsWorkspace";
 
 export const metadata: Metadata = {
-  title: "Announcements",
-  description: "Manage announcements",
+  title: "Communications",
+  description: "Announcements and message templates in one place",
 };
 
-export default function AnnouncementsPage() {
-  return <AnnouncementsPageContent />;
+export default function CommunicationsPage() {
+  return <CommunicationsWorkspace />;
 }

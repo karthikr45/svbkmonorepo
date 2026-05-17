@@ -1,11 +1,6 @@
-import type { Metadata } from "next";
-import { TemplatesPageContent } from "./TemplatesPageContent";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Templates",
-  description: "Manage templates",
-};
-
+// Templates is merged into the unified Communications screen.
 export default function TemplatesPage() {
-  return <TemplatesPageContent />;
+  redirect("/announcements?tab=templates");
 }

@@ -1,11 +1,6 @@
-import type { Metadata } from "next";
-import { SaveMediaPageContent } from "./SaveMediaPageContent";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Save Media",
-  description: "Upload and preview audio and video media files",
-};
-
+// Save Media is merged into the unified Media screen.
 export default function SaveMediaPage() {
-  return <SaveMediaPageContent />;
+  redirect("/media?tab=upload");
 }
