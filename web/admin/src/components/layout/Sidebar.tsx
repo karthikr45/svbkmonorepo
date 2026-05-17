@@ -24,12 +24,12 @@ const tenantAdminNav: NavItem[] = [
     type: "item",
     href: "/transfer-certificate",
     label: "Transfer Certificate",
-    icon: "document",
+    icon: "certificate",
   },
   { type: "item", href: "/payments", label: "Payment Details", icon: "payment" },
-  { type: "item", href: "/pay-now", label: "Pay Now", icon: "payment" },
-  { type: "item", href: "/chat", label: "Chat", icon: "megaphone" },
-  { type: "item", href: "/social", label: "Social Feed", icon: "megaphone" },
+  { type: "item", href: "/pay-now", label: "Pay Now", icon: "paynow" },
+  { type: "item", href: "/chat", label: "Chat", icon: "chat" },
+  { type: "item", href: "/social", label: "Social Feed", icon: "feed" },
   {
     type: "group",
     key: "communications",
@@ -46,7 +46,7 @@ const tenantAdminNav: NavItem[] = [
     type: "group",
     key: "configuration",
     label: "Configuration",
-    icon: "save",
+    icon: "settings",
     children: [
       { href: "/settings/academic-years", label: "Academic Years" },
       { href: "/settings/penalty-rules", label: "Penalty Rules" },
@@ -59,7 +59,7 @@ const tenantAdminNav: NavItem[] = [
     type: "group",
     key: "reports",
     label: "Reports",
-    icon: "document",
+    icon: "chart",
     children: [
       { href: "/reports/payment-logs", label: "Payment Logs" },
       { href: "/reports/pending-cheques", label: "Pending Cheques" },
@@ -70,14 +70,14 @@ const tenantAdminNav: NavItem[] = [
 
 const superAdminNav: NavItem[] = [
   { type: "item", href: "/super-admin", label: "Dashboard", icon: "grid" },
-  { type: "item", href: "/tenants", label: "Tenants", icon: "students" },
+  { type: "item", href: "/tenants", label: "Tenants", icon: "building" },
   {
     type: "item",
     href: "/system-metadata",
     label: "System Metadata",
-    icon: "save",
+    icon: "database",
   },
-  { type: "item", href: "/chat", label: "Chat", icon: "megaphone" },
+  { type: "item", href: "/chat", label: "Chat", icon: "chat" },
 ];
 
 function navItemsFor(role: string | undefined): NavItem[] {
@@ -123,6 +123,57 @@ function NavIcon({ name }: { name: string }) {
     return (
       <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+      </svg>
+    );
+  if (name === "paynow")
+    return (
+      <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+    );
+  if (name === "certificate")
+    return (
+      <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      </svg>
+    );
+  if (name === "chat")
+    return (
+      <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4-.8L3 20l1.3-3.9A7.96 7.96 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      </svg>
+    );
+  if (name === "feed")
+    return (
+      <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7" />
+        <circle cx="6.5" cy="17.5" r="1.5" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  if (name === "settings")
+    return (
+      <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    );
+  if (name === "chart")
+    return (
+      <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a1 1 0 00-1-1H5a1 1 0 00-1 1v6a1 1 0 001 1h3a1 1 0 001-1zm0 0a1 1 0 001 1h3a1 1 0 001-1V9a1 1 0 00-1-1h-3a1 1 0 00-1 1v10zm0 0h6m4 0a1 1 0 001-1V5a1 1 0 00-1-1h-3a1 1 0 00-1 1v13a1 1 0 001 1h3z" />
+      </svg>
+    );
+  if (name === "building")
+    return (
+      <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2M5 21H3m6-14h.01M9 11h.01M9 15h.01M15 7h.01M15 11h.01M15 15h.01M10 21v-4a1 1 0 011-1h2a1 1 0 011 1v4" />
+      </svg>
+    );
+  if (name === "database")
+    return (
+      <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7c0 1.657 3.582 3 8 3s8-1.343 8-3-3.582-3-8-3-8 1.343-8 3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v5c0 1.657 3.582 3 8 3s8-1.343 8-3V7M4 12v5c0 1.657 3.582 3 8 3s8-1.343 8-3v-5" />
       </svg>
     );
   return null;
