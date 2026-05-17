@@ -9,9 +9,17 @@ import {
   Query,
   Req,
   UnauthorizedException,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ChatService, ChatCaller } from './chat.service';
@@ -85,14 +93,30 @@ export class ChatController {
     );
   }
 
+  @Post('conversations/:id/attachments')
+  @ApiOperation({ summary: 'Upload a file for a conversation (max 25 MB)' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadAttachment(
+    @Req() req: Request,
+    @Param('id') conversationId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.chat.uploadAttachment(caller(req), conversationId, file);
+  }
+
   @Post('conversations/:id/messages')
-  @ApiOperation({ summary: 'Send a message in a conversation' })
+  @ApiOperation({ summary: 'Send a message (optional reply/quote + attachment)' })
   send(
     @Req() req: Request,
     @Param('id') conversationId: string,
     @Body() dto: SendMessageDto,
   ) {
-    return this.chat.sendMessage(caller(req), conversationId, dto.body);
+    return this.chat.sendMessage(caller(req), conversationId, {
+      body: dto.body,
+      replyToId: dto.replyToId ?? null,
+      attachment: dto.attachment ?? null,
+    });
   }
 
   @Post('conversations/:id/read')

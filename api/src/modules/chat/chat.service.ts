@@ -12,6 +12,14 @@ import { ChatMessage } from './entities/chat-message.entity';
 import { Admin } from '../admins/entities/admin.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { Role } from '../../common/enums/roles.enum';
+import { AzureStorageService } from '../storage/azure-storage.service';
+
+export interface MessageAttachment {
+  url: string;
+  name: string;
+  mime: string;
+  size: number;
+}
 
 /**
  * Caller identity used for every chat permission check. Lifted from the
@@ -47,6 +55,7 @@ export class ChatService {
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
     @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly storage: AzureStorageService,
   ) {}
 
   // ─── Permission rules ────────────────────────────────────────────
@@ -310,34 +319,121 @@ export class ChatService {
       }
     }
     const rows = await qb.getMany();
-    return rows.reverse();
+    rows.reverse();
+
+    // Attach a small preview of each replied-to message so the client
+    // can render the quoted snippet without an extra round-trip.
+    const replyIds = [
+      ...new Set(rows.map((r) => r.replyToId).filter(Boolean) as string[]),
+    ];
+    if (replyIds.length === 0) return rows as ChatMessage[];
+    const targets = await this.msgRepo.find({ where: { id: In(replyIds) } });
+    const byId = new Map(targets.map((t) => [t.id, t]));
+    return rows.map((r) => {
+      if (!r.replyToId) return r;
+      const t = byId.get(r.replyToId);
+      return Object.assign(r, {
+        replyTo: t
+          ? {
+              id: t.id,
+              senderId: t.senderId,
+              body: t.body,
+              attachmentName: t.attachmentName,
+            }
+          : null,
+      });
+    }) as ChatMessage[];
+  }
+
+  /** Tenant whose Azure storage holds chat blobs for this conversation. */
+  private async resolveStorageTenant(
+    caller: ChatCaller,
+    conversationId: string,
+  ): Promise<string> {
+    if (caller.tenantId) return caller.tenantId;
+    const peers = await this.partRepo.find({ where: { conversationId } });
+    for (const p of peers) {
+      if (p.tenantId) return p.tenantId;
+    }
+    throw new BadRequestException(
+      'No tenant storage is available for this conversation.',
+    );
+  }
+
+  async uploadAttachment(
+    caller: ChatCaller,
+    conversationId: string,
+    file: { buffer: Buffer; mimetype: string; originalname: string; size: number },
+  ): Promise<MessageAttachment> {
+    await this.assertParticipant(caller, conversationId);
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('No file provided.');
+    }
+    const tenantId = await this.resolveStorageTenant(caller, conversationId);
+    const { url } = await this.storage.uploadFile({
+      tenantId,
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+      originalName: file.originalname,
+      folder: 'chat',
+    });
+    return {
+      url,
+      name: file.originalname || 'file',
+      mime: file.mimetype || 'application/octet-stream',
+      size: file.size ?? file.buffer.length,
+    };
   }
 
   async sendMessage(
     caller: ChatCaller,
     conversationId: string,
-    body: string,
+    input: {
+      body?: string;
+      replyToId?: string | null;
+      attachment?: MessageAttachment | null;
+    },
   ): Promise<ChatMessage> {
-    const text = body?.trim();
-    if (!text) throw new BadRequestException('Message body required.');
+    const text = (input.body ?? '').trim();
+    const att = input.attachment ?? null;
+    if (!text && !att) {
+      throw new BadRequestException('A message or an attachment is required.');
+    }
     if (text.length > 4000) {
       throw new BadRequestException('Message too long (max 4000 chars).');
     }
     await this.assertParticipant(caller, conversationId);
+
+    if (input.replyToId) {
+      const target = await this.msgRepo.findOne({
+        where: { id: input.replyToId },
+      });
+      if (!target || target.conversationId !== conversationId) {
+        throw new BadRequestException(
+          'The quoted message is not part of this conversation.',
+        );
+      }
+    }
+
     return this.dataSource.transaction(async (manager) => {
       const msg = await manager.getRepository(ChatMessage).save(
         manager.getRepository(ChatMessage).create({
           conversationId,
           senderId: caller.userId,
           body: text,
+          replyToId: input.replyToId ?? null,
+          attachmentUrl: att?.url ?? null,
+          attachmentName: att?.name ?? null,
+          attachmentMime: att?.mime ?? null,
+          attachmentSize: att?.size ?? null,
         }),
       );
+      const preview = text
+        ? text.slice(0, 200)
+        : `📎 ${att?.name ?? 'Attachment'}`;
       await manager.getRepository(Conversation).update(
         { id: conversationId },
-        {
-          lastMessagePreview: text.slice(0, 200),
-          lastMessageAt: msg.createdAt,
-        },
+        { lastMessagePreview: preview, lastMessageAt: msg.createdAt },
       );
       return msg;
     });

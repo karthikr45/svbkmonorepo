@@ -155,6 +155,51 @@ export class AzureStorageService {
   }
 
   /**
+   * Generic file upload (any mime) for chat attachments. 25 MB cap.
+   * Stored under a per-tenant `chat/` prefix.
+   */
+  async uploadFile(args: {
+    tenantId: string;
+    buffer: Buffer;
+    mimeType: string;
+    originalName?: string;
+    folder?: string;
+  }): Promise<{ url: string; key: string }> {
+    if (!args.buffer?.length) {
+      throw new BadRequestException('Empty upload');
+    }
+    if (args.buffer.length > 25 * 1024 * 1024) {
+      throw new BadRequestException('File too large (max 25 MB)');
+    }
+
+    const cfg = await this.resolveConfig(args.tenantId);
+    const { blobService, container, baseHost } = this.clientFromConfig(cfg);
+    const containerClient = blobService.getContainerClient(container);
+    try {
+      await containerClient.createIfNotExists({ access: 'blob' });
+    } catch {
+      await containerClient.createIfNotExists();
+    }
+
+    const ext = extOf(args.originalName, args.mimeType);
+    const folder = (args.folder ?? 'chat').replace(/^\/+|\/+$/g, '');
+    const key = `${folder}/${args.tenantId}/${Date.now()}-${randomBytes(
+      8,
+    ).toString('hex')}${ext}`;
+
+    await containerClient.getBlockBlobClient(key).uploadData(args.buffer, {
+      blobHTTPHeaders: {
+        blobContentType: args.mimeType || 'application/octet-stream',
+        blobCacheControl: 'private, max-age=31536000, immutable',
+      },
+    });
+
+    const url = `https://${baseHost}/${container}/${key}`;
+    this.logger.log(`Uploaded file ${args.buffer.length}B → ${url}`);
+    return { url, key };
+  }
+
+  /**
    * Best-effort delete. Doesn't throw on 404 — callers tolerate
    * missing blobs (e.g. when a post that's already been edited gets
    * deleted and the new image set is shorter than the old one).

@@ -22,8 +22,35 @@ export class ChatMessage {
   @Column({ name: 'sender_id', type: 'uuid' })
   senderId: string;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'text', default: '' })
   body: string;
+
+  /** Message this one replies to / quotes (same conversation). */
+  @Column({ name: 'reply_to_id', type: 'uuid', nullable: true })
+  replyToId: string | null;
+
+  // Single optional attachment.
+  @Column({ name: 'attachment_url', type: 'text', nullable: true })
+  attachmentUrl: string | null;
+
+  @Column({
+    name: 'attachment_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  attachmentName: string | null;
+
+  @Column({
+    name: 'attachment_mime',
+    type: 'varchar',
+    length: 150,
+    nullable: true,
+  })
+  attachmentMime: string | null;
+
+  @Column({ name: 'attachment_size', type: 'int', nullable: true })
+  attachmentSize: number | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

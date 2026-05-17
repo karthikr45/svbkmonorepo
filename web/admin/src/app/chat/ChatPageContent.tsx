@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useAuth } from "@/features/auth";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -11,17 +17,83 @@ import {
   markReadApi,
   sendMessageApi,
   startConversationApi,
+  uploadAttachmentApi,
   type ChatContact,
   type ChatConversation,
   type ChatMessage,
+  type MessageAttachment,
 } from "@/features/chat/api/chat.api";
 
-/**
- * 5-second poll for new messages on the open thread and the unread
- * total in the rail. Good enough for an MVP — a websocket can replace
- * this later without changing the UI.
- */
 const POLL_MS = 5000;
+const BRAND = "#0b54ab";
+
+const AVATAR_GRADIENTS = [
+  ["#0b54ab", "#1e3a8a"],
+  ["#7c3aed", "#4c1d95"],
+  ["#0891b2", "#155e75"],
+  ["#db2777", "#9d174d"],
+  ["#ea580c", "#9a3412"],
+  ["#16a34a", "#14532d"],
+];
+
+function avatarOf(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_GRADIENTS[h % AVATAR_GRADIENTS.length];
+}
+function initials(first?: string, last?: string) {
+  return `${(first?.[0] ?? "").toUpperCase()}${(last?.[0] ?? "").toUpperCase()}` || "?";
+}
+function fileSize(n: number | null) {
+  if (!n) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+function isImage(mime: string | null) {
+  return !!mime && /^image\//i.test(mime);
+}
+function dayLabel(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  const y = new Date();
+  y.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return d.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function Avatar({
+  id,
+  first,
+  last,
+  size = 38,
+}: {
+  id: string;
+  first?: string;
+  last?: string;
+  size?: number;
+}) {
+  const [a, b] = avatarOf(id);
+  return (
+    <div
+      className="flex items-center justify-center rounded-full text-white font-bold flex-shrink-0 select-none"
+      style={{
+        width: size,
+        height: size,
+        fontSize: size * 0.36,
+        background: `linear-gradient(135deg, ${a}, ${b})`,
+        boxShadow: "0 2px 6px rgba(15,23,42,0.18)",
+      }}
+    >
+      {initials(first, last)}
+    </div>
+  );
+}
 
 export function ChatPageContent() {
   const { user } = useAuth();
@@ -37,7 +109,11 @@ export function ChatPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -61,13 +137,7 @@ export function ChatPageContent() {
       const msgs = await listMessagesApi(convId, { limit: 100 });
       setMessages(msgs);
       const last = msgs[msgs.length - 1];
-      if (last) {
-        try {
-          await markReadApi(convId, last.id);
-        } catch {
-          /* non-fatal */
-        }
-      }
+      if (last) await markReadApi(convId, last.id).catch(() => undefined);
     } catch (err) {
       setError(getApiErrorMessage(err, "Could not load messages"));
     }
@@ -77,24 +147,17 @@ export function ChatPageContent() {
     loadAll();
   }, [loadAll]);
 
-  // Poll unread + active thread.
   useEffect(() => {
     const tick = async () => {
       try {
         await getUnreadCountApi();
-        const convs = await listConversationsApi();
-        setConversations(convs);
+        setConversations(await listConversationsApi());
         if (activeConvId) {
           const msgs = await listMessagesApi(activeConvId, { limit: 100 });
           setMessages(msgs);
           const last = msgs[msgs.length - 1];
-          if (last) {
-            try {
-              await markReadApi(activeConvId, last.id);
-            } catch {
-              /* non-fatal */
-            }
-          }
+          if (last)
+            await markReadApi(activeConvId, last.id).catch(() => undefined);
         }
       } catch {
         /* swallow polling errors */
@@ -104,21 +167,20 @@ export function ChatPageContent() {
     return () => window.clearInterval(id);
   }, [activeConvId]);
 
-  // Auto-scroll to bottom on new messages.
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current)
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
   }, [messages.length]);
 
   async function openConversationWith(peer: ChatContact) {
     setActivePeer(peer);
+    setReplyTo(null);
+    setPendingFile(null);
     try {
       const conv = await startConversationApi(peer.adminId);
       setActiveConvId(conv.id);
       await loadMessages(conv.id);
-      const convs = await listConversationsApi();
-      setConversations(convs);
+      setConversations(await listConversationsApi());
     } catch (err) {
       setError(getApiErrorMessage(err, "Could not start conversation"));
     }
@@ -127,23 +189,51 @@ export function ChatPageContent() {
   function openExistingConv(c: ChatConversation) {
     setActivePeer(c.peer);
     setActiveConvId(c.conversationId);
+    setReplyTo(null);
+    setPendingFile(null);
     loadMessages(c.conversationId);
   }
 
   async function send() {
-    if (!activeConvId || !draft.trim()) return;
+    if (!activeConvId) return;
+    const text = draft.trim();
+    if (!text && !pendingFile) return;
     setSending(true);
     try {
-      const msg = await sendMessageApi(activeConvId, draft.trim());
+      let attachment: MessageAttachment | null = null;
+      if (pendingFile) {
+        attachment = await uploadAttachmentApi(activeConvId, pendingFile);
+      }
+      const msg = await sendMessageApi(activeConvId, {
+        body: text || undefined,
+        replyToId: replyTo?.id ?? null,
+        attachment,
+      });
       setMessages((prev) => [...prev, msg]);
       setDraft("");
-      const convs = await listConversationsApi();
-      setConversations(convs);
+      setReplyTo(null);
+      setPendingFile(null);
+      setConversations(await listConversationsApi());
     } catch (err) {
       setError(getApiErrorMessage(err, "Could not send message"));
     } finally {
       setSending(false);
     }
+  }
+
+  function quote(m: ChatMessage) {
+    const who = m.senderId === user?.id ? "You" : activePeer?.firstName ?? "";
+    const lines = (m.body || `[${m.attachmentName ?? "attachment"}]`)
+      .split("\n")
+      .map((l) => `> ${l}`)
+      .join("\n");
+    setDraft((d) => `${who} wrote:\n${lines}\n\n${d}`);
+  }
+
+  function scrollToMessage(id: string) {
+    document
+      .getElementById(`msg-${id}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   const filteredContacts = useMemo(() => {
@@ -162,25 +252,50 @@ export function ChatPageContent() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] gap-4 max-w-[1400px] mx-auto">
-      {/* Left rail */}
-      <aside className="w-[320px] flex flex-col rounded-2xl border border-slate-200 bg-white overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100">
-          <h2 className="text-sm font-bold text-slate-900">Chat</h2>
-          <p className="text-[11px] text-slate-500 mt-0.5">
+    <div className="flex h-[calc(100vh-7rem)] gap-4 max-w-[1500px] mx-auto">
+      {/* ── Left rail ── */}
+      <aside
+        className="w-[330px] flex flex-col rounded-2xl bg-white overflow-hidden"
+        style={{
+          border: "1px solid rgba(15,23,42,0.07)",
+          boxShadow: "0 10px 30px -16px rgba(15,23,42,0.18)",
+        }}
+      >
+        <div
+          className="px-5 py-4 text-white"
+          style={{
+            background: `linear-gradient(135deg, ${BRAND}, #1e1b4b)`,
+          }}
+        >
+          <h2 className="text-base font-bold">Messages</h2>
+          <p className="text-[11px] text-blue-100/80 mt-0.5">
             {isSuperAdmin
-              ? "You can message anyone across tenants."
-              : "Message your tenant team or any super-admin."}
+              ? "Reach anyone across schools"
+              : "Your team & super-admins"}
           </p>
         </div>
 
-        <div className="px-3 py-2 border-b border-slate-100">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, email, school…"
-            className="w-full h-9 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
-          />
+        <div className="px-3 py-2.5 border-b border-slate-100">
+          <div className="relative">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#94a3b8"
+              strokeWidth="2.2"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4-4" strokeLinecap="round" />
+            </svg>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search people…"
+              className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20"
+            />
+          </div>
         </div>
 
         {error && (
@@ -191,73 +306,96 @@ export function ChatPageContent() {
 
         <div className="flex-1 overflow-y-auto">
           {conversations.length > 0 && (
-            <div>
-              <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-[0.06em] text-slate-400">
-                Recent
-              </div>
+            <>
+              <RailLabel>Recent</RailLabel>
               {conversations.map((c) => {
                 const isActive = activeConvId === c.conversationId;
                 return (
                   <button
                     key={c.conversationId}
                     onClick={() => openExistingConv(c)}
-                    className={`w-full text-left px-4 py-2.5 border-b border-slate-50 hover:bg-slate-50 ${
-                      isActive ? "bg-blue-50/60" : ""
+                    className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition-colors ${
+                      isActive ? "bg-blue-50/70" : "hover:bg-slate-50"
                     }`}
+                    style={
+                      isActive
+                        ? { boxShadow: `inset 3px 0 0 ${BRAND}` }
+                        : undefined
+                    }
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
+                    <Avatar
+                      id={c.peer.adminId}
+                      first={c.peer.firstName}
+                      last={c.peer.lastName}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-semibold text-slate-900 truncate">
                           {c.peer.firstName} {c.peer.lastName}
                         </p>
-                        <p className="text-[11px] text-slate-500 truncate">
+                        {c.lastMessageAt && (
+                          <span className="text-[10px] text-slate-400 flex-shrink-0">
+                            {new Date(c.lastMessageAt).toLocaleTimeString(
+                              "en-IN",
+                              { hour: "2-digit", minute: "2-digit" },
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[11.5px] text-slate-500 truncate">
                           {isSuperAdmin && c.peer.tenantName
                             ? `${c.peer.tenantName} · `
                             : ""}
                           {c.lastMessagePreview ?? "Start chatting"}
                         </p>
+                        {c.unreadCount > 0 && (
+                          <span
+                            className="text-white text-[10px] font-bold px-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full flex-shrink-0"
+                            style={{ background: BRAND }}
+                          >
+                            {c.unreadCount}
+                          </span>
+                        )}
                       </div>
-                      {c.unreadCount > 0 && (
-                        <span className="bg-[#0b54ab] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                          {c.unreadCount}
-                        </span>
-                      )}
                     </div>
                   </button>
                 );
               })}
-            </div>
+            </>
           )}
 
-          <div>
-            <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-[0.06em] text-slate-400">
-              {conversations.length > 0 ? "Start new chat" : "Contacts"}
+          <RailLabel>
+            {conversations.length > 0 ? "Start new chat" : "Contacts"}
+            {!loading && (
               <span className="ml-2 text-slate-400/70 normal-case font-normal">
-                {!loading && `(${contacts.length})`}
+                ({contacts.length})
               </span>
-            </div>
-            {loading ? (
-              <p className="px-4 py-3 text-xs text-slate-500">Loading…</p>
-            ) : contacts.length === 0 ? (
-              <p className="px-4 py-3 text-xs text-slate-500">
-                No one to chat with yet.{" "}
-                {isSuperAdmin
-                  ? "Create a tenant admin first."
-                  : "Ask your super-admin to add team members."}
-              </p>
-            ) : filteredContacts.length === 0 ? (
-              <p className="px-4 py-3 text-xs text-slate-500">
-                No contacts match "{search}". Try a different search or clear it.
-              </p>
-            ) : (
-              filteredContacts
-                .filter((c) => !conversationContactIds.has(c.adminId))
-                .map((c) => (
-                  <button
-                    key={c.adminId}
-                    onClick={() => openConversationWith(c)}
-                    className="w-full text-left px-4 py-2.5 border-b border-slate-50 hover:bg-slate-50"
-                  >
+            )}
+          </RailLabel>
+          {loading ? (
+            <p className="px-4 py-3 text-xs text-slate-500">Loading…</p>
+          ) : filteredContacts.filter(
+              (c) => !conversationContactIds.has(c.adminId),
+            ).length === 0 ? (
+            <p className="px-4 py-3 text-xs text-slate-500">
+              {search ? `No matches for "${search}".` : "No new contacts."}
+            </p>
+          ) : (
+            filteredContacts
+              .filter((c) => !conversationContactIds.has(c.adminId))
+              .map((c) => (
+                <button
+                  key={c.adminId}
+                  onClick={() => openConversationWith(c)}
+                  className="w-full text-left px-3 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors"
+                >
+                  <Avatar
+                    id={c.adminId}
+                    first={c.firstName}
+                    last={c.lastName}
+                  />
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900 truncate">
                       {c.firstName} {c.lastName}
                     </p>
@@ -269,80 +407,269 @@ export function ChatPageContent() {
                       c.tenantName
                         ? ` · ${c.tenantName}`
                         : ""}
-                      {" · "}
-                      {c.email}
                     </p>
-                  </button>
-                ))
-            )}
-          </div>
+                  </div>
+                </button>
+              ))
+          )}
         </div>
       </aside>
 
-      {/* Thread */}
-      <section className="flex-1 flex flex-col rounded-2xl border border-slate-200 bg-white overflow-hidden">
+      {/* ── Thread ── */}
+      <section
+        className="flex-1 flex flex-col rounded-2xl bg-white overflow-hidden relative"
+        style={{
+          border: "1px solid rgba(15,23,42,0.07)",
+          boxShadow: "0 10px 30px -16px rgba(15,23,42,0.18)",
+        }}
+        onDragOver={(e) => {
+          if (activeConvId) {
+            e.preventDefault();
+            setDragOver(true);
+          }
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          const f = e.dataTransfer.files?.[0];
+          if (f && activeConvId) setPendingFile(f);
+        }}
+      >
         {!activeConvId ? (
           <div className="flex-1 flex items-center justify-center text-sm text-slate-500">
             <div className="text-center">
-              <div className="text-2xl mb-2">💬</div>
-              Pick a contact on the left to start chatting.
+              <div
+                className="mx-auto mb-4 w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl"
+                style={{
+                  background: `linear-gradient(135deg, ${BRAND}, #1e1b4b)`,
+                }}
+              >
+                💬
+              </div>
+              <p className="font-semibold text-slate-700">Your messages</p>
+              <p className="text-slate-400 mt-1">
+                Pick someone on the left to start a conversation.
+              </p>
             </div>
           </div>
         ) : (
           <>
-            <header className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900">
+            <header className="px-5 py-3 border-b border-slate-100 flex items-center gap-3">
+              {activePeer && (
+                <Avatar
+                  id={activePeer.adminId}
+                  first={activePeer.firstName}
+                  last={activePeer.lastName}
+                  size={42}
+                />
+              )}
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold text-slate-900 truncate">
                   {activePeer?.firstName} {activePeer?.lastName}
                 </h2>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 truncate">
                   <span className="uppercase tracking-[0.04em] font-bold text-slate-400">
                     {activePeer?.role?.replace("_", " ")}
                   </span>
-                  {activePeer?.tenantName ? ` · ${activePeer.tenantName}` : ""}
-                  {" "}· {activePeer?.email}
+                  {activePeer?.tenantName
+                    ? ` · ${activePeer.tenantName}`
+                    : ""}{" "}
+                  · {activePeer?.email}
                 </p>
               </div>
             </header>
 
+            {dragOver && (
+              <div
+                className="absolute inset-0 z-20 flex items-center justify-center text-sm font-semibold"
+                style={{
+                  background: "rgba(11,84,171,0.08)",
+                  border: `2px dashed ${BRAND}`,
+                  color: BRAND,
+                }}
+              >
+                Drop a file to attach
+              </div>
+            )}
+
             <div
               ref={scrollRef}
-              className="flex-1 overflow-y-auto px-5 py-4 space-y-2 bg-slate-50/40"
+              className="flex-1 overflow-y-auto px-5 py-4"
+              style={{
+                background:
+                  "linear-gradient(180deg,#f8fafc,#f1f5f9)",
+              }}
             >
               {messages.length === 0 ? (
                 <p className="text-center text-xs text-slate-400 mt-12">
-                  No messages yet. Say hi.
+                  No messages yet. Say hi 👋
                 </p>
               ) : (
                 messages.map((m, i) => {
                   const mine = m.senderId === user?.id;
                   const prev = messages[i - 1];
-                  const sameSender = prev && prev.senderId === m.senderId;
+                  const sameSender =
+                    prev && prev.senderId === m.senderId;
+                  const showDay =
+                    !prev ||
+                    new Date(prev.createdAt).toDateString() !==
+                      new Date(m.createdAt).toDateString();
                   return (
-                    <div
-                      key={m.id}
-                      className={`flex ${mine ? "justify-end" : "justify-start"}`}
-                    >
-                      <div
-                        className={`max-w-[70%] rounded-2xl px-3.5 py-2 text-sm leading-snug ${
-                          mine
-                            ? "bg-[#0b54ab] text-white rounded-br-sm"
-                            : "bg-white border border-slate-200 text-slate-900 rounded-bl-sm"
-                        } ${sameSender ? "mt-1" : "mt-3"}`}
-                      >
-                        <div className="whitespace-pre-wrap break-words">{m.body}</div>
-                        <div
-                          className={`text-[10px] mt-1 ${
-                            mine ? "text-blue-100" : "text-slate-400"
-                          }`}
-                        >
-                          {new Date(m.createdAt).toLocaleString("en-IN", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            day: "2-digit",
-                            month: "short",
-                          })}
+                    <div key={m.id} id={`msg-${m.id}`}>
+                      {showDay && (
+                        <div className="flex justify-center my-3">
+                          <span className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1 rounded-full">
+                            {dayLabel(m.createdAt)}
+                          </span>
                         </div>
+                      )}
+                      <div
+                        className={`group flex items-end gap-2 ${
+                          mine ? "justify-end" : "justify-start"
+                        } ${sameSender && !showDay ? "mt-1" : "mt-3"}`}
+                      >
+                        {!mine &&
+                          activePeer &&
+                          (!sameSender || showDay ? (
+                            <Avatar
+                              id={activePeer.adminId}
+                              first={activePeer.firstName}
+                              last={activePeer.lastName}
+                              size={28}
+                            />
+                          ) : (
+                            <div className="w-7 flex-shrink-0" />
+                          ))}
+
+                        {mine && (
+                          <MsgActions
+                            onReply={() => setReplyTo(m)}
+                            onQuote={() => quote(m)}
+                          />
+                        )}
+
+                        <div
+                          className="max-w-[68%] rounded-2xl px-3.5 py-2 text-sm leading-snug shadow-sm"
+                          style={
+                            mine
+                              ? {
+                                  background: `linear-gradient(135deg, ${BRAND}, #1e3a8a)`,
+                                  color: "#fff",
+                                  borderBottomRightRadius: 4,
+                                }
+                              : {
+                                  background: "#fff",
+                                  color: "#0f172a",
+                                  border: "1px solid #e2e8f0",
+                                  borderBottomLeftRadius: 4,
+                                }
+                          }
+                        >
+                          {m.replyTo && (
+                            <button
+                              onClick={() =>
+                                scrollToMessage(m.replyTo!.id)
+                              }
+                              className="block w-full text-left mb-1.5 px-2 py-1 rounded-lg text-[12px] truncate"
+                              style={{
+                                background: mine
+                                  ? "rgba(255,255,255,0.16)"
+                                  : "#f1f5f9",
+                                borderLeft: `3px solid ${
+                                  mine ? "#bfdbfe" : BRAND
+                                }`,
+                              }}
+                            >
+                              <span
+                                className={
+                                  mine
+                                    ? "text-blue-100"
+                                    : "text-slate-500"
+                                }
+                              >
+                                {m.replyTo.body
+                                  ? m.replyTo.body.slice(0, 90)
+                                  : `📎 ${
+                                      m.replyTo.attachmentName ??
+                                      "attachment"
+                                    }`}
+                              </span>
+                            </button>
+                          )}
+
+                          {m.attachmentUrl &&
+                            (isImage(m.attachmentMime) ? (
+                              <a
+                                href={m.attachmentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block mb-1"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={m.attachmentUrl}
+                                  alt={m.attachmentName ?? "image"}
+                                  className="rounded-xl max-h-64 object-cover"
+                                />
+                              </a>
+                            ) : (
+                              <a
+                                href={m.attachmentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download
+                                className="flex items-center gap-2.5 mb-1 px-2.5 py-2 rounded-xl"
+                                style={{
+                                  background: mine
+                                    ? "rgba(255,255,255,0.15)"
+                                    : "#f8fafc",
+                                  border: mine
+                                    ? "none"
+                                    : "1px solid #e2e8f0",
+                                }}
+                              >
+                                <span className="text-lg">📄</span>
+                                <span className="min-w-0">
+                                  <span className="block text-[13px] font-semibold truncate">
+                                    {m.attachmentName}
+                                  </span>
+                                  <span
+                                    className={`block text-[11px] ${
+                                      mine
+                                        ? "text-blue-100"
+                                        : "text-slate-500"
+                                    }`}
+                                  >
+                                    {fileSize(m.attachmentSize)} · Download
+                                  </span>
+                                </span>
+                              </a>
+                            ))}
+
+                          {m.body && (
+                            <div className="whitespace-pre-wrap break-words">
+                              {m.body}
+                            </div>
+                          )}
+                          <div
+                            className={`text-[10px] mt-1 ${
+                              mine ? "text-blue-100" : "text-slate-400"
+                            }`}
+                          >
+                            {new Date(m.createdAt).toLocaleTimeString(
+                              "en-IN",
+                              { hour: "2-digit", minute: "2-digit" },
+                            )}
+                          </div>
+                        </div>
+
+                        {!mine && (
+                          <MsgActions
+                            onReply={() => setReplyTo(m)}
+                            onQuote={() => quote(m)}
+                          />
+                        )}
                       </div>
                     </div>
                   );
@@ -350,9 +677,51 @@ export function ChatPageContent() {
               )}
             </div>
 
-            {error && (
-              <div className="mx-5 mb-2 p-2 rounded-lg bg-red-50 border border-red-100 text-xs text-red-700">
-                {error}
+            {/* Reply / attachment preview strip */}
+            {(replyTo || pendingFile) && (
+              <div className="px-4 pt-2.5 space-y-2">
+                {replyTo && (
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px]"
+                    style={{
+                      background: "#f1f5f9",
+                      borderLeft: `3px solid ${BRAND}`,
+                    }}
+                  >
+                    <span className="flex-1 min-w-0 truncate text-slate-600">
+                      <span className="font-bold" style={{ color: BRAND }}>
+                        Replying
+                      </span>{" "}
+                      ·{" "}
+                      {replyTo.body
+                        ? replyTo.body.slice(0, 100)
+                        : `📎 ${replyTo.attachmentName ?? "attachment"}`}
+                    </span>
+                    <button
+                      onClick={() => setReplyTo(null)}
+                      className="text-slate-400 hover:text-slate-700 text-sm"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+                {pendingFile && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] bg-blue-50 border border-blue-100">
+                    <span className="text-base">📎</span>
+                    <span className="flex-1 min-w-0 truncate text-slate-700 font-medium">
+                      {pendingFile.name}
+                    </span>
+                    <span className="text-slate-500">
+                      {fileSize(pendingFile.size)}
+                    </span>
+                    <button
+                      onClick={() => setPendingFile(null)}
+                      className="text-slate-400 hover:text-slate-700 text-sm"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -361,8 +730,37 @@ export function ChatPageContent() {
                 e.preventDefault();
                 send();
               }}
-              className="px-4 py-3 border-t border-slate-100 flex items-end gap-2"
+              className="px-4 py-3 flex items-end gap-2"
             >
+              <input
+                ref={fileRef}
+                type="file"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) setPendingFile(f);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                title="Attach a file"
+                className="h-10 w-10 flex items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-[#0b54ab]"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
               <textarea
                 rows={1}
                 value={draft}
@@ -373,20 +771,60 @@ export function ChatPageContent() {
                     send();
                   }
                 }}
-                placeholder="Type a message… (Shift+Enter for newline)"
-                className="flex-1 resize-none px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20 max-h-32"
+                placeholder="Type a message…  (Shift+Enter for a new line)"
+                className="flex-1 resize-none px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-[#0b54ab] focus:ring-2 focus:ring-[#0b54ab]/20 max-h-32"
               />
               <button
                 type="submit"
-                disabled={sending || !draft.trim()}
-                className="h-10 px-4 rounded-xl bg-[#0b54ab] text-white text-sm font-semibold disabled:opacity-50 hover:opacity-90"
+                disabled={sending || (!draft.trim() && !pendingFile)}
+                className="h-10 px-5 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition-opacity"
+                style={{
+                  background: `linear-gradient(135deg, ${BRAND}, #1e3a8a)`,
+                }}
               >
-                Send
+                {sending ? "…" : "Send"}
               </button>
             </form>
           </>
         )}
       </section>
+    </div>
+  );
+}
+
+function RailLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-[0.07em] text-slate-400">
+      {children}
+    </div>
+  );
+}
+
+function MsgActions({
+  onReply,
+  onQuote,
+}: {
+  onReply: () => void;
+  onQuote: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity self-center">
+      <button
+        type="button"
+        onClick={onReply}
+        title="Reply"
+        className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-[#0b54ab] flex items-center justify-center text-[11px] shadow-sm"
+      >
+        ↩
+      </button>
+      <button
+        type="button"
+        onClick={onQuote}
+        title="Quote"
+        className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-[#0b54ab] flex items-center justify-center text-[12px] shadow-sm"
+      >
+        ❝
+      </button>
     </div>
   );
 }

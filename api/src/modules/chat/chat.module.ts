@@ -7,6 +7,7 @@ import { ConversationParticipant } from './entities/conversation-participant.ent
 import { ChatMessage } from './entities/chat-message.entity';
 import { Admin } from '../admins/entities/admin.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
+import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { Tenant } from '../tenants/entities/tenant.entity';
       Admin,
       Tenant,
     ]),
+    StorageModule,
   ],
   controllers: [ChatController],
   providers: [ChatService],
