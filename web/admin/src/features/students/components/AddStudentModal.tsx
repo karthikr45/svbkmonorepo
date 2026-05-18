@@ -413,7 +413,7 @@ export function AddStudentModal({
               <input
                 value={form.admissionNumber}
                 onChange={(e) => setForm({ ...form, admissionNumber: e.target.value })}
-                placeholder="e.g. 1234 or 12345RA"
+                placeholder="Admission number"
                 className="form-input"
                 required
               />

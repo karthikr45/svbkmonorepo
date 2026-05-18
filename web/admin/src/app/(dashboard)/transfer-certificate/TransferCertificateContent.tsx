@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { getStoredToken } from "@/features/auth/services";
 import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
+import { AcademicYearSelect } from "@/components/common/AcademicYearSelect";
 import {
   issueTcApi,
   listEnrollmentsByAdmissionApi,
@@ -57,7 +58,6 @@ type StatusFilter = "tc_issued" | "active" | "all";
  *    one record — issue/revoke per year from there too.
  */
 export function TransferCertificateContent() {
-  const { options: yearOpts } = useMetadata("academic_year");
   const { options: classOpts } = useMetadata("class");
 
   const [year, setYear] = useState("");
@@ -76,13 +76,6 @@ export function TransferCertificateContent() {
 
   const [tcFor, setTcFor] = useState<TcRosterRow | null>(null);
   const [historyFor, setHistoryFor] = useState<string | null>(null);
-
-  // Default to the newest academic year once metadata loads.
-  useEffect(() => {
-    if (!year && yearOpts.length > 0) {
-      setYear(yearOpts[yearOpts.length - 1].value);
-    }
-  }, [yearOpts, year]);
 
   const load = useCallback(async () => {
     if (!year) return;
@@ -158,26 +151,11 @@ export function TransferCertificateContent() {
             <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
               Academic year
             </span>
-            {yearOpts.length > 0 ? (
-              <select
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                className="h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
-              >
-                {yearOpts.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                placeholder="2025-2026"
-                className="h-10 px-3 rounded-lg border border-slate-200 text-sm outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20"
-              />
-            )}
+            <AcademicYearSelect
+              value={year}
+              onChange={setYear}
+              className="h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-[#6c739c] focus:ring-2 focus:ring-[#6c739c]/20 min-w-[160px]"
+            />
           </label>
 
           <label className="flex flex-col gap-1.5 min-w-[140px]">

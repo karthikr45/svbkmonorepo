@@ -454,7 +454,7 @@ function ManualPanel() {
           <textarea
             value={admissionsText}
             onChange={(e) => setAdmissionsText(e.target.value)}
-            placeholder={"ADM-2024-001\nADM-2024-002\n…or comma/space separated"}
+            placeholder={"One admission number per line, or comma/space separated"}
             rows={3}
             className="form-input p-2 font-mono text-sm"
             style={{ minHeight: 80 }}

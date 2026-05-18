@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui";
+import { AcademicYearSelect } from "@/components/common/AcademicYearSelect";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { getStoredToken } from "@/features/auth/services";
 import {
@@ -475,8 +477,14 @@ function PaymentDetailsView() {
   useEffect(() => {
     admissionRef.current?.focus();
   }, []);
-  const [admission, setAdmission] = useState("");
-  const [academicYear, setAcademicYear] = useState("");
+  const search = useSearchParams();
+  const [admission, setAdmission] = useState(
+    () => search.get("admission") ?? "",
+  );
+  const [academicYear, setAcademicYear] = useState(
+    () => search.get("academicYear") ?? "",
+  );
+  const autoRan = useRef(false);
   const [picking, setPicking] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
   const [student, setStudent] = useState<StudentRow | null>(null);
@@ -529,6 +537,17 @@ function PaymentDetailsView() {
       setPicking(false);
     }
   }
+
+  // Arrived from a student / TC / identity link: go straight to that
+  // pupil's history — never re-ask for the admission number.
+  useEffect(() => {
+    if (autoRan.current) return;
+    if (search.get("admission")) {
+      autoRan.current = true;
+      void lookup();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function loadHistory(id: string) {
     setHistoryLoading(true);
@@ -620,19 +639,18 @@ function PaymentDetailsView() {
                   lookup();
                 }
               }}
-              placeholder="ADM-2024-001"
+              placeholder="Admission number"
               className="form-input"
               autoComplete="off"
             />
           </div>
           <div className="sm:col-span-4">
             <label className="text-xs font-semibold uppercase tracking-wider text-[var(--app-text-secondary)] mb-1.5 block">
-              Academic year (optional)
+              Academic year
             </label>
-            <input
+            <AcademicYearSelect
               value={academicYear}
-              onChange={(e) => setAcademicYear(e.target.value)}
-              placeholder="2025-2026"
+              onChange={setAcademicYear}
               className="form-input"
             />
           </div>

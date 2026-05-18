@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui";
+import { AcademicYearSelect } from "@/components/common/AcademicYearSelect";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
   fetchReport,
@@ -178,13 +179,12 @@ export function ReportsContent() {
             />
           </Field>
           <Field label="Academic Year">
-            <input
+            <AcademicYearSelect
               value={filters.academicYear ?? ""}
-              placeholder="All"
-              onChange={(e) =>
-                setFilters((p) => ({ ...p, academicYear: e.target.value }))
+              onChange={(v) =>
+                setFilters((p) => ({ ...p, academicYear: v }))
               }
-              className="w-full h-9 px-2 rounded-lg border border-slate-300 text-sm"
+              includeAll
             />
           </Field>
           <Field label="Class">
