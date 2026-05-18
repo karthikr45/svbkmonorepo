@@ -11,6 +11,8 @@ import { apiErrorMessage } from "@/lib/api";
 
 interface OtpModalProps {
   email: string;
+  demoMode?: boolean;
+  devOtp?: string;
   onVerified: () => void;
   onClose: () => void;
 }
@@ -18,8 +20,24 @@ interface OtpModalProps {
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 120; // 2 minutes
 
-export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
-  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(""));
+function toDigits(code?: string): string[] {
+  const base = Array(OTP_LENGTH).fill("");
+  if (code && /^\d{6}$/.test(code)) {
+    code.split("").forEach((c, i) => (base[i] = c));
+  }
+  return base;
+}
+
+export function OtpModal({
+  email,
+  demoMode: demoModeProp,
+  devOtp: devOtpProp,
+  onVerified,
+  onClose,
+}: OtpModalProps) {
+  const [demoMode, setDemoMode] = useState(!!demoModeProp);
+  const [devOtp, setDevOtp] = useState<string | undefined>(devOtpProp);
+  const [otp, setOtp] = useState<string[]>(toDigits(devOtpProp));
   const [error, setError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [timer, setTimer] = useState(RESEND_SECONDS);
@@ -134,7 +152,10 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
     setOtp(Array(OTP_LENGTH).fill(""));
     setError(null);
     try {
-      await sendOtp(email);
+      const meta = await sendOtp(email);
+      setDemoMode(!!meta.demoMode);
+      setDevOtp(meta.devOtp);
+      if (meta.devOtp) setOtp(toDigits(meta.devOtp));
       setTimer(RESEND_SECONDS);
       setCanResend(false);
       inputRefs.current[0]?.focus();
@@ -208,6 +229,24 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
           </div>
         ) : (
         <div className="px-6 py-6">
+          {devOtp && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700">
+                Development code
+              </p>
+              <p className="mt-1 text-2xl font-extrabold tracking-[0.3em] text-amber-900">
+                {devOtp}
+              </p>
+              <p className="mt-1 text-[11px] text-amber-700">
+                Email delivery isn&apos;t configured. We&apos;ve filled this in for you.
+              </p>
+            </div>
+          )}
+          {!devOtp && demoMode && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-center text-xs font-semibold text-amber-800">
+              Demo mode is on — enter any 6-digit code to continue.
+            </div>
+          )}
           {/* OTP boxes */}
           <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
             {otp.map((digit, i) => (
@@ -272,7 +311,9 @@ export function OtpModal({ email, onVerified, onClose }: OtpModalProps) {
           </button>
 
           <p className="mt-4 text-center text-xs text-slate-400">
-            Enter the 6-digit code sent to your email. With <code>DEMO_MODE=true</code> on the API, any 6 digits will be accepted.
+            {demoMode || devOtp
+              ? "Press Verify OTP to continue."
+              : "Enter the 6-digit code sent to your email."}
           </p>
         </div>
         )}

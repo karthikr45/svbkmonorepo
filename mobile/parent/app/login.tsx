@@ -24,6 +24,7 @@ export default function LoginScreen() {
   const [otp, setOtp] = useState("");
   const [stage, setStage] = useState<"email" | "otp" | "select">("email");
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [selection, setSelection] =
     useState<TenantSelectionResponse | null>(null);
 
@@ -34,7 +35,17 @@ export default function LoginScreen() {
     }
     setBusy(true);
     try {
-      await sendOtp(email.trim());
+      const meta = await sendOtp(email.trim());
+      if (meta.devOtp) {
+        setOtp(meta.devOtp);
+        setNotice(
+          `Email delivery isn't configured. Development code: ${meta.devOtp}`,
+        );
+      } else if (meta.demoMode) {
+        setNotice("Demo mode is on — enter any 6-digit code to continue.");
+      } else {
+        setNotice(null);
+      }
       setStage("otp");
     } catch (err) {
       Alert.alert("Could not send OTP", apiErrorMessage(err));
@@ -121,6 +132,23 @@ export default function LoginScreen() {
 
         {stage === "otp" && (
           <>
+            {notice && (
+              <Text
+                style={{
+                  marginTop: 16,
+                  padding: 12,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: "#fcd34d",
+                  backgroundColor: "#fffbeb",
+                  color: "#92400e",
+                  fontWeight: "600",
+                  textAlign: "center",
+                }}
+              >
+                {notice}
+              </Text>
+            )}
             <TextInput
               value={otp}
               onChangeText={(v) => setOtp(v.replace(/\D/g, "").slice(0, 6))}

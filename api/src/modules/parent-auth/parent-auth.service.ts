@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -48,7 +49,10 @@ export class ParentAuthService {
    * tenant with the same hash, so the parent never has to know a tenant
    * code up front. tenantCode still works to target one school.
    */
-  async sendOtp(email: string, tenantCode?: string): Promise<{ message: string }> {
+  async sendOtp(
+    email: string,
+    tenantCode?: string,
+  ): Promise<{ message: string; demoMode?: boolean; devOtp?: string }> {
     const targets = tenantCode
       ? [await this.resolveParentByEmail(email, tenantCode)]
       : await this.activeParentsByEmail(email);
@@ -75,8 +79,39 @@ export class ParentAuthService {
       );
     }
 
-    await this.sendOtpEmail(targets[0].email, targets[0].name, rawOtp);
-    return { message: 'OTP sent successfully. Please check your email.' };
+    const demoMode = this.configService.get<boolean>('demoMode') === true;
+    if (demoMode) {
+      this.logger.warn(`[OTP] ${email} → ${rawOtp}  (DEMO_MODE — any 6 digits accepted)`);
+      return {
+        message: 'Demo mode is on — enter any 6-digit code to continue.',
+        demoMode: true,
+      };
+    }
+
+    const delivered = await this.sendOtpEmail(
+      targets[0].email,
+      targets[0].name,
+      rawOtp,
+    );
+    if (delivered) {
+      return { message: 'OTP sent successfully. Please check your email.' };
+    }
+
+    // No SMTP configured. In production this is a real outage — fail loudly
+    // instead of telling the parent to "check your email" forever. In
+    // dev/staging, hand the code back so local testing works without SMTP.
+    const isProd =
+      this.configService.get<string>('nodeEnv') === 'production';
+    if (isProd) {
+      throw new ServiceUnavailableException(
+        'OTP email could not be delivered. The email service is not configured. Please contact the school office.',
+      );
+    }
+    return {
+      message:
+        'Email delivery is not configured — using the development code shown below.',
+      devOtp: rawOtp,
+    };
   }
 
   async verifyOtp(email: string, otp: string, tenantCode?: string) {
@@ -308,20 +343,20 @@ export class ParentAuthService {
     return crypto.randomInt(100000, 999999).toString();
   }
 
+  /** @returns true if the email was actually delivered via SMTP. */
   private async sendOtpEmail(
     email: string,
     name: string,
     otp: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const smtpUser = this.configService.get<string>('smtp.user');
     const smtpHost = this.configService.get<string>('smtp.host');
-    const demoMode = this.configService.get<boolean>('demoMode');
 
-    if (demoMode || !smtpUser || !smtpHost) {
+    if (!smtpUser || !smtpHost) {
       this.logger.warn(
-        `[OTP] ${email} → ${otp}  (demo / no SMTP — email not sent)`,
+        `[OTP] ${email} → ${otp}  (no SMTP configured — email not sent)`,
       );
-      return;
+      return false;
     }
 
     const port = this.configService.get<number>('smtp.port') ?? 587;
@@ -370,6 +405,7 @@ export class ParentAuthService {
         html,
       });
       this.logger.log(`[OTP] Email sent to ${email}`);
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`[OTP] Failed to send email to ${email}: ${message}`);

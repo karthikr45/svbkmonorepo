@@ -22,9 +22,18 @@ function unwrap<T>(payload: unknown): T {
   return payload as T;
 }
 
-export async function sendOtp(email: string, tenantCode?: string): Promise<{ message: string }> {
+export interface SendOtpResponse {
+  message: string;
+  demoMode?: boolean;
+  devOtp?: string;
+}
+
+export async function sendOtp(
+  email: string,
+  tenantCode?: string,
+): Promise<SendOtpResponse> {
   const { data } = await api.post("/parent/auth/send-otp", { email, tenantCode });
-  return unwrap(data);
+  return unwrap<SendOtpResponse>(data);
 }
 
 interface TokensResponse {

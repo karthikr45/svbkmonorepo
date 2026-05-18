@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { isAuthenticated } from "@/lib/auth";
-import { sendOtp } from "@/lib/parent-portal";
+import { sendOtp, type SendOtpResponse } from "@/lib/parent-portal";
 import { apiErrorMessage } from "@/lib/api";
 import { OtpModal } from "@/components/OtpModal";
 
@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
+  const [otpMeta, setOtpMeta] = useState<SendOtpResponse | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -39,7 +40,8 @@ export default function LoginPage() {
     setEmailError(null);
     setSubmitting(true);
     try {
-      await sendOtp(email.trim());
+      const meta = await sendOtp(email.trim());
+      setOtpMeta(meta);
       setShowOtp(true);
     } catch (err) {
       setEmailError(apiErrorMessage(err, "Could not send OTP. Try again."));
@@ -219,6 +221,8 @@ export default function LoginPage() {
       {showOtp && (
         <OtpModal
           email={email}
+          demoMode={otpMeta?.demoMode}
+          devOtp={otpMeta?.devOtp}
           onVerified={handleVerified}
           onClose={() => setShowOtp(false)}
         />
