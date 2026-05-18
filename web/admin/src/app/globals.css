@@ -644,3 +644,50 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 0.5rem;
   box-shadow: var(--app-card-shadow);
 }
+
+/* Baseline form field affordance.
+   Pages may override via styled-jsx :global(.form-input); this guarantees a
+   visible border/background even on steps that don't inject those styles. */
+.form-input,
+.form-input-x {
+  display: block;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--app-divider);
+  background: #ffffff;
+  font-size: 14px;
+  color: var(--app-text-primary);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+textarea.form-input,
+textarea.form-input-x {
+  height: auto;
+  padding: 10px 12px;
+}
+.form-input::placeholder,
+.form-input-x::placeholder {
+  color: var(--app-text-muted);
+}
+.form-input:focus,
+.form-input-x:focus {
+  border-color: var(--app-brand);
+  box-shadow: var(--shadow-focus);
+}
+.form-input:disabled,
+.form-input-x:disabled {
+  background: #f1f5f9;
+  color: var(--app-text-muted);
+  cursor: not-allowed;
+}
+select.form-input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27%2364748b%27%20stroke-width%3D%272%27%3E%3Cpath%20d%3D%27M6%209l6%206%206-6%27%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+  padding-right: 32px;
+}
