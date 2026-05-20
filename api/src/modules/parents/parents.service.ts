@@ -5,9 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Parent } from './entities/parent.entity';
-import { ParentStudent } from './entities/parent-student.entity';
+import { ParentStudent, Relationship } from './entities/parent-student.entity';
 import { CreateParentDto, ParentStudentLinkDto } from './dto/create-parent.dto';
 import { UpdateParentDto } from './dto/update-parent.dto';
 
@@ -170,5 +170,79 @@ export class ParentsService {
     hash: string | null,
   ): Promise<void> {
     await this.parentRepo.update(parentId, { refreshTokenHash: hash });
+  }
+
+  /**
+   * Idempotent: turn a student's parent-contact email into a real Parent
+   * row + ParentStudent link, so the parent can log in by email-OTP
+   * without an admin separately creating a Parent. Safe to call from
+   * any student create/update path. One parent → many children via
+   * additional links on the same Parent row.
+   */
+  async ensureForStudent(
+    tenantId: string,
+    args: {
+      email: string | null | undefined;
+      name?: string | null;
+      phoneNumber?: string | null;
+      branch: string;
+      admissionNumber: string;
+      relationship?: Relationship;
+    },
+    manager?: EntityManager,
+  ): Promise<Parent | null> {
+    const email = (args.email ?? '').trim().toLowerCase();
+    if (!email) return null;
+
+    const run = async (m: EntityManager): Promise<Parent> => {
+      const parentRepo = m.getRepository(Parent);
+      const linkRepo = m.getRepository(ParentStudent);
+
+      let parent = await parentRepo.findOne({ where: { tenantId, email } });
+      if (!parent) {
+        parent = await parentRepo.save(
+          parentRepo.create({
+            tenantId,
+            name: (args.name ?? '').trim() || email,
+            email,
+            phoneNumber: (args.phoneNumber ?? '').trim() || null,
+            isActive: true,
+          }),
+        );
+        this.logger.log(
+          `Auto-created parent ${parent.id} (${email}) from student record`,
+        );
+      } else if (!parent.isActive) {
+        parent.isActive = true;
+        parent = await parentRepo.save(parent);
+      }
+
+      const existing = await linkRepo.findOne({
+        where: {
+          parentId: parent.id,
+          tenantId,
+          branch: args.branch,
+          admissionNumber: args.admissionNumber,
+        },
+      });
+      if (!existing) {
+        const anyPrimary = await linkRepo.findOne({
+          where: { parentId: parent.id, isPrimary: true },
+        });
+        await linkRepo.save(
+          linkRepo.create({
+            parentId: parent.id,
+            tenantId,
+            branch: args.branch,
+            admissionNumber: args.admissionNumber,
+            relationship: args.relationship ?? Relationship.GUARDIAN,
+            isPrimary: !anyPrimary,
+          }),
+        );
+      }
+      return parent;
+    };
+
+    return manager ? run(manager) : this.dataSource.transaction(run);
   }
 }

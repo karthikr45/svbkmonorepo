@@ -11,6 +11,7 @@ import { UploadValidationService } from './upload-validation.service';
 import { StudentsService } from './students.service';
 import { FeesService } from '../fees/fees.service';
 import { StudentIdentitiesService } from '../student-identities/student-identities.service';
+import { ParentsService } from '../parents/parents.service';
 import {
   ValidateUploadResponseDto,
   ConfirmUploadResponseDto,
@@ -40,6 +41,7 @@ export class UploadService {
     private readonly studentsService: StudentsService,
     private readonly feesService: FeesService,
     private readonly identitiesService: StudentIdentitiesService,
+    private readonly parentsService: ParentsService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -140,6 +142,22 @@ export class UploadService {
           studentInputs,
           manager,
         );
+
+        // Same parent-from-student-email upsert as the single-add path,
+        // batched per unique student.
+        for (const s of studentInputs) {
+          await this.parentsService.ensureForStudent(
+            tenantId,
+            {
+              email: s.email,
+              name: s.name,
+              phoneNumber: s.phoneNumber,
+              branch: s.branch,
+              admissionNumber: s.admissionNumber,
+            },
+            manager,
+          );
+        }
 
         const feeInputs: CreateFeeInput[] = rows.map((r) => {
           const rowBranch = r.branch || branch;
@@ -258,6 +276,20 @@ export class UploadService {
       await manager
         .getRepository(Student)
         .update({ id: studentId }, { identityId });
+
+      // Parent contact on the student form is the parent's login email.
+      // Upsert the Parent + link so the parent can log in immediately.
+      await this.parentsService.ensureForStudent(
+        tenantId,
+        {
+          email: dto.email,
+          name: dto.name,
+          phoneNumber: dto.phoneNumber,
+          branch,
+          admissionNumber: dto.admissionNumber.trim(),
+        },
+        manager,
+      );
 
       let feesCreated = 0;
       if (dto.terms?.length) {

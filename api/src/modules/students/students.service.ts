@@ -9,6 +9,7 @@ import { Repository, In, EntityManager } from 'typeorm';
 import { Student } from './entities/student.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { StudentIdentity } from '../student-identities/entities/student-identity.entity';
+import { ParentsService } from '../parents/parents.service';
 import {
   UpsertStudentInput,
   UpsertStudentsResult,
@@ -29,6 +30,7 @@ export class StudentsService {
     private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(StudentIdentity)
     private readonly identityRepo: Repository<StudentIdentity>,
+    private readonly parentsService: ParentsService,
   ) {}
 
   /**
@@ -86,6 +88,18 @@ export class StudentsService {
     if (dto.imgUrl !== undefined) student.imgUrl = dto.imgUrl;
 
     const saved = await this.studentRepo.save(student);
+
+    // Keep the parent login in sync with the student's parent-contact email.
+    if (dto.email !== undefined && saved.email) {
+      await this.parentsService.ensureForStudent(tenantId, {
+        email: saved.email,
+        name: saved.name,
+        phoneNumber: saved.phoneNumber,
+        branch: saved.branch,
+        admissionNumber: saved.admissionNumber,
+      });
+    }
+
     this.logger.log(`Updated student ${id}`);
     return saved;
   }
