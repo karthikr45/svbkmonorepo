@@ -57,6 +57,15 @@ export class ParentsController {
     return this.parentsService.remove(user.tenantId, id);
   }
 
+  @Post('backfill-from-students')
+  @ApiOperation({
+    summary:
+      'Create/link parent accounts for existing students using their parent-contact email.',
+  })
+  backfillFromStudents(@CurrentUser() user: any) {
+    return this.parentsService.backfillFromStudents(user.tenantId);
+  }
+
   @Post(':id/students')
   @ApiOperation({ summary: 'Link an additional child to this parent' })
   addStudent(

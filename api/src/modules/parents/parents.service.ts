@@ -3,16 +3,18 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Parent } from './entities/parent.entity';
 import { ParentStudent, Relationship } from './entities/parent-student.entity';
+import { Student } from '../students/entities/student.entity';
 import { CreateParentDto, ParentStudentLinkDto } from './dto/create-parent.dto';
 import { UpdateParentDto } from './dto/update-parent.dto';
 
 @Injectable()
-export class ParentsService {
+export class ParentsService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ParentsService.name);
 
   constructor(
@@ -244,5 +246,69 @@ export class ParentsService {
     };
 
     return manager ? run(manager) : this.dataSource.transaction(run);
+  }
+
+  /**
+   * Sweep existing Student rows with a parent-contact email and make sure
+   * each one has a corresponding Parent + ParentStudent link, so parents
+   * of pre-existing students can log in without re-keying the data.
+   *
+   * Idempotent — running it repeatedly is a no-op. Scoped to one tenant
+   * when called from the admin endpoint; the bootstrap call runs over
+   * every tenant.
+   */
+  async backfillFromStudents(tenantId?: string): Promise<{
+    scanned: number;
+    parentsTouched: number;
+    skipped: number;
+  }> {
+    const studentRepo = this.dataSource.getRepository(Student);
+    const qb = studentRepo
+      .createQueryBuilder('s')
+      .where("s.email IS NOT NULL AND s.email <> ''");
+    if (tenantId) qb.andWhere('s.tenantId = :tenantId', { tenantId });
+    const students = await qb.getMany();
+
+    let parentsTouched = 0;
+    let skipped = 0;
+    for (const s of students) {
+      try {
+        const p = await this.ensureForStudent(s.tenantId, {
+          email: s.email,
+          name: s.name,
+          phoneNumber: s.phoneNumber,
+          branch: s.branch,
+          admissionNumber: s.admissionNumber,
+        });
+        if (p) parentsTouched++;
+      } catch (err) {
+        skipped++;
+        this.logger.warn(
+          `Backfill skipped student ${s.id}: ${(err as Error).message}`,
+        );
+      }
+    }
+    return { scanned: students.length, parentsTouched, skipped };
+  }
+
+  /**
+   * Run the student → parent backfill once at boot. Non-fatal: a failure
+   * here must not block the API from starting (e.g. DB not yet ready in
+   * a CI smoke test). One-shot, idempotent, and quiet when there's
+   * nothing to do.
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    try {
+      const r = await this.backfillFromStudents();
+      if (r.scanned > 0) {
+        this.logger.log(
+          `Parent backfill: scanned ${r.scanned} student(s), touched ${r.parentsTouched} parent(s), skipped ${r.skipped}.`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Parent backfill skipped at boot: ${(err as Error).message}`,
+      );
+    }
   }
 }
