@@ -23,9 +23,9 @@ import { TenantConfig } from '../tenant-configs/entities/tenant-config.entity';
  *  - `accountName + accessKey` (legacy / explicit fields)
  *
  * Container name comes from `storageBucketName` (Azure terminology
- * doesn't quite match S3 but the field is reused). The container is
- * created on first use with public-read access for blobs (school
- * photos are meant to be visible to anyone with the URL).
+ * doesn't quite match S3 but the field is reused). The container and the
+ * per-tenant directories are provisioned out-of-band — this service never
+ * creates them, it only reads/writes blobs under `{folder}/{tenantId}/`.
  */
 @Injectable()
 export class AzureStorageService {
@@ -97,8 +97,7 @@ export class AzureStorageService {
 
   /**
    * Upload a single image buffer and return the public URL. The
-   * container is created lazily on first call with `blob`-level
-   * public access (so the URL is shareable without SAS tokens).
+   * container/directory must already exist (we don't create them).
    */
   async uploadImage(args: {
     tenantId: string;
@@ -120,20 +119,9 @@ export class AzureStorageService {
     const cfg = await this.resolveConfig(args.tenantId);
     const { blobService, container, baseHost } = this.clientFromConfig(cfg);
 
+    // Container and per-tenant directories are provisioned out-of-band; we
+    // only write blobs into them.
     const containerClient = blobService.getContainerClient(container);
-    try {
-      await containerClient.createIfNotExists({ access: 'blob' });
-    } catch (err) {
-      // Some storage accounts disable public access at the account
-      // level; in that case the container exists but createIfNotExists
-      // throws when trying to set access. Try without `access`.
-      this.logger.warn(
-        `createIfNotExists with public access failed for tenant=${args.tenantId}; retrying without public access. ${
-          (err as Error).message
-        }`,
-      );
-      await containerClient.createIfNotExists();
-    }
 
     const ext = extOf(args.originalName, args.mimeType);
     const folder = (args.folder ?? 'social').replace(/^\/+|\/+$/g, '');
@@ -175,11 +163,6 @@ export class AzureStorageService {
     const cfg = await this.resolveConfig(args.tenantId);
     const { blobService, container, baseHost } = this.clientFromConfig(cfg);
     const containerClient = blobService.getContainerClient(container);
-    try {
-      await containerClient.createIfNotExists({ access: 'blob' });
-    } catch {
-      await containerClient.createIfNotExists();
-    }
 
     const ext = extOf(args.originalName, args.mimeType);
     const folder = (args.folder ?? 'chat').replace(/^\/+|\/+$/g, '');
