@@ -130,12 +130,16 @@ export class AzureStorageService {
     )}${ext}`;
 
     const blockBlob = containerClient.getBlockBlobClient(key);
-    await blockBlob.uploadData(args.buffer, {
-      blobHTTPHeaders: {
-        blobContentType: args.mimeType,
-        blobCacheControl: 'public, max-age=31536000, immutable',
-      },
-    });
+    try {
+      await blockBlob.uploadData(args.buffer, {
+        blobHTTPHeaders: {
+          blobContentType: args.mimeType,
+          blobCacheControl: 'public, max-age=31536000, immutable',
+        },
+      });
+    } catch (err) {
+      this.rethrowUploadError(err, container);
+    }
 
     const url = `https://${baseHost}/${container}/${key}`;
     this.logger.log(`Uploaded ${args.buffer.length}B → ${url}`);
@@ -170,16 +174,37 @@ export class AzureStorageService {
       8,
     ).toString('hex')}${ext}`;
 
-    await containerClient.getBlockBlobClient(key).uploadData(args.buffer, {
-      blobHTTPHeaders: {
-        blobContentType: args.mimeType || 'application/octet-stream',
-        blobCacheControl: 'private, max-age=31536000, immutable',
-      },
-    });
+    try {
+      await containerClient.getBlockBlobClient(key).uploadData(args.buffer, {
+        blobHTTPHeaders: {
+          blobContentType: args.mimeType || 'application/octet-stream',
+          blobCacheControl: 'private, max-age=31536000, immutable',
+        },
+      });
+    } catch (err) {
+      this.rethrowUploadError(err, container);
+    }
 
     const url = `https://${baseHost}/${container}/${key}`;
     this.logger.log(`Uploaded file ${args.buffer.length}B → ${url}`);
     return { url, key };
+  }
+
+  /**
+   * Translates Azure's "container/directory missing" failures into a
+   * clear 400 — we never create containers, so a missing one is a
+   * configuration problem the admin needs to fix.
+   */
+  private rethrowUploadError(err: unknown, container: string): never {
+    const code = (err as { code?: string }).code;
+    if (code === 'ContainerNotFound') {
+      throw new BadRequestException(
+        `Storage container "${container}" was not found. Create the container ` +
+          `and the per-tenant directory before uploading — this service does ` +
+          `not create them.`,
+      );
+    }
+    throw err as Error;
   }
 
   /**
