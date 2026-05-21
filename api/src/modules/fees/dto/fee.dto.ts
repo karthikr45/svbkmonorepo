@@ -196,7 +196,25 @@ export class AddSinglePenaltyDto {
  * caller's tenant receipt config (prefix / reset policy / start).
  */
 export class UpdateReceiptConfigDto {
-  @ApiPropertyOptional({ example: 'SVBK', description: 'Short prefix for new receipts.' })
+  @ApiPropertyOptional({
+    description: 'Visible receipt-number shape.',
+    enum: ['COMPACT_ACADEMIC', 'PREFIXED'],
+  })
+  @IsOptional()
+  @IsString()
+  receiptFormat?: 'COMPACT_ACADEMIC' | 'PREFIXED';
+
+  @ApiPropertyOptional({
+    example: '2',
+    description:
+      'Leading segment of the compact receipt number (the school code).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  tenantCode?: string;
+
+  @ApiPropertyOptional({ example: 'SVBK', description: 'Short prefix for new receipts (prefixed format).' })
   @IsOptional()
   @IsString()
   @MaxLength(20)

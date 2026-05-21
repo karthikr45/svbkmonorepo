@@ -10,7 +10,11 @@ import { Fee, PaymentStatus, TermType } from './entities/fee.entity';
 import { FeePayment, ClearanceStatus, PaymentType } from './entities/fee-payment.entity';
 import { FeeAdjustment, FeeAdjustmentKind } from './entities/fee-adjustment.entity';
 import { ReceiptSequence } from './entities/receipt-sequence.entity';
-import { Tenant, ReceiptResetPolicy } from '../tenants/entities/tenant.entity';
+import {
+  Tenant,
+  ReceiptResetPolicy,
+  ReceiptFormat,
+} from '../tenants/entities/tenant.entity';
 import { Student } from '../students/entities/student.entity';
 import { CreateFeeInput, ExistingFeeRecord } from './dto/fee.dto';
 import { ReceiptTemplatesService } from '../receipt-templates/receipt-templates.service';
@@ -19,6 +23,7 @@ import {
   computePeriodKey as computePeriodKeyPure,
   sanitizeReceiptPrefix,
   assembleReceiptNumber,
+  assembleCompactReceiptNumber,
   deriveStatus as deriveStatusPure,
 } from './fee-math';
 
@@ -1469,10 +1474,7 @@ ${body}
       throw new NotFoundException(`Tenant ${tenantId} not found`);
     }
 
-    const prefix = sanitizeReceiptPrefix(
-      tenant.receiptPrefix ?? tenant.code ?? tenant.tenantCode,
-    );
-    const policy = tenant.receiptResetPolicy ?? ReceiptResetPolicy.ACADEMIC_YEAR;
+    const policy = this.effectiveResetPolicy(tenant);
     const start = Math.max(1, tenant.receiptStartNumber ?? 1);
 
     const periodKey = this.computePeriodKey(policy, paidAt, academicYear);
@@ -1526,7 +1528,42 @@ ${body}
       await seqRepo.save(row);
     }
 
-    return assembleReceiptNumber(prefix, policy, periodKey, nextSeq);
+    return this.formatReceipt(tenant, policy, periodKey, academicYear, paidAt, nextSeq);
+  }
+
+  /**
+   * Compact format always resets per academic year; the legacy prefixed
+   * format honours the tenant's configured reset policy.
+   */
+  private effectiveResetPolicy(tenant: Tenant): ReceiptResetPolicy {
+    const format = tenant.receiptFormat ?? ReceiptFormat.COMPACT_ACADEMIC;
+    return format === ReceiptFormat.COMPACT_ACADEMIC
+      ? ReceiptResetPolicy.ACADEMIC_YEAR
+      : tenant.receiptResetPolicy ?? ReceiptResetPolicy.ACADEMIC_YEAR;
+  }
+
+  /** Build the visible receipt string per the tenant's chosen format. */
+  private formatReceipt(
+    tenant: Tenant,
+    policy: ReceiptResetPolicy,
+    periodKey: string,
+    academicYear: string | null,
+    when: Date,
+    seq: number,
+  ): string {
+    const format = tenant.receiptFormat ?? ReceiptFormat.COMPACT_ACADEMIC;
+    if (format === ReceiptFormat.COMPACT_ACADEMIC) {
+      return assembleCompactReceiptNumber(
+        tenant.code ?? tenant.tenantCode,
+        academicYear,
+        when,
+        seq,
+      );
+    }
+    const prefix = sanitizeReceiptPrefix(
+      tenant.receiptPrefix ?? tenant.code ?? tenant.tenantCode,
+    );
+    return assembleReceiptNumber(prefix, policy, periodKey, seq);
   }
 
   /**
@@ -1535,6 +1572,8 @@ ${body}
    * #0042 for 2025-26" without poking the DB directly.
    */
   async getReceiptStatus(tenantId: string): Promise<{
+    format: ReceiptFormat;
+    tenantCode: string;
     prefix: string;
     resetPolicy: ReceiptResetPolicy;
     startNumber: number;
@@ -1547,10 +1586,11 @@ ${body}
       .findOne({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found`);
 
+    const format = tenant.receiptFormat ?? ReceiptFormat.COMPACT_ACADEMIC;
     const prefix = sanitizeReceiptPrefix(
       tenant.receiptPrefix ?? tenant.code ?? tenant.tenantCode,
     );
-    const policy = tenant.receiptResetPolicy ?? ReceiptResetPolicy.ACADEMIC_YEAR;
+    const policy = this.effectiveResetPolicy(tenant);
     const start = Math.max(1, tenant.receiptStartNumber ?? 1);
 
     // For ACADEMIC_YEAR we don't know the year context at status-time;
@@ -1569,12 +1609,18 @@ ${body}
 
     const currentRow = history.find((r) => r.periodKey === currentPeriod);
     const nextValue = (currentRow?.currentValue ?? start - 1) + 1;
-    const padded = String(nextValue).padStart(4, '0');
-    const periodSegment =
-      policy === ReceiptResetPolicy.NEVER ? '' : `-${currentPeriod}`;
-    const nextPreview = `${prefix}${periodSegment}-${padded}`;
+    const nextPreview = this.formatReceipt(
+      tenant,
+      policy,
+      currentPeriod,
+      guessedAY,
+      today,
+      nextValue,
+    );
 
     return {
+      format,
+      tenantCode: sanitizeReceiptPrefix(tenant.code ?? tenant.tenantCode),
       prefix,
       resetPolicy: policy,
       startNumber: start,
@@ -1597,14 +1643,42 @@ ${body}
   async updateReceiptConfig(
     tenantId: string,
     input: {
+      receiptFormat?: ReceiptFormat;
+      tenantCode?: string | null;
       receiptPrefix?: string | null;
       receiptResetPolicy?: ReceiptResetPolicy;
       receiptStartNumber?: number;
     },
-  ): Promise<{ prefix: string; resetPolicy: ReceiptResetPolicy; startNumber: number }> {
+  ): Promise<{
+    format: ReceiptFormat;
+    tenantCode: string;
+    prefix: string;
+    resetPolicy: ReceiptResetPolicy;
+    startNumber: number;
+  }> {
     const tenantRepo = this.dataSource.getRepository(Tenant);
     const tenant = await tenantRepo.findOne({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found`);
+    if (input.receiptFormat !== undefined) {
+      tenant.receiptFormat = input.receiptFormat;
+    }
+    if (input.tenantCode !== undefined) {
+      // The leading segment of the compact receipt number. Keep it short
+      // and alphanumeric; uniqueness is enforced by the DB.
+      const code = (input.tenantCode ?? '').trim();
+      if (code) {
+        const clash = await tenantRepo
+          .createQueryBuilder('t')
+          .where('t.code = :code AND t.id != :id', { code, id: tenantId })
+          .getOne();
+        if (clash) {
+          throw new BadRequestException(
+            `Tenant code "${code}" is already used by another school.`,
+          );
+        }
+      }
+      tenant.code = code || null;
+    }
     if (input.receiptPrefix !== undefined) {
       tenant.receiptPrefix = (input.receiptPrefix ?? '').trim() || null;
     }
@@ -1616,12 +1690,12 @@ ${body}
     }
     await tenantRepo.save(tenant);
     return {
-      prefix:
-        (tenant.receiptPrefix ?? tenant.code ?? tenant.tenantCode ?? 'RCP')
-          .trim()
-          .toUpperCase()
-          .replace(/[^A-Z0-9]/g, ''),
-      resetPolicy: tenant.receiptResetPolicy ?? ReceiptResetPolicy.ACADEMIC_YEAR,
+      format: tenant.receiptFormat ?? ReceiptFormat.COMPACT_ACADEMIC,
+      tenantCode: sanitizeReceiptPrefix(tenant.code ?? tenant.tenantCode),
+      prefix: sanitizeReceiptPrefix(
+        tenant.receiptPrefix ?? tenant.code ?? tenant.tenantCode,
+      ),
+      resetPolicy: this.effectiveResetPolicy(tenant),
       startNumber: tenant.receiptStartNumber ?? 1,
     };
   }
@@ -1655,11 +1729,12 @@ ${body}
       .findOne({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found`);
 
-    const policy = tenant.receiptResetPolicy ?? ReceiptResetPolicy.ACADEMIC_YEAR;
+    const policy = this.effectiveResetPolicy(tenant);
     const today = new Date();
+    const guessedAY = guessAcademicYear(today);
     const periodKey =
       input.periodKey?.trim() ||
-      this.computePeriodKey(policy, today, guessAcademicYear(today));
+      this.computePeriodKey(policy, today, guessedAY);
 
     const seqRepo = this.dataSource.getRepository(ReceiptSequence);
     const existing = await seqRepo.findOne({
@@ -1684,22 +1759,17 @@ ${body}
         `period=${periodKey}, currentValue=${input.currentValue}`,
     );
 
-    const prefix = (
-      tenant.receiptPrefix ??
-      tenant.code ??
-      tenant.tenantCode ??
-      'RCP'
-    )
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '');
-    const padded = String(Math.floor(input.currentValue) + 1).padStart(4, '0');
-    const periodSegment =
-      policy === ReceiptResetPolicy.NEVER ? '' : `-${periodKey}`;
     return {
       periodKey,
       currentValue: Math.floor(input.currentValue),
-      nextPreview: `${prefix}${periodSegment}-${padded}`,
+      nextPreview: this.formatReceipt(
+        tenant,
+        policy,
+        periodKey,
+        guessedAY,
+        today,
+        Math.floor(input.currentValue) + 1,
+      ),
     };
   }
 

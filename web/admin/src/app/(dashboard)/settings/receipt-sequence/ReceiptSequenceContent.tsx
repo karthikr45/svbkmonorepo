@@ -8,9 +8,17 @@ import {
   correctReceiptSequenceApi,
   getReceiptStatusApi,
   updateReceiptConfigApi,
+  type ReceiptFormat,
   type ReceiptResetPolicy,
   type ReceiptStatusResponse,
 } from "@/features/payments/api/payments.api";
+
+/** "2026-27" (academic-year period key) → "2627". */
+function compactAYFromPeriod(period: string): string {
+  const m = period.match(/(\d{4})\D+(\d{2,4})/);
+  if (m) return `${m[1].slice(2)}${m[2].slice(-2)}`;
+  return period.replace(/\D/g, "");
+}
 
 const RESET_POLICY_OPTIONS: { value: ReceiptResetPolicy; label: string }[] = [
   { value: "ACADEMIC_YEAR", label: "Reset per academic year (Apr–Mar)" },
@@ -46,6 +54,8 @@ export function ReceiptSequenceContent() {
   const [okMsg, setOkMsg] = useState<string | null>(null);
 
   // Editable config (mirrors `status` once loaded).
+  const [format, setFormat] = useState<ReceiptFormat>("COMPACT_ACADEMIC");
+  const [tenantCode, setTenantCode] = useState("");
   const [prefix, setPrefix] = useState("");
   const [resetPolicy, setResetPolicy] =
     useState<ReceiptResetPolicy>("ACADEMIC_YEAR");
@@ -62,6 +72,8 @@ export function ReceiptSequenceContent() {
     try {
       const res = unwrap<ReceiptStatusResponse>(await getReceiptStatusApi());
       setStatus(res);
+      setFormat(res.format ?? "COMPACT_ACADEMIC");
+      setTenantCode(res.tenantCode ?? "");
       setPrefix(res.prefix ?? "");
       setResetPolicy(res.resetPolicy ?? "ACADEMIC_YEAR");
       setStartNumber(res.startNumber ?? 1);
@@ -81,14 +93,18 @@ export function ReceiptSequenceContent() {
   // Live preview of what next receipt would be with the current editable values.
   const livePreview = useMemo(() => {
     if (!status) return "";
-    const p = (prefix || "RCP").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const period = status.currentPeriod;
     const cur = Number(currentValue);
     const next = Number.isFinite(cur) ? cur + 1 : startNumber;
     const padded = String(Math.max(1, next)).padStart(4, "0");
-    const seg = resetPolicy === "NEVER" ? "" : `-${period}`;
+    if (format === "COMPACT_ACADEMIC") {
+      const code = (tenantCode || "RCP").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const ay = compactAYFromPeriod(status.currentPeriod);
+      return `${code}${ay}${padded}`;
+    }
+    const p = (prefix || "RCP").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const seg = resetPolicy === "NEVER" ? "" : `-${status.currentPeriod}`;
     return `${p}${seg}-${padded}`;
-  }, [prefix, resetPolicy, startNumber, currentValue, status]);
+  }, [format, tenantCode, prefix, resetPolicy, startNumber, currentValue, status]);
 
   async function saveConfig() {
     setSavingConfig(true);
@@ -96,7 +112,11 @@ export function ReceiptSequenceContent() {
     setOkMsg(null);
     try {
       await updateReceiptConfigApi({
-        receiptPrefix: prefix.trim() || undefined,
+        receiptFormat: format,
+        tenantCode:
+          format === "COMPACT_ACADEMIC" ? tenantCode.trim() || undefined : undefined,
+        receiptPrefix:
+          format === "PREFIXED" ? prefix.trim() || undefined : undefined,
         receiptResetPolicy: resetPolicy,
         receiptStartNumber: Math.max(1, startNumber),
       });
@@ -145,11 +165,13 @@ export function ReceiptSequenceContent() {
           Receipt sequence
         </h1>
         <p className="mt-1 text-sm text-slate-500 max-w-2xl">
-          Receipts use the pattern{" "}
-          <code className="font-mono text-slate-700">{"{CODE}-{YEAR}-{####}"}</code>
-          . The year is your school's academic year (April 1 → March 31).
-          The running number increments per payment and resets when the new
-          academic year starts.
+          Default pattern{" "}
+          <code className="font-mono text-slate-700">{"{code}{AAYY}{####}"}</code>{" "}
+          — e.g. <code className="font-mono text-slate-700">226270001</code>{" "}
+          (school code <strong>2</strong>, academic year <strong>2026-2027</strong>,
+          receipt <strong>0001</strong>). The year is your school's academic
+          year (April 1 → March 31); the running number resets to 0001 when a
+          new academic year starts.
         </p>
       </header>
 
@@ -197,28 +219,58 @@ export function ReceiptSequenceContent() {
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Receipt prefix">
-                <input
-                  value={prefix}
-                  onChange={(e) => setPrefix(e.target.value)}
-                  placeholder="e.g. SVBK"
-                  maxLength={20}
-                  className="form-input-x"
-                />
-              </Field>
-              <Field label="Reset policy">
+              <Field label="Receipt format">
                 <select
-                  value={resetPolicy}
-                  onChange={(e) => setResetPolicy(e.target.value as ReceiptResetPolicy)}
+                  value={format}
+                  onChange={(e) => setFormat(e.target.value as ReceiptFormat)}
                   className="form-input-x"
                 >
-                  {RESET_POLICY_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
+                  <option value="COMPACT_ACADEMIC">
+                    Compact — {"{code}{AAYY}{####}"} (e.g. 226270001)
+                  </option>
+                  <option value="PREFIXED">
+                    Prefixed — {"{PREFIX}-{period}-{####}"}
+                  </option>
                 </select>
               </Field>
+
+              {format === "COMPACT_ACADEMIC" ? (
+                <Field label="School code (leading digits)">
+                  <input
+                    value={tenantCode}
+                    onChange={(e) => setTenantCode(e.target.value)}
+                    placeholder="e.g. 2"
+                    maxLength={20}
+                    className="form-input-x"
+                  />
+                </Field>
+              ) : (
+                <>
+                  <Field label="Receipt prefix">
+                    <input
+                      value={prefix}
+                      onChange={(e) => setPrefix(e.target.value)}
+                      placeholder="e.g. SVBK"
+                      maxLength={20}
+                      className="form-input-x"
+                    />
+                  </Field>
+                  <Field label="Reset policy">
+                    <select
+                      value={resetPolicy}
+                      onChange={(e) => setResetPolicy(e.target.value as ReceiptResetPolicy)}
+                      className="form-input-x"
+                    >
+                      {RESET_POLICY_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </>
+              )}
+
               <Field label="Start number (fresh periods)">
                 <input
                   type="number"
@@ -229,6 +281,13 @@ export function ReceiptSequenceContent() {
                 />
               </Field>
             </div>
+            {format === "COMPACT_ACADEMIC" && (
+              <p className="mt-3 text-xs text-slate-500">
+                The school code is the leading segment of every receipt number
+                (the <strong>2</strong> in <code className="font-mono">226270001</code>).
+                Keep it short and unique across schools.
+              </p>
+            )}
             <div className="mt-4 flex justify-end">
               <Button variant="primary" onClick={saveConfig} isLoading={savingConfig}>
                 Save configuration

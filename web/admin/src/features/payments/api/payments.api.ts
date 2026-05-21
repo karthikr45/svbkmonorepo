@@ -210,7 +210,11 @@ export type ReceiptResetPolicy =
   | "MONTHLY"
   | "DAILY";
 
+export type ReceiptFormat = "COMPACT_ACADEMIC" | "PREFIXED";
+
 export interface ReceiptStatusResponse {
+  format: ReceiptFormat;
+  tenantCode: string;
   prefix: string;
   resetPolicy: ReceiptResetPolicy;
   startNumber: number;
@@ -224,6 +228,8 @@ export async function getReceiptStatusApi(): Promise<ReceiptStatusResponse> {
 }
 
 export async function updateReceiptConfigApi(body: {
+  receiptFormat?: ReceiptFormat;
+  tenantCode?: string;
   receiptPrefix?: string;
   receiptResetPolicy?: ReceiptResetPolicy;
   receiptStartNumber?: number;

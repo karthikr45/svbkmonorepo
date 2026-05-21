@@ -25,6 +25,21 @@ export enum ReceiptResetPolicy {
   DAILY = 'DAILY',
 }
 
+/**
+ * Shape of the visible receipt number.
+ *
+ * COMPACT_ACADEMIC (default): {tenantCode}{AAYY}{NNNN}, no separators —
+ *   e.g. tenant "2", AY 2026-2027, seq 1 → "226270001". The sequence
+ *   always resets per academic year regardless of receiptResetPolicy.
+ *
+ * PREFIXED: the legacy {PREFIX}[-{period}]-{NNNN} format, honouring the
+ *   tenant's receiptResetPolicy.
+ */
+export enum ReceiptFormat {
+  COMPACT_ACADEMIC = 'COMPACT_ACADEMIC',
+  PREFIXED = 'PREFIXED',
+}
+
 @Entity('tenants')
 export class Tenant {
   @PrimaryGeneratedColumn('uuid')
@@ -34,7 +49,7 @@ export class Tenant {
   name: string;
 
   @Column({ type: 'varchar', unique: true, nullable: true })
-  code: string;
+  code: string | null;
 
   @Column({ unique: true })
   tenantCode: string;
@@ -89,6 +104,15 @@ export class Tenant {
   /** First number issued in any fresh period. Most schools start at 1. */
   @Column({ name: 'receipt_start_number', type: 'int', default: 1 })
   receiptStartNumber: number;
+
+  /** Visible receipt-number shape. Default compact academic-year format. */
+  @Column({
+    name: 'receipt_format',
+    type: 'enum',
+    enum: ReceiptFormat,
+    default: ReceiptFormat.COMPACT_ACADEMIC,
+  })
+  receiptFormat: ReceiptFormat;
 
   @Column({ default: true })
   isActive: boolean;

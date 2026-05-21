@@ -5,6 +5,8 @@ import {
   computePeriodKey,
   sanitizeReceiptPrefix,
   assembleReceiptNumber,
+  assembleCompactReceiptNumber,
+  compactAcademicYear,
   deriveStatus,
 } from './fee-math';
 
@@ -99,6 +101,42 @@ describe('fee-math', () => {
           12345,
         ),
       ).toBe('SVBK-2025-12345');
+    });
+  });
+
+  describe('compactAcademicYear', () => {
+    it('joins the last two digits of each year', () => {
+      expect(
+        compactAcademicYear('2026-2027', new Date('2026-06-01T00:00:00')),
+      ).toBe('2627');
+    });
+    it('falls back to the date when AY is missing/unparseable', () => {
+      // June 2026 → academic year 2026-2027 → "2627"
+      expect(compactAcademicYear(null, new Date('2026-06-01T00:00:00'))).toBe(
+        '2627',
+      );
+      // Feb 2027 belongs to 2026-2027 as well
+      expect(compactAcademicYear('garbage', new Date('2027-02-15T00:00:00'))).toBe(
+        '2627',
+      );
+    });
+  });
+
+  describe('assembleCompactReceiptNumber', () => {
+    it('builds {code}{AAYY}{####} with no separators', () => {
+      expect(
+        assembleCompactReceiptNumber('2', '2026-2027', new Date('2026-06-01T00:00:00'), 1),
+      ).toBe('226270001');
+    });
+    it('sanitises the tenant code and pads the sequence', () => {
+      expect(
+        assembleCompactReceiptNumber('sv-bk', '2025-2026', new Date('2025-06-01'), 42),
+      ).toBe('SVBK25260042');
+    });
+    it('grows past 4 digits without truncation', () => {
+      expect(
+        assembleCompactReceiptNumber('2', '2026-2027', new Date('2026-06-01'), 12345),
+      ).toBe('2262712345');
     });
   });
 

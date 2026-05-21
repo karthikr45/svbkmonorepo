@@ -1,6 +1,8 @@
 import { ReceiptResetPolicy } from '../tenants/entities/tenant.entity';
 import { PaymentStatus } from './entities/fee.entity';
 
+const AY_RE = /^(\d{4})\D+(\d{4})$/;
+
 /**
  * Pure money math for the fee/receipt paths. Kept dependency-free (no
  * TypeORM / Nest) so the highest-risk logic — payment status transitions
@@ -43,7 +45,7 @@ export function computePeriodKey(
   return `${m[1]}-${m[2].slice(2)}`;
 }
 
-/** Normalises a tenant's receipt prefix to [A-Z0-9]. */
+/** Normalises a tenant's receipt prefix/code to [A-Z0-9]. */
 export function sanitizeReceiptPrefix(raw: string | null | undefined): string {
   return (raw ?? 'RCP')
     .trim()
@@ -51,7 +53,24 @@ export function sanitizeReceiptPrefix(raw: string | null | undefined): string {
     .replace(/[^A-Z0-9]/g, '');
 }
 
-/** Final receipt string: {PREFIX}[-{period}]-{####}. */
+/**
+ * Compact academic-year segment for the receipt number: the last two
+ * digits of the start year followed by the last two of the end year.
+ * "2026-2027" → "2627". Falls back to a calendar guess when the academic
+ * year is missing or unparseable.
+ */
+export function compactAcademicYear(
+  academicYear: string | null,
+  when: Date,
+): string {
+  const ay = academicYear ?? '';
+  const m = ay.match(AY_RE);
+  if (m) return `${m[1].slice(2)}${m[2].slice(2)}`;
+  const g = guessAcademicYear(when).match(AY_RE)!;
+  return `${g[1].slice(2)}${g[2].slice(2)}`;
+}
+
+/** Legacy receipt string: {PREFIX}[-{period}]-{####}. */
 export function assembleReceiptNumber(
   prefix: string,
   policy: ReceiptResetPolicy,
@@ -62,6 +81,23 @@ export function assembleReceiptNumber(
   const periodSegment =
     policy === ReceiptResetPolicy.NEVER ? '' : `-${periodKey}`;
   return `${prefix}${periodSegment}-${padded}`;
+}
+
+/**
+ * Compact receipt string: {tenantCode}{AAYY}{####} with no separators.
+ * Tenant "2" + AY 2026-2027 + seq 1 → "226270001". Sequence pads to 4
+ * digits and grows beyond that without truncation.
+ */
+export function assembleCompactReceiptNumber(
+  tenantCode: string | null | undefined,
+  academicYear: string | null,
+  when: Date,
+  seq: number,
+): string {
+  const code = sanitizeReceiptPrefix(tenantCode);
+  const ay = compactAcademicYear(academicYear, when);
+  const padded = String(seq).padStart(4, '0');
+  return `${code}${ay}${padded}`;
 }
 
 /** UNPAID at 0, PARTIAL below net, PAID once paid covers net. */

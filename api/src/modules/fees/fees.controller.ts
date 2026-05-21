@@ -92,6 +92,8 @@ export class FeesController {
   ) {
     const { tenantId } = ctx(req);
     return this.feesService.updateReceiptConfig(tenantId, {
+      receiptFormat: dto.receiptFormat as any,
+      tenantCode: dto.tenantCode,
       receiptPrefix: dto.receiptPrefix,
       receiptResetPolicy: dto.receiptResetPolicy as any,
       receiptStartNumber: dto.receiptStartNumber,
