@@ -217,11 +217,15 @@ export interface InitiatePaymentResponse {
   gatewayResponse: Record<string, unknown>;
 }
 
+/**
+ * Start an online payment. The gateway is chosen by the tenant's active
+ * configuration on the server — the caller does not pass one. The created
+ * payment's `gateway` field tells the UI which checkout SDK to load.
+ */
 export async function initiatePayment(
   feeId: string,
-  gateway: Gateway,
 ): Promise<InitiatePaymentResponse> {
-  const { data } = await api.post("/parent/payments", { feeId, gateway });
+  const { data } = await api.post("/parent/payments", { feeId });
   return unwrap<InitiatePaymentResponse>(data);
 }
 

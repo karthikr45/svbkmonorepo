@@ -1,14 +1,17 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsUUID } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
 import { PaymentGateway } from '../../payments/entities/payment.entity';
 
 export class ParentInitiatePaymentDto {
-  @ApiProperty({ description: 'Fee record to pay against' })
+  @ApiPropertyOptional({ description: 'Fee record to pay against' })
   @IsUUID()
   @IsNotEmpty()
   feeId: string;
 
-  @ApiProperty({ enum: PaymentGateway, example: PaymentGateway.RAZORPAY })
+  // Optional and normally omitted — the server picks the gateway from the
+  // tenant's active configuration. Kept only as an override for testing.
+  @ApiPropertyOptional({ enum: PaymentGateway })
+  @IsOptional()
   @IsEnum(PaymentGateway)
-  gateway: PaymentGateway;
+  gateway?: PaymentGateway;
 }

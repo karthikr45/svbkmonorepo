@@ -245,7 +245,7 @@ export class ParentPortalService {
     tenantId: string,
     parentId: string,
     feeId: string,
-    gateway: PaymentGateway,
+    gateway?: PaymentGateway,
   ) {
     const fee = await this.feeRepo.findOne({ where: { id: feeId, tenantId } });
     if (!fee) {
@@ -265,11 +265,15 @@ export class ParentPortalService {
       fee.studentId,
     );
 
+    // The gateway is decided by the tenant's configuration, not the client.
+    const resolvedGateway =
+      gateway ?? (await this.paymentsService.resolveActiveGateway(tenantId));
+
     return this.paymentsService.createOrder(tenantId, {
       tenantId,
       feeId: fee.id,
       paymentType: PaymentType.ONLINE,
-      gateway,
+      gateway: resolvedGateway,
       amount: Math.round(balance * 100), // paise
       currency: 'INR',
       ADMISSION: student.admissionNumber,

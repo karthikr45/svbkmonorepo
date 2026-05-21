@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   initiatePayment,
   fetchActivePaymentConfig,
   verifyParentPayment,
+  type ActivePaymentConfig,
   type Fee,
   type Gateway,
 } from "@/lib/parent-portal";
@@ -56,6 +57,22 @@ export function FeeCard({
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [config, setConfig] = useState<ActivePaymentConfig | null>(null);
+  const [configLoaded, setConfigLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!canPay) return;
+    let alive = true;
+    fetchActivePaymentConfig()
+      .then((c) => alive && setConfig(c))
+      .catch(() => alive && setConfig(null))
+      .finally(() => alive && setConfigLoaded(true));
+    return () => {
+      alive = false;
+    };
+  }, [canPay]);
+
+  const gatewayReady = !!config?.gatewayType && !!config?.paymentClientId;
 
   async function settle(args: {
     gatewayOrderId: string;
@@ -78,12 +95,14 @@ export function FeeCard({
     }
   }
 
-  async function handlePay(gateway: Gateway) {
+  async function handlePay() {
     setPaying(true);
     setPayError(null);
     setSuccessMsg(null);
     try {
-      const res = await initiatePayment(fee.id, gateway);
+      // The server picks the gateway from the tenant's configuration.
+      const res = await initiatePayment(fee.id);
+      const gateway = (res.payment.gateway ?? "razorpay") as Gateway;
       const raw = res.gatewayResponse as Record<string, unknown>;
       const orderId =
         res.payment?.gatewayOrderId ??
@@ -92,8 +111,10 @@ export function FeeCard({
       if (!orderId) throw new Error("Gateway did not return an order id.");
 
       if (gateway === "razorpay") {
-        const cfg = await fetchActivePaymentConfig();
-        if (!cfg.paymentClientId) {
+        const clientId =
+          config?.paymentClientId ??
+          (await fetchActivePaymentConfig()).paymentClientId;
+        if (!clientId) {
           throw new Error(
             "Online payment isn't configured for your school yet. " +
               "Please contact the school office.",
@@ -105,7 +126,7 @@ export function FeeCard({
         if (!ok) throw new Error("Failed to load the Razorpay checkout.");
         const w = window as unknown as { Razorpay: new (o: unknown) => { open: () => void } };
         const rzp = new w.Razorpay({
-          key: cfg.paymentClientId,
+          key: clientId,
           order_id: orderId,
           amount: res.payment.amount,
           currency: res.payment.currency || "INR",
@@ -195,24 +216,33 @@ export function FeeCard({
 
       {canPay && (
         <div className="mt-4 flex flex-col gap-2">
-          <div className="flex gap-2">
+          {configLoaded && !gatewayReady ? (
+            <p className="text-xs text-slate-500 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+              Online payment isn&apos;t available for your school yet. Please
+              contact the school office to pay.
+            </p>
+          ) : (
             <button
-              onClick={() => handlePay("razorpay")}
-              disabled={paying}
-              className="flex-1 h-9 rounded-lg text-white text-xs font-bold disabled:opacity-60"
+              onClick={handlePay}
+              disabled={paying || !configLoaded}
+              className="w-full h-10 rounded-lg text-white text-sm font-bold disabled:opacity-60 inline-flex items-center justify-center gap-2"
               style={{ backgroundColor: "#6c739c" }}
             >
-              {paying ? "Working…" : "Pay via Razorpay"}
+              {paying ? (
+                "Working…"
+              ) : !configLoaded ? (
+                "Loading…"
+              ) : (
+                <>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="5" width="20" height="14" rx="2" />
+                    <path d="M2 10h20" />
+                  </svg>
+                  Pay now · {inr(balance)}
+                </>
+              )}
             </button>
-            <button
-              onClick={() => handlePay("cashfree")}
-              disabled={paying}
-              className="flex-1 h-9 rounded-lg text-xs font-bold disabled:opacity-60"
-              style={{ backgroundColor: "#e2e8f0", color: "#0f172a" }}
-            >
-              {paying ? "Working…" : "Pay via Cashfree"}
-            </button>
-          </div>
+          )}
           {payError && (
             <p className="text-xs text-red-600" role="alert">{payError}</p>
           )}

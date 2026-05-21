@@ -44,6 +44,32 @@ export class PaymentsService {
     return { clientId: cfg.paymentClientId, secretKey: cfg.paymentSecretKey };
   }
 
+  /**
+   * The online gateway a tenant has configured. This is the single source
+   * of truth — callers (e.g. the parent portal) must not let the client
+   * choose a gateway. Throws if online payment isn't set up.
+   */
+  async resolveActiveGateway(tenantId: string): Promise<PaymentGateway> {
+    const cfg = await this.tenantConfigsService.findActiveForTenant(tenantId);
+    if (!cfg || !cfg.gatewayType || !cfg.paymentClientId) {
+      throw new BadRequestException(
+        'Online payment is not configured for your school yet. ' +
+          'Please contact the school office.',
+      );
+    }
+    const map: Record<string, PaymentGateway> = {
+      [PaymentGateway.RAZORPAY]: PaymentGateway.RAZORPAY,
+      [PaymentGateway.CASHFREE]: PaymentGateway.CASHFREE,
+    };
+    const gateway = map[cfg.gatewayType];
+    if (!gateway) {
+      throw new BadRequestException(
+        `Unsupported payment gateway "${cfg.gatewayType}" configured for this school.`,
+      );
+    }
+    return gateway;
+  }
+
   async createOrder(tenantId: string, dto: CreateOrderDto): Promise<{ payment: Payment; transaction: Transaction; gatewayResponse: Record<string, any> }> {
     const notes = {
       admission: dto.ADMISSION,
