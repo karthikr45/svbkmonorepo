@@ -55,6 +55,18 @@ export class ParentPortalController {
     return this.portal.childrenOverview(user.tenantId, user.userId);
   }
 
+  @Get('students/:studentId/services')
+  @ApiOperation({
+    summary:
+      "One child's school/hostel/transport fees across sibling tenants",
+  })
+  childServices(
+    @CurrentUser() user: any,
+    @Param('studentId') studentId: string,
+  ) {
+    return this.portal.childServices(user.tenantId, user.userId, studentId);
+  }
+
   @Get('payments/receipt/:feePaymentId')
   @ApiOperation({ summary: 'Download a printable receipt (own children only)' })
   async receipt(

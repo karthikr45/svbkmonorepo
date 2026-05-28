@@ -320,6 +320,30 @@ export class StudentsController {
     return this.studentsService.getLatest(tenantId);
   }
 
+  @Get(':id/services')
+  @ApiOperation({
+    summary:
+      "A person's school/hostel/transport fees across sibling tenants",
+    description:
+      'Resolves the student in your tenant, then aggregates every ' +
+      'enrollment that shares its school code + admission number across ' +
+      'the sibling school/hostel/transport tenants, each with its fees. ' +
+      'Defaults to the student\'s academic year.',
+  })
+  @ApiParam({ name: 'id', description: 'Student UUID' })
+  async servicesForStudent(
+    @Param('id', buildUuidPipe('id')) id: string,
+    @Req() req: Request,
+  ) {
+    const { tenantId } = ctx(req);
+    const student = await this.studentsService.findOneOrFail(tenantId, id);
+    return this.studentsService.getServicesForPerson(
+      student.schoolCode,
+      student.admissionNumber,
+      student.academicYear,
+    );
+  }
+
   @Get(':id/with-fees')
   @ApiOperation({ summary: 'Get student + fees by UUID' })
   @ApiParam({ name: 'id', description: 'Student UUID', example: 'd6f2e8a0-1c5b-4f2a-9c3b-2e8a6f1c5b4f' })

@@ -11,6 +11,10 @@ import { Tenant } from '../tenants/entities/tenant.entity';
 import { StudentIdentity } from '../student-identities/entities/student-identity.entity';
 import { ParentsService } from '../parents/parents.service';
 import {
+  StudentFeesService,
+  StudentFeeSummary,
+} from '../fees/student-fees.service';
+import {
   UpsertStudentInput,
   UpsertStudentsResult,
   UpdateStudentDto,
@@ -18,6 +22,32 @@ import {
 
 /** Chunk size for batched saves. 500 keeps us under Postgres' param limit. */
 const BATCH_SIZE = 500;
+
+/** One enrollment (school / hostel / transport) of a person, with fees. */
+export interface PersonServiceView {
+  tenantId: string;
+  serviceType: string | null;
+  tenantName: string | null;
+  studentId: string;
+  admissionNumber: string;
+  academicYear: string;
+  name: string;
+  class: string;
+  section: string;
+  rollNo: string;
+  pickupLocation: string | null;
+  dropLocation: string | null;
+  totalOutstanding: string;
+  fees: StudentFeeSummary[];
+}
+
+/** A person's services aggregated across the sibling tenants. */
+export interface PersonServicesView {
+  schoolCode: string;
+  admissionNumber: string;
+  totalOutstanding: string;
+  services: PersonServiceView[];
+}
 
 @Injectable()
 export class StudentsService {
@@ -31,6 +61,7 @@ export class StudentsService {
     @InjectRepository(StudentIdentity)
     private readonly identityRepo: Repository<StudentIdentity>,
     private readonly parentsService: ParentsService,
+    private readonly studentFeesService: StudentFeesService,
   ) {}
 
   /**
@@ -310,6 +341,76 @@ export class StudentsService {
       order: { createdAt: 'DESC' },
       take: 5,
     });
+  }
+
+  /**
+   * Cross-tenant view of one person's services. School / hostel /
+   * transport live in separate sibling tenants that share a school code,
+   * so a person's records are matched by (school_code + admission_number)
+   * across tenants. Each matched enrollment is returned with its tenant's
+   * service type and its fees (term-wise or monthly).
+   *
+   * This intentionally crosses the tenant boundary. Callers MUST first
+   * authorise the requester against a record they already own (a student
+   * in their own tenant for admins; a linked child for parents) and pass
+   * that record's school_code + admission_number here — never raw,
+   * client-supplied values — so the expansion stays within one
+   * institution.
+   */
+  async getServicesForPerson(
+    schoolCode: string,
+    admissionNumber: string,
+    academicYear?: string,
+  ): Promise<PersonServicesView> {
+    const where: Record<string, string> = { schoolCode, admissionNumber };
+    if (academicYear) where.academicYear = academicYear;
+
+    const students = await this.studentRepo.find({
+      where,
+      order: { academicYear: 'DESC' },
+    });
+
+    const tenantIds = [...new Set(students.map((s) => s.tenantId))];
+    const tenants = tenantIds.length
+      ? await this.tenantRepo.find({ where: { id: In(tenantIds) } })
+      : [];
+    const tenantById = new Map(tenants.map((t) => [t.id, t]));
+
+    const services: PersonServiceView[] = [];
+    for (const s of students) {
+      const tenant = tenantById.get(s.tenantId);
+      const fees = await this.studentFeesService.getFeesForStudent(
+        s.tenantId,
+        s.id,
+        s.academicYear,
+      );
+      const outstanding = fees.reduce(
+        (sum, f) => sum + Number(f.remainingAmount),
+        0,
+      );
+      services.push({
+        tenantId: s.tenantId,
+        serviceType: tenant?.type ?? null,
+        tenantName: tenant?.tenantName ?? tenant?.name ?? null,
+        studentId: s.id,
+        admissionNumber: s.admissionNumber,
+        academicYear: s.academicYear,
+        name: s.name,
+        class: s.class,
+        section: s.section,
+        rollNo: s.rollNo,
+        pickupLocation: s.pickupLocation,
+        dropLocation: s.dropLocation,
+        totalOutstanding: outstanding.toFixed(2),
+        fees,
+      });
+    }
+
+    const totalOutstanding = services
+      .reduce((sum, s) => sum + Number(s.totalOutstanding), 0)
+      .toFixed(2);
+
+    return { schoolCode, admissionNumber, totalOutstanding, services };
   }
 
   /**

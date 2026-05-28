@@ -22,6 +22,7 @@ import { Tenant } from '../tenants/entities/tenant.entity';
 import { ParentsService } from '../parents/parents.service';
 import { PaymentsService } from '../payments/payments.service';
 import { FeesService } from '../fees/fees.service';
+import { StudentsService } from '../students/students.service';
 import { AcademicYearsService } from '../academic-years/academic-years.service';
 
 @Injectable()
@@ -42,6 +43,7 @@ export class ParentPortalService {
     private readonly parentsService: ParentsService,
     private readonly paymentsService: PaymentsService,
     private readonly feesService: FeesService,
+    private readonly studentsService: StudentsService,
     private readonly academicYearsService: AcademicYearsService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
@@ -126,6 +128,26 @@ export class ParentPortalService {
       throw new ForbiddenException('You are not linked to this student');
     }
     return student;
+  }
+
+  /**
+   * One child's services (school / hostel / transport) and fees across
+   * the sibling tenants. Authorises the child against the parent in the
+   * parent's own tenant, then aggregates by the child's school code +
+   * admission number — so a parent linked in the school tenant also sees
+   * the hostel/transport bills for the same person.
+   */
+  async childServices(tenantId: string, parentId: string, studentId: string) {
+    const child = await this.ensureChildBelongsToParent(
+      tenantId,
+      parentId,
+      studentId,
+    );
+    return this.studentsService.getServicesForPerson(
+      child.schoolCode,
+      child.admissionNumber,
+      child.academicYear,
+    );
   }
 
   async listFees(
