@@ -5,15 +5,16 @@
  * into their Excel. Synonyms (e.g. "PHONE" / "Phone Number" / "Mobile")
  * should be normalised in the parser, not added here.
  *
- * The Excel is the *broad* view: it carries Branch Code + Type +
- * per-term Discount so a single file can be uploaded for any branch and
- * any number of concession rules. The UI table view is the *compact*
- * view computed from this data + payment history.
+ * The Excel is the *broad* view: it carries School Code + per-term
+ * Discount so a single file can be uploaded with any number of
+ * concession rules. The student's service (school/hostel/transport)
+ * comes from the tenant the file is uploaded into, not a column.
+ * The UI table view is the *compact* view computed from this data +
+ * payment history.
  */
 export const EXCEL_COLUMNS = {
   // Identity / placement
-  BRANCH_CODE: 'Branch Code',
-  TYPE: 'Type',
+  SCHOOL_CODE: 'School Code',
   ACADEMIC_YEAR: 'Academic Year',
   ADMISSION: 'ADMISSION',
   NAME: 'NAME',
@@ -40,8 +41,7 @@ export const EXCEL_COLUMNS = {
 } as const;
 
 export const REQUIRED_STUDENT_COLUMNS = [
-  EXCEL_COLUMNS.BRANCH_CODE,
-  EXCEL_COLUMNS.TYPE,
+  EXCEL_COLUMNS.SCHOOL_CODE,
   EXCEL_COLUMNS.ACADEMIC_YEAR,
   EXCEL_COLUMNS.ADMISSION,
   EXCEL_COLUMNS.NAME,
@@ -91,8 +91,7 @@ type SampleRow = Record<string, string | number>;
 export const SAMPLE_ROWS: SampleRow[] = [
   // 1. Standard CBSE student, 4 equal terms, no discount
   {
-    [EXCEL_COLUMNS.BRANCH_CODE]: 'SVBK-MAIN',
-    [EXCEL_COLUMNS.TYPE]: 'school',
+    [EXCEL_COLUMNS.SCHOOL_CODE]: 'SVBK-MAIN',
     [EXCEL_COLUMNS.ACADEMIC_YEAR]: '2025-2026',
     [EXCEL_COLUMNS.ADMISSION]: 'ADM-2024-001',
     [EXCEL_COLUMNS.NAME]: 'Arjun Kumar',
@@ -115,8 +114,7 @@ export const SAMPLE_ROWS: SampleRow[] = [
   },
   // 2. Sibling discount on every term (younger sibling)
   {
-    [EXCEL_COLUMNS.BRANCH_CODE]: 'SVBK-MAIN',
-    [EXCEL_COLUMNS.TYPE]: 'school',
+    [EXCEL_COLUMNS.SCHOOL_CODE]: 'SVBK-MAIN',
     [EXCEL_COLUMNS.ACADEMIC_YEAR]: '2025-2026',
     [EXCEL_COLUMNS.ADMISSION]: 'ADM-2024-002',
     [EXCEL_COLUMNS.NAME]: 'Sneha Kumar',
@@ -139,8 +137,7 @@ export const SAMPLE_ROWS: SampleRow[] = [
   },
   // 3. Different branch, 5 terms (Inter / Junior college)
   {
-    [EXCEL_COLUMNS.BRANCH_CODE]: 'SVBK-GNT',
-    [EXCEL_COLUMNS.TYPE]: 'school',
+    [EXCEL_COLUMNS.SCHOOL_CODE]: 'SVBK-GNT',
     [EXCEL_COLUMNS.ACADEMIC_YEAR]: '2025-2026',
     [EXCEL_COLUMNS.ADMISSION]: 'ADM-2024-G-101',
     [EXCEL_COLUMNS.NAME]: 'Lakshmi Reddy',
@@ -163,8 +160,7 @@ export const SAMPLE_ROWS: SampleRow[] = [
   },
   // 4. Staff child — large concession
   {
-    [EXCEL_COLUMNS.BRANCH_CODE]: 'SVBK-MAIN',
-    [EXCEL_COLUMNS.TYPE]: 'hostel',
+    [EXCEL_COLUMNS.SCHOOL_CODE]: 'SVBK-MAIN',
     [EXCEL_COLUMNS.ACADEMIC_YEAR]: '2025-2026',
     [EXCEL_COLUMNS.ADMISSION]: 'ADM-2024-S-007',
     [EXCEL_COLUMNS.NAME]: 'Pranav Rao',
@@ -187,8 +183,7 @@ export const SAMPLE_ROWS: SampleRow[] = [
   },
   // 5. Half-yearly fee structure (only 2 terms used)
   {
-    [EXCEL_COLUMNS.BRANCH_CODE]: 'SVBK-MAIN',
-    [EXCEL_COLUMNS.TYPE]: 'transport',
+    [EXCEL_COLUMNS.SCHOOL_CODE]: 'SVBK-MAIN',
     [EXCEL_COLUMNS.ACADEMIC_YEAR]: '2025-2026',
     [EXCEL_COLUMNS.ADMISSION]: 'ADM-2024-H-201',
     [EXCEL_COLUMNS.NAME]: 'Anika Sharma',
@@ -213,8 +208,7 @@ export const SAMPLE_ROWS: SampleRow[] = [
 
 /** Per-column help text shown on the Instructions sheet of the template. */
 export const COLUMN_DESCRIPTIONS: { column: string; required: 'Yes' | 'No'; example: string; notes: string }[] = [
-  { column: EXCEL_COLUMNS.BRANCH_CODE,      required: 'Yes', example: 'SVBK-MAIN',      notes: 'Tenant code the admin assigns this row to.' },
-  { column: EXCEL_COLUMNS.TYPE,             required: 'Yes', example: 'school',         notes: 'One of: school, hostel, transport.' },
+  { column: EXCEL_COLUMNS.SCHOOL_CODE,      required: 'Yes', example: 'SVBK-MAIN',      notes: 'School code. Shared across the school/hostel/transport tenants for the same institution.' },
   { column: EXCEL_COLUMNS.ACADEMIC_YEAR,    required: 'Yes', example: '2025-2026',      notes: 'Format YYYY-YYYY, end year = start year + 1.' },
   { column: EXCEL_COLUMNS.ADMISSION,        required: 'Yes', example: 'ADM-2024-001',   notes: 'Canonical student id. Stays the same year over year.' },
   { column: EXCEL_COLUMNS.NAME,             required: 'Yes', example: 'Arjun Kumar',    notes: 'Full name as on the school register.' },

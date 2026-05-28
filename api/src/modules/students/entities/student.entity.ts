@@ -10,34 +10,26 @@ import {
 } from 'typeorm';
 
 /**
- * Classification of the enrollment — which service the fees row covers.
- * Entered per-row in the upload template ("Type" column).
- */
-export enum StudentType {
-  SCHOOL = 'school',
-  HOSTEL = 'hostel',
-  TRANSPORT = 'transport',
-}
-
-/**
  * One row per student per academic year.
  * Class/section/roll-no change yearly, so the same admission number
  * appears in multiple rows across years.
  *
- * `branchCode` is the tenant code the admin assigns the row to.
+ * `schoolCode` identifies the institution. It is shared across the
+ * sibling school/hostel/transport tenants, so (school_code +
+ * admission_number) links one person's records across those tenants.
  *
- * Unique: (tenant_id, branch_code, admission_number, academic_year)
+ * Unique: (tenant_id, school_code, admission_number, academic_year)
  */
 @Entity('students')
 @Unique('uq_students_tenant_branch_admission_year', [
   'tenantId',
-  'branchCode',
+  'schoolCode',
   'admissionNumber',
   'academicYear',
 ])
 @Index('idx_students_tenant_branch_year', [
   'tenantId',
-  'branchCode',
+  'schoolCode',
   'academicYear',
 ])
 export class Student {
@@ -47,11 +39,8 @@ export class Student {
   @Column({ name: 'tenant_id', type: 'uuid' })
   tenantId: string;
 
-  @Column({ name: 'branch_code', type: 'varchar', length: 100 })
-  branchCode: string;
-
-  @Column({ name: 'type', type: 'enum', enum: StudentType, nullable: true })
-  type: StudentType | null;
+  @Column({ name: 'school_code', type: 'varchar', length: 100 })
+  schoolCode: string;
 
   @Column({ name: 'admission_number', type: 'varchar', length: 50 })
   admissionNumber: string;

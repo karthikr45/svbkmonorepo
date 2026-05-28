@@ -42,6 +42,14 @@ export class UpdateTenantDto {
   @IsOptional()
   type?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Billing mode (billing_mode metadata value: term_wise | monthly).',
+  })
+  @IsString()
+  @IsOptional()
+  billingMode?: string;
+
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()

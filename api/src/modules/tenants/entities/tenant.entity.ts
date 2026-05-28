@@ -60,8 +60,22 @@ export class Tenant {
   @Column({ nullable: true })
   medium: string;
 
+  /**
+   * Service this tenant runs — a `tenant_type` metadata value
+   * (school / hostel / transport). Sibling tenants for one institution
+   * share a school code on their student records.
+   */
   @Column({ nullable: true })
   type: string;
+
+  /**
+   * Billing mode for this tenant's fees — a `billing_mode` metadata
+   * value (`term_wise` | `monthly`). Admin-selected. When null, the
+   * effective mode is derived from `type` (transport → monthly,
+   * otherwise term-wise).
+   */
+  @Column({ name: 'billing_mode', type: 'varchar', length: 20, nullable: true })
+  billingMode: string | null;
 
   @Column({ nullable: true })
   boardType: string;

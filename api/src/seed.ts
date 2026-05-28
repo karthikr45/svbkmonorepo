@@ -23,7 +23,7 @@ import { randomBytes } from 'crypto';
 import { Admin } from './modules/admins/entities/admin.entity';
 import { Tenant } from './modules/tenants/entities/tenant.entity';
 import { AcademicYear } from './modules/academic-years/entities/academic-year.entity';
-import { Student, StudentType } from './modules/students/entities/student.entity';
+import { Student } from './modules/students/entities/student.entity';
 import { Fee, PaymentStatus, TermType } from './modules/fees/entities/fee.entity';
 import { Parent } from './modules/parents/entities/parent.entity';
 import { SystemMetadata } from './modules/system-metadata/entities/system-metadata.entity';
@@ -65,8 +65,7 @@ const TENANT_ADMIN = {
 };
 const ACADEMIC_YEAR = '2025-2026';
 const DEMO_STUDENT = {
-  branchCode: 'SVBK-MAIN',
-  type: StudentType.SCHOOL,
+  schoolCode: 'SVBK-MAIN',
   admissionNumber: 'ADM-2024-001',
   name: 'Arjun Kumar',
   email: 'arjun@example.com',
@@ -263,7 +262,7 @@ async function ensureStudent(
     .findOne({
       where: {
         tenantId,
-        branchCode: DEMO_STUDENT.branchCode,
+        schoolCode: DEMO_STUDENT.schoolCode,
         admissionNumber: DEMO_STUDENT.admissionNumber,
         academicYear: ACADEMIC_YEAR,
       },
@@ -293,7 +292,7 @@ async function ensureFees(
       .findOne({
         where: {
           tenantId: student.tenantId,
-          branch: student.branchCode,
+          branch: student.schoolCode,
           studentId: student.id,
           academicYear: student.academicYear,
           term,
@@ -307,7 +306,7 @@ async function ensureFees(
     await repo.save(
       repo.create({
         tenantId: student.tenantId,
-        branch: student.branchCode,
+        branch: student.schoolCode,
         academicYear: student.academicYear,
         studentId: student.id,
         term,
@@ -352,7 +351,7 @@ async function ensureParent(
       where: {
         parentId: parent.id,
         tenantId,
-        branch: DEMO_STUDENT.branchCode,
+        branch: DEMO_STUDENT.schoolCode,
         admissionNumber: DEMO_STUDENT.admissionNumber,
       },
     })
@@ -363,7 +362,7 @@ async function ensureParent(
       linksRepo.create({
         parentId: parent.id,
         tenantId,
-        branch: DEMO_STUDENT.branchCode,
+        branch: DEMO_STUDENT.schoolCode,
         admissionNumber: DEMO_STUDENT.admissionNumber,
         relationship: Relationship.FATHER,
         isPrimary: true,
@@ -451,6 +450,16 @@ async function ensureSystemMetadata(app: any): Promise<void> {
     { type: 'term', value: '3rd Term Fee', displayOrder: 3 },
     { type: 'term', value: '4th Term Fee', displayOrder: 4 },
     { type: 'term', value: '5th Term Fee', displayOrder: 5 },
+    // Billing mode — admin picks per tenant. Transport defaults to
+    // monthly; school/hostel default to term-wise.
+    { type: 'billing_mode', value: 'term_wise', displayOrder: 1 },
+    { type: 'billing_mode', value: 'monthly', displayOrder: 2 },
+    // Monthly billing periods (academic year Apr–Mar) used when a
+    // tenant's billing mode is monthly (e.g. transport).
+    ...[
+      'April', 'May', 'June', 'July', 'August', 'September',
+      'October', 'November', 'December', 'January', 'February', 'March',
+    ].map((v, i) => ({ type: 'month', value: v, displayOrder: i + 1 })),
     // Fee payment status (mirrors PaymentStatus enum; labels only).
     { type: 'payment_status', value: 'UNPAID', displayOrder: 1 },
     { type: 'payment_status', value: 'PARTIAL', displayOrder: 2 },

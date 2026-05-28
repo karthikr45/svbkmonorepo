@@ -14,7 +14,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { TermType } from '../../fees/entities/fee.entity';
-import { StudentType } from '../entities/student.entity';
 
 export class CreateStudentTermDto {
   @ApiProperty({ enum: TermType, example: TermType.FIRST })
@@ -36,16 +35,11 @@ export class CreateStudentTermDto {
 export class CreateStudentDto {
   @ApiPropertyOptional({
     description:
-      'Tenant code this student belongs to. Defaults to the tenant admin\'s JWT branch.',
+      'School code this student belongs to. Defaults to the tenant admin\'s JWT branch.',
   })
   @IsOptional()
   @IsString()
-  branchCode?: string;
-
-  @ApiPropertyOptional({ enum: StudentType, example: StudentType.SCHOOL })
-  @IsOptional()
-  @IsEnum(StudentType)
-  type?: StudentType;
+  schoolCode?: string;
 
   @ApiProperty({ example: '2025-2026' })
   @IsString()

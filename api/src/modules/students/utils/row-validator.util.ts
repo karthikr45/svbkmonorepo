@@ -1,8 +1,5 @@
 import { EXCEL_COLUMNS, TERM_COLUMNS } from '../constants/excel.constants';
 import { TermType } from '../../fees/entities/fee.entity';
-import { StudentType } from '../entities/student.entity';
-
-const STUDENT_TYPES = Object.values(StudentType) as string[];
 
 export const TERM_COLUMN_TO_ENUM: Record<string, TermType> = {
   [EXCEL_COLUMNS.TERM_1]: TermType.FIRST,
@@ -21,8 +18,7 @@ const TERM_TO_DISCOUNT_COL: Record<string, string> = {
 };
 
 export interface NormalisedRow {
-  branchCode: string;
-  type: StudentType;
+  schoolCode: string;
   name: string;
   email: string;
   phoneNumber: string;
@@ -55,22 +51,9 @@ export function validateAndNormalise(
 ): ValidationResult {
   const errors: FieldError[] = [];
 
-  const branchCode = asTrimmedString(raw[EXCEL_COLUMNS.BRANCH_CODE]);
-  if (!branchCode) {
-    errors.push({ field: EXCEL_COLUMNS.BRANCH_CODE, reason: 'required' });
-  }
-
-  const typeRaw = asTrimmedString(raw[EXCEL_COLUMNS.TYPE]).toLowerCase();
-  let type: StudentType | null = null;
-  if (!typeRaw) {
-    errors.push({ field: EXCEL_COLUMNS.TYPE, reason: 'required' });
-  } else if (!STUDENT_TYPES.includes(typeRaw)) {
-    errors.push({
-      field: EXCEL_COLUMNS.TYPE,
-      reason: `must be one of: ${STUDENT_TYPES.join(', ')}`,
-    });
-  } else {
-    type = typeRaw as StudentType;
+  const schoolCode = asTrimmedString(raw[EXCEL_COLUMNS.SCHOOL_CODE]);
+  if (!schoolCode) {
+    errors.push({ field: EXCEL_COLUMNS.SCHOOL_CODE, reason: 'required' });
   }
 
   const name = asTrimmedString(raw[EXCEL_COLUMNS.NAME]);
@@ -186,8 +169,7 @@ export function validateAndNormalise(
   return {
     ok: true,
     values: termValues.map((t) => ({
-      branchCode,
-      type: type as StudentType,
+      schoolCode,
       name,
       email,
       phoneNumber,

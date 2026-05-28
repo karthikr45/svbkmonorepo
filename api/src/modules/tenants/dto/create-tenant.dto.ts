@@ -42,6 +42,16 @@ export class CreateTenantDto {
   @IsOptional()
   type?: string;
 
+  @ApiPropertyOptional({
+    example: 'term_wise',
+    description:
+      'Billing mode (a billing_mode metadata value: term_wise | monthly). ' +
+      'When omitted, derived from type — transport is monthly, others term-wise.',
+  })
+  @IsString()
+  @IsOptional()
+  billingMode?: string;
+
   @ApiPropertyOptional({ example: 'State Board' })
   @IsString()
   @IsOptional()

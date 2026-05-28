@@ -422,7 +422,7 @@ export class ReceiptTemplatesService {
             class: student.class ?? '',
             section: student.section ?? '',
             rollNo: student.rollNo ?? '',
-            branch: student.branchCode ?? '',
+            branch: student.schoolCode ?? '',
           }
         : {},
       fee: fee

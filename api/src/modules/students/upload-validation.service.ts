@@ -43,7 +43,7 @@ export class UploadValidationService {
       // rows are wrong rather than getting a single global error.
       if (result.ok && jwtBranch) {
         const offending = result.values.find(
-          (v) => v.branchCode.toLowerCase() !== jwtBranch.toLowerCase(),
+          (v) => v.schoolCode.toLowerCase() !== jwtBranch.toLowerCase(),
         );
         if (offending) {
           return {
@@ -53,8 +53,8 @@ export class UploadValidationService {
               ok: false as const,
               errors: [
                 {
-                  field: 'Branch Code',
-                  reason: `branch code "${offending.branchCode}" not allowed; you can only upload for "${jwtBranch}"`,
+                  field: 'School Code',
+                  reason: `school code "${offending.schoolCode}" not allowed; you can only upload for "${jwtBranch}"`,
                 },
               ],
             },
@@ -69,7 +69,7 @@ export class UploadValidationService {
     for (const s of stage1) {
       if (s.result.ok) {
         for (const v of s.result.values) {
-          const k = this.feeKey(v.branchCode, v.admissionNumber, v.academicYear, v.term);
+          const k = this.feeKey(v.schoolCode, v.admissionNumber, v.academicYear, v.term);
           keyCount.set(k, (keyCount.get(k) ?? 0) + 1);
         }
       }
@@ -116,7 +116,7 @@ export class UploadValidationService {
       let anyTermExists = false;
 
       for (const v of s.result.values) {
-        const key = this.feeKey(v.branchCode, v.admissionNumber, v.academicYear, v.term);
+        const key = this.feeKey(v.schoolCode, v.admissionNumber, v.academicYear, v.term);
         if ((keyCount.get(key) ?? 0) > 1) {
           errors.push(
             `Duplicate within file: ${v.term} for admission ${v.admissionNumber} (${v.academicYear}) appears more than once — keep only one row per term`,

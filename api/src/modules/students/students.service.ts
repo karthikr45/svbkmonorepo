@@ -58,7 +58,7 @@ export class StudentsService {
     academicYear: string,
   ): Promise<Student> {
     const student = await this.studentRepo.findOne({
-      where: { tenantId, branchCode: branch, admissionNumber, academicYear },
+      where: { tenantId, schoolCode: branch, admissionNumber, academicYear },
     });
     if (!student) {
       throw new NotFoundException(
@@ -95,7 +95,7 @@ export class StudentsService {
         email: saved.email,
         name: saved.name,
         phoneNumber: saved.phoneNumber,
-        branch: saved.branchCode,
+        branch: saved.schoolCode,
         admissionNumber: saved.admissionNumber,
       });
     }
@@ -325,7 +325,7 @@ export class StudentsService {
 
     if (!inputs.length) return { created: 0, updated: 0, idByKey };
 
-    const { tenantId, branchCode } = inputs[0];
+    const { tenantId, schoolCode } = inputs[0];
 
     // 1. Load all existing students for this upload in one query
     const admissions = [...new Set(inputs.map((i) => i.admissionNumber))];
@@ -334,7 +334,7 @@ export class StudentsService {
     const existing = await repo.find({
       where: {
         tenantId,
-        branchCode,
+        schoolCode,
         admissionNumber: In(admissions),
         academicYear: In(years),
       },
@@ -354,7 +354,6 @@ export class StudentsService {
       const found = existingMap.get(k);
 
       if (found) {
-        found.type = input.type;
         found.name = input.name;
         found.email = input.email;
         found.phoneNumber = input.phoneNumber;
@@ -434,7 +433,7 @@ export class StudentsService {
       });
     }
     if (filters.branch) {
-      qb.andWhere('student.branchCode = :branch', { branch: filters.branch });
+      qb.andWhere('student.schoolCode = :branch', { branch: filters.branch });
     }
     if (filters.class) {
       qb.andWhere('student.class = :class', { class: filters.class });

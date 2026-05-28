@@ -8,13 +8,11 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { StudentType } from '../entities/student.entity';
 
 /** Used internally by the upload flow. Not exposed via HTTP. */
 export interface UpsertStudentInput {
   tenantId: string;
-  branchCode: string;
-  type: StudentType | null;
+  schoolCode: string;
   admissionNumber: string;
   academicYear: string;
   name: string;
@@ -38,7 +36,7 @@ export interface UpsertStudentsResult {
  * client sends only what they want to change.
  *
  * Fields we DON'T allow editing:
- *  - admissionNumber, academicYear, tenantId, branchCode: identity keys,
+ *  - admissionNumber, academicYear, tenantId, schoolCode: identity keys,
  *    changing these would move the student to a different record.
  *  - id, created_at, updated_at: managed by the DB.
  */

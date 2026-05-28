@@ -74,17 +74,17 @@ export class StudentsController {
   @ApiOperation({
     summary: 'Create one student (with optional term fees)',
     description:
-      'Creates one Student row for (tenant, branchCode, admissionNumber, academicYear) and optionally a Fee row per term passed in the body.',
+      'Creates one Student row for (tenant, schoolCode, admissionNumber, academicYear) and optionally a Fee row per term passed in the body.',
   })
   async createOne(@Body() dto: CreateStudentDto, @Req() req: Request) {
     const { tenantId, branch: jwtBranch } = ctxWithBranch(req);
-    const branchCode = (dto.branchCode ?? jwtBranch ?? '').trim();
-    if (!branchCode) {
+    const schoolCode = (dto.schoolCode ?? jwtBranch ?? '').trim();
+    if (!schoolCode) {
       throw new BadRequestException(
-        'branchCode is required (either in the body or on your JWT)',
+        'schoolCode is required (either in the body or on your JWT)',
       );
     }
-    return this.uploadService.createOne(tenantId, branchCode, dto);
+    return this.uploadService.createOne(tenantId, schoolCode, dto);
   }
 
   // ─────────────── Upload ───────────────
