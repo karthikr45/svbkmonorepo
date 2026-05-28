@@ -15,7 +15,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TermType } from '../entities/fee.entity';
+import { TermType, FeePeriod } from '../entities/fee.entity';
 import { PaymentType } from '../entities/fee-payment.entity';
 
 const OFFLINE_PAYMENT_TYPES: PaymentType[] = [
@@ -39,7 +39,7 @@ export interface CreateFeeInput {
   branch: string;
   academicYear: string;
   studentId: string;
-  term: TermType;
+  term: FeePeriod;
   originalAmount: number;
   /** Optional concession (sibling/staff/EWS/scholarship). Defaults to 0. */
   totalDiscount?: number;
@@ -49,7 +49,7 @@ export interface CreateFeeInput {
 export interface ExistingFeeRecord {
   admissionNumber: string;
   academicYear: string;
-  term: TermType;
+  term: FeePeriod;
 }
 
 /**

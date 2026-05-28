@@ -457,6 +457,8 @@ export class ParentPortalService {
           rollNo: child.rollNo,
           academicYear: child.academicYear,
           imgUrl: child.imgUrl ?? null,
+          pickupLocation: child.pickupLocation ?? null,
+          dropLocation: child.dropLocation ?? null,
         },
         tc: {
           issued: !!latest.tcIssuedAt,

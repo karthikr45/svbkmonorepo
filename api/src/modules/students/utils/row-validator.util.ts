@@ -1,5 +1,5 @@
 import { EXCEL_COLUMNS, TERM_COLUMNS } from '../constants/excel.constants';
-import { TermType } from '../../fees/entities/fee.entity';
+import { TermType, MonthType, FeePeriod } from '../../fees/entities/fee.entity';
 
 export const TERM_COLUMN_TO_ENUM: Record<string, TermType> = {
   [EXCEL_COLUMNS.TERM_1]: TermType.FIRST,
@@ -17,6 +17,37 @@ const TERM_TO_DISCOUNT_COL: Record<string, string> = {
   [EXCEL_COLUMNS.TERM_5]: EXCEL_COLUMNS.TERM_5_DISCOUNT,
 };
 
+/** Academic-year months a monthly fee is billed for. */
+const MONTH_VALUES = Object.values(MonthType);
+
+export type BillingMode = 'term_wise' | 'monthly';
+
+/** Tenant context that decides which fee columns a row carries. */
+export interface BillingContext {
+  billingMode: BillingMode;
+  /** Transport tenants must supply pickup/drop locations. */
+  isTransport: boolean;
+}
+
+/**
+ * Resolve a tenant's effective billing context. An explicit
+ * `billingMode` wins; otherwise transport tenants default to monthly
+ * and everyone else to term-wise.
+ */
+export function resolveBillingContext(
+  type: string | null | undefined,
+  billingMode: string | null | undefined,
+): BillingContext {
+  const isTransport = (type ?? '').toLowerCase() === 'transport';
+  const mode: BillingMode =
+    billingMode === 'monthly' || billingMode === 'term_wise'
+      ? billingMode
+      : isTransport
+        ? 'monthly'
+        : 'term_wise';
+  return { billingMode: mode, isTransport };
+}
+
 export interface NormalisedRow {
   schoolCode: string;
   name: string;
@@ -28,7 +59,9 @@ export interface NormalisedRow {
   rollNo: string;
   academicYear: string;
   imgUrl: string | null;
-  term: TermType;
+  pickupLocation: string | null;
+  dropLocation: string | null;
+  term: FeePeriod;
   amount: number;
   discount: number;
 }
@@ -48,6 +81,7 @@ export type ValidationResult =
 
 export function validateAndNormalise(
   raw: Record<string, unknown>,
+  ctx: BillingContext = { billingMode: 'term_wise', isTransport: false },
 ): ValidationResult {
   const errors: FieldError[] = [];
 
@@ -117,8 +151,66 @@ export function validateAndNormalise(
 
   const imgUrl = asTrimmedString(raw[EXCEL_COLUMNS.IMG_URL]) || null;
 
-  // Multi-term support: a single Excel row can carry up to 5 terms.
-  // Each non-empty term produces one NormalisedRow downstream.
+  // Transport tenants maintain pickup/drop per student. Required for
+  // transport, ignored otherwise.
+  let pickupLocation: string | null = null;
+  let dropLocation: string | null = null;
+  if (ctx.isTransport) {
+    pickupLocation = asTrimmedString(raw[EXCEL_COLUMNS.PICKUP_LOCATION]) || null;
+    dropLocation = asTrimmedString(raw[EXCEL_COLUMNS.DROP_LOCATION]) || null;
+    if (!pickupLocation) {
+      errors.push({ field: EXCEL_COLUMNS.PICKUP_LOCATION, reason: 'required' });
+    }
+    if (!dropLocation) {
+      errors.push({ field: EXCEL_COLUMNS.DROP_LOCATION, reason: 'required' });
+    }
+  }
+
+  // Fee periods differ by billing mode: term-wise tenants carry up to
+  // five term columns; monthly tenants carry one Monthly Fee that is
+  // billed for every month Apr–Mar.
+  const periodValues =
+    ctx.billingMode === 'monthly'
+      ? collectMonthlyPeriods(raw, errors)
+      : collectTermPeriods(raw, errors);
+
+  if (errors.length || periodValues.length === 0) {
+    return { ok: false, errors };
+  }
+
+  return {
+    ok: true,
+    values: periodValues.map((t) => ({
+      schoolCode,
+      name,
+      email,
+      phoneNumber,
+      admissionNumber,
+      class: cls,
+      section,
+      rollNo,
+      academicYear,
+      imgUrl,
+      pickupLocation,
+      dropLocation,
+      term: t.term,
+      amount: t.amount,
+      discount: t.discount,
+    })),
+  };
+}
+
+interface PeriodValue {
+  term: FeePeriod;
+  amount: number;
+  discount: number;
+}
+
+/** Term-wise: one entry per non-empty term column. */
+function collectTermPeriods(
+  raw: Record<string, unknown>,
+  errors: FieldError[],
+): PeriodValue[] {
   const termHits = TERM_COLUMNS.filter((col) => {
     const v = raw[col];
     return v !== undefined && v !== null && v !== '';
@@ -131,7 +223,7 @@ export function validateAndNormalise(
     });
   }
 
-  const termValues: { term: TermType; amount: number; discount: number }[] = [];
+  const out: PeriodValue[] = [];
   for (const termCol of termHits) {
     const term = TERM_COLUMN_TO_ENUM[termCol];
     const amount = toPositiveAmount(raw[termCol]);
@@ -159,31 +251,44 @@ export function validateAndNormalise(
       });
       continue;
     }
-    termValues.push({ term, amount, discount });
+    out.push({ term, amount, discount });
   }
+  return out;
+}
 
-  if (errors.length || termValues.length === 0) {
-    return { ok: false, errors };
+/** Monthly: one Monthly Fee expanded into a bill for every month. */
+function collectMonthlyPeriods(
+  raw: Record<string, unknown>,
+  errors: FieldError[],
+): PeriodValue[] {
+  const amount = toPositiveAmount(raw[EXCEL_COLUMNS.MONTHLY_FEE]);
+  if (amount === null) {
+    errors.push({
+      field: EXCEL_COLUMNS.MONTHLY_FEE,
+      reason: 'must be a positive number',
+    });
+    return [];
   }
-
-  return {
-    ok: true,
-    values: termValues.map((t) => ({
-      schoolCode,
-      name,
-      email,
-      phoneNumber,
-      admissionNumber,
-      class: cls,
-      section,
-      rollNo,
-      academicYear,
-      imgUrl,
-      term: t.term,
-      amount: t.amount,
-      discount: t.discount,
-    })),
-  };
+  const discountRaw = raw[EXCEL_COLUMNS.MONTHLY_DISCOUNT];
+  const discount =
+    discountRaw === undefined || discountRaw === null || discountRaw === ''
+      ? 0
+      : toNonNegativeAmount(discountRaw);
+  if (discount === null) {
+    errors.push({
+      field: EXCEL_COLUMNS.MONTHLY_DISCOUNT,
+      reason: 'must be a non-negative number',
+    });
+    return [];
+  }
+  if (discount > amount) {
+    errors.push({
+      field: EXCEL_COLUMNS.MONTHLY_DISCOUNT,
+      reason: `discount (${discount}) exceeds monthly fee (${amount})`,
+    });
+    return [];
+  }
+  return MONTH_VALUES.map((month) => ({ term: month, amount, discount }));
 }
 
 function toNonNegativeAmount(value: unknown): number | null {

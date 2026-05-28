@@ -361,6 +361,12 @@ export class StudentsService {
         found.section = input.section;
         found.rollNo = input.rollNo;
         if (input.imgUrl) found.imgUrl = input.imgUrl;
+        if (input.pickupLocation !== undefined) {
+          found.pickupLocation = input.pickupLocation;
+        }
+        if (input.dropLocation !== undefined) {
+          found.dropLocation = input.dropLocation;
+        }
         toUpdate.push(found);
       } else {
         toCreate.push(repo.create(input));

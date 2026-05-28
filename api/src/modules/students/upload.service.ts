@@ -4,8 +4,8 @@ import {
   ConflictException,
   Logger,
 } from '@nestjs/common';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, QueryFailedError } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { parseExcel } from './utils/excel-parser.util';
 import { UploadValidationService } from './upload-validation.service';
 import { StudentsService } from './students.service';
@@ -16,10 +16,15 @@ import {
   ValidateUploadResponseDto,
   ConfirmUploadResponseDto,
 } from './dto/upload.dto';
-import { NormalisedRow } from './utils/row-validator.util';
+import {
+  NormalisedRow,
+  BillingContext,
+  resolveBillingContext,
+} from './utils/row-validator.util';
 import { UpsertStudentInput } from './dto/student.dto';
 import { CreateFeeInput } from '../fees/dto/fee.dto';
 import { Student } from './entities/student.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 
 /**
  * Orchestrates the Excel upload:
@@ -42,8 +47,16 @@ export class UploadService {
     private readonly feesService: FeesService,
     private readonly identitiesService: StudentIdentitiesService,
     private readonly parentsService: ParentsService,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
+
+  /** Effective billing context (mode + transport) for the tenant. */
+  private async billingContextFor(tenantId: string): Promise<BillingContext> {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    return resolveBillingContext(tenant?.type, tenant?.billingMode);
+  }
 
   /** Step 1: parse + validate. No writes. */
   async validateFile(
@@ -52,13 +65,15 @@ export class UploadService {
     branch: string,
   ): Promise<ValidateUploadResponseDto> {
     const parsed = parseExcel(buffer);
+    const ctx = await this.billingContextFor(tenantId);
     this.logger.log(
-      `Validating ${parsed.rows.length} rows (tenant=${tenantId}, branch=${branch})`,
+      `Validating ${parsed.rows.length} rows (tenant=${tenantId}, branch=${branch}, mode=${ctx.billingMode})`,
     );
     const { response } = await this.validationService.validate(
       parsed.rows,
       tenantId,
       branch,
+      ctx,
     );
     return response;
   }
@@ -76,10 +91,12 @@ export class UploadService {
     branch: string,
   ): Promise<ConfirmUploadResponseDto> {
     const parsed = parseExcel(buffer);
+    const ctx = await this.billingContextFor(tenantId);
     const { response, validRows } = await this.validationService.validate(
       parsed.rows,
       tenantId,
       branch,
+      ctx,
     );
 
     if (response.errorCount > 0) {
@@ -133,6 +150,8 @@ export class UploadService {
               section: r.section,
               rollNo: r.rollNo,
               imgUrl: r.imgUrl,
+              pickupLocation: r.pickupLocation,
+              dropLocation: r.dropLocation,
             });
           }
         }

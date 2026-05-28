@@ -40,12 +40,20 @@ import { ListStudentsQueryDto } from './dto/list.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
 import {
   COLUMN_DESCRIPTIONS,
+  COLUMN_DESCRIPTIONS_MONTHLY,
+  MONTHLY_FEE_COLUMNS,
+  SAMPLE_ROWS_MONTHLY,
+  TRANSPORT_COLUMNS,
   EXCEL_COLUMNS,
   MAX_UPLOAD_SIZE_BYTES,
   REQUIRED_STUDENT_COLUMNS,
   SAMPLE_ROWS,
   TERM_DEFINITIONS,
 } from './constants/excel.constants';
+import { resolveBillingContext } from './utils/row-validator.util';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Tenant } from '../tenants/entities/tenant.entity';
 import * as XLSX from 'xlsx';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes, ApiBody, ApiParam } from '@nestjs/swagger';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -66,6 +74,8 @@ export class StudentsController {
     private readonly uploadService: UploadService,
     private readonly studentFeesService: StudentFeesService,
     private readonly feesService: FeesService,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
   ) {}
 
   // ─────────────── Single create ───────────────
@@ -103,13 +113,39 @@ export class StudentsController {
     @Req() req: Request,
     @Query('format') format?: 'xlsx' | 'csv',
   ) {
-    const headers = [
+    // The template shape follows the tenant's billing mode: term-wise
+    // tenants get the term columns; monthly tenants (e.g. transport) get
+    // a single Monthly Fee, plus pickup/drop for transport.
+    const { tenantId } = ctx(req);
+    const tenant = tenantId
+      ? await this.tenantRepo.findOne({ where: { id: tenantId } })
+      : null;
+    const billing = resolveBillingContext(tenant?.type, tenant?.billingMode);
+
+    const feeColumns =
+      billing.billingMode === 'monthly'
+        ? [
+            ...MONTHLY_FEE_COLUMNS,
+            ...(billing.isTransport ? TRANSPORT_COLUMNS : []),
+          ]
+        : TERM_DEFINITIONS.flatMap((t) => [t.feeCol, t.discountCol]);
+
+    const headers: string[] = [
       ...REQUIRED_STUDENT_COLUMNS,
       EXCEL_COLUMNS.IMG_URL,
-      ...TERM_DEFINITIONS.flatMap((t) => [t.feeCol, t.discountCol]),
+      ...feeColumns,
     ];
 
-    const studentsSheet = XLSX.utils.json_to_sheet(SAMPLE_ROWS, {
+    const sampleRows =
+      billing.billingMode === 'monthly' ? SAMPLE_ROWS_MONTHLY : SAMPLE_ROWS;
+
+    const descriptions = (
+      billing.billingMode === 'monthly'
+        ? COLUMN_DESCRIPTIONS_MONTHLY
+        : COLUMN_DESCRIPTIONS
+    ).filter((d) => headers.includes(d.column));
+
+    const studentsSheet = XLSX.utils.json_to_sheet(sampleRows, {
       header: headers,
     });
     (studentsSheet as any)['!cols'] = headers.map((h) => ({
@@ -131,7 +167,7 @@ export class StudentsController {
     }
 
     // Excel: include a second "Instructions" sheet with per-column help
-    const instructionsSheet = XLSX.utils.json_to_sheet(COLUMN_DESCRIPTIONS, {
+    const instructionsSheet = XLSX.utils.json_to_sheet(descriptions, {
       header: ['column', 'required', 'example', 'notes'],
     });
     (instructionsSheet as any)['!cols'] = [

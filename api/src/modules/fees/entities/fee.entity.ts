@@ -21,6 +21,29 @@ export enum TermType {
   FIFTH = '5th Term Fee',
 }
 
+/**
+ * Monthly billing periods (academic year Apr–Mar). Mirrors the `month`
+ * system_metadata rows, the same way TermType mirrors `term`. Used by
+ * tenants whose billing mode is monthly (e.g. transport).
+ */
+export enum MonthType {
+  APRIL = 'April',
+  MAY = 'May',
+  JUNE = 'June',
+  JULY = 'July',
+  AUGUST = 'August',
+  SEPTEMBER = 'September',
+  OCTOBER = 'October',
+  NOVEMBER = 'November',
+  DECEMBER = 'December',
+  JANUARY = 'January',
+  FEBRUARY = 'February',
+  MARCH = 'March',
+}
+
+/** A fee's billing period — a school/hostel term or a transport month. */
+export type FeePeriod = TermType | MonthType;
+
 export enum PaymentStatus {
   UNPAID = 'UNPAID',
   PARTIAL = 'PARTIAL',
@@ -75,8 +98,13 @@ export class Fee {
   @Column({ name: 'student_id', type: 'uuid' })
   studentId: string;
 
-  @Column({ type: 'enum', enum: TermType })
-  term: TermType;
+  /**
+   * Billing period: a TermType value (school/hostel) or a MonthType
+   * value (monthly tenants like transport). Stored as text so both
+   * vocabularies share one column and one fee/payment pipeline.
+   */
+  @Column({ type: 'varchar', length: 30 })
+  term: FeePeriod;
 
   @Column({ name: 'original_amount', type: 'decimal', precision: 12, scale: 2 })
   originalAmount: string;

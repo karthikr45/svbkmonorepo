@@ -22,6 +22,8 @@ export interface UpsertStudentInput {
   section: string;
   rollNo: string;
   imgUrl: string | null;
+  pickupLocation?: string | null;
+  dropLocation?: string | null;
 }
 
 export interface UpsertStudentsResult {

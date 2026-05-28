@@ -69,6 +69,15 @@ export class Student {
   @Column({ name: 'img_url', type: 'text', nullable: true })
   imgUrl: string | null;
 
+  // ─── Transport (only set on transport-tenant rows) ───────────────
+  // Editing pickup/drop is an admin action that may change the monthly
+  // fee for not-yet-billed months.
+  @Column({ name: 'pickup_location', type: 'varchar', length: 200, nullable: true })
+  pickupLocation: string | null;
+
+  @Column({ name: 'drop_location', type: 'varchar', length: 200, nullable: true })
+  dropLocation: string | null;
+
   // ─── Particulars used on the Transfer Certificate ────────────────
   // Optional; auto-filled on the printed TC when present.
   @Column({ name: 'father_name', type: 'varchar', length: 150, nullable: true })

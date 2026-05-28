@@ -4,13 +4,14 @@ import { ParsedRow } from './utils/excel-parser.util';
 import {
   validateAndNormalise,
   NormalisedRow,
+  BillingContext,
 } from './utils/row-validator.util';
 import {
   RowStatus,
   ValidatedRow,
   ValidateUploadResponseDto,
 } from './dto/upload.dto';
-import { TermType } from '../fees/entities/fee.entity';
+import { FeePeriod } from '../fees/entities/fee.entity';
 
 export interface ValidationOutput {
   response: ValidateUploadResponseDto;
@@ -31,11 +32,12 @@ export class UploadValidationService {
     parsedRows: ParsedRow[],
     tenantId: string,
     branch: string,
+    ctx?: BillingContext,
   ): Promise<ValidationOutput> {
     const jwtBranch = (branch ?? '').trim();
     // Stage 1: field-level validation
     const stage1 = parsedRows.map((r) => {
-      const result = validateAndNormalise(r.values);
+      const result = validateAndNormalise(r.values, ctx);
       // Stage 1b: branch authorisation. If the caller has a branch on
       // their JWT, every row's Branch column must equal it. Tenant
       // admins can only upload for their own branch — mixing branches
@@ -179,7 +181,7 @@ export class UploadValidationService {
     branch: string,
     admission: string,
     year: string,
-    term: TermType,
+    term: FeePeriod,
   ): string {
     return `${branch.toLowerCase()}::${admission}::${year}::${term}`;
   }
