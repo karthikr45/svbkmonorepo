@@ -225,6 +225,22 @@ export class ParentPortalService {
     const totalPenalty = sum('totalPenalty');
     const totalPendingClearance = Number(pendingClearance?.total ?? 0);
 
+    // Cross-tenant outstanding (school + hostel + transport) per child,
+    // linked by school code + admission across the sibling tenants. The
+    // tenant-scoped numbers above stay school-only; this adds the full
+    // picture so the parent sees every service's dues in one place.
+    const servicesOutstandingByChild = new Map<string, string>();
+    let totalOutstandingAllServices = 0;
+    for (const c of children) {
+      const v = await this.studentsService.getServicesForPerson(
+        c.schoolCode,
+        c.admissionNumber,
+        c.academicYear,
+      );
+      servicesOutstandingByChild.set(c.id, v.totalOutstanding);
+      totalOutstandingAllServices += Number(v.totalOutstanding);
+    }
+
     const perChild = children.map((c) => {
       const childFees = fees.filter((f) => f.studentId === c.id);
       const due = childFees.reduce(
@@ -244,6 +260,7 @@ export class ParentPortalService {
         },
         feesCount: childFees.length,
         amountDue: Math.max(0, due),
+        servicesOutstanding: servicesOutstandingByChild.get(c.id) ?? '0.00',
       };
     });
 
@@ -254,6 +271,7 @@ export class ParentPortalService {
         totalPaid,
         totalPenalty,
         totalPendingClearance,
+        totalOutstandingAllServices: totalOutstandingAllServices.toFixed(2),
       },
     };
   }
@@ -450,13 +468,17 @@ export class ParentPortalService {
       if (schoolCat) categories.push(schoolCat);
 
       for (const sib of siblings) {
+        // Sibling records are linked by the canonical (school_code +
+        // admission_number) pair, so only the same institution's
+        // hostel/transport rows match — never a same-admission person
+        // from another school.
         const sibRows = await this.studentRepo
           .createQueryBuilder('s')
           .where('s.tenant_id = :tid', { tid: sib.id })
+          .andWhere('s.school_code = :sc', { sc: child.schoolCode })
           .andWhere('s.admission_number = :adm', {
             adm: child.admissionNumber,
           })
-          .andWhere('LOWER(s.name) = LOWER(:nm)', { nm: child.name })
           .getMany();
         const cat = await this.buildCategory(
           sib.id,
