@@ -277,7 +277,7 @@ export class ParentsService implements OnApplicationBootstrap {
           email: s.email,
           name: s.name,
           phoneNumber: s.phoneNumber,
-          branch: s.branch,
+          branch: s.branchCode,
           admissionNumber: s.admissionNumber,
         });
         if (p) parentsTouched++;

@@ -20,7 +20,7 @@ import {
   Tenant,
   ReceiptResetPolicy,
 } from '../src/modules/tenants/entities/tenant.entity';
-import { Student } from '../src/modules/students/entities/student.entity';
+import { Student, StudentType } from '../src/modules/students/entities/student.entity';
 import { Fee, PaymentStatus, TermType } from '../src/modules/fees/entities/fee.entity';
 import {
   FeePayment,
@@ -84,7 +84,8 @@ run('Money paths (e2e, Postgres)', () => {
     const student = await ds.getRepository(Student).save(
       ds.getRepository(Student).create({
         tenantId,
-        branch: BRANCH,
+        branchCode: BRANCH,
+        type: StudentType.SCHOOL,
         admissionNumber: 'E2E-0001',
         academicYear: AY,
         name: 'Test Child',

@@ -74,17 +74,17 @@ export class StudentsController {
   @ApiOperation({
     summary: 'Create one student (with optional term fees)',
     description:
-      'Creates one Student row for (tenant, branch, admissionNumber, academicYear) and optionally a Fee row per term passed in the body.',
+      'Creates one Student row for (tenant, branchCode, admissionNumber, academicYear) and optionally a Fee row per term passed in the body.',
   })
   async createOne(@Body() dto: CreateStudentDto, @Req() req: Request) {
     const { tenantId, branch: jwtBranch } = ctxWithBranch(req);
-    const branch = (dto.branch ?? jwtBranch ?? '').trim();
-    if (!branch) {
+    const branchCode = (dto.branchCode ?? jwtBranch ?? '').trim();
+    if (!branchCode) {
       throw new BadRequestException(
-        'branch is required (either in the body or on your JWT)',
+        'branchCode is required (either in the body or on your JWT)',
       );
     }
-    return this.uploadService.createOne(tenantId, branch, dto);
+    return this.uploadService.createOne(tenantId, branchCode, dto);
   }
 
   // ─────────────── Upload ───────────────
@@ -332,7 +332,7 @@ export class StudentsController {
   @ApiOperation({
     summary: 'Update student profile',
     description:
-      'Partial update. Identity fields (admission_number, academic_year, tenant, branch) cannot be changed.',
+      'Partial update. Identity fields (admission_number, academic_year, tenant, branch_code) cannot be changed.',
   })
   @ApiParam({ name: 'id', description: 'Student UUID', example: 'd6f2e8a0-1c5b-4f2a-9c3b-2e8a6f1c5b4f' })
   async patchUpdate(

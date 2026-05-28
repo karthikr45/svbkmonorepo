@@ -97,7 +97,7 @@ export class ParentPortalService {
 
     const byKey = new Map<string, Student>();
     for (const s of all) {
-      const key = `${s.branch}::${s.admissionNumber}`;
+      const key = `${s.branchCode}::${s.admissionNumber}`;
       if (!byKey.has(key)) byKey.set(key, s);
     }
     return [...byKey.values()];
@@ -118,7 +118,7 @@ export class ParentPortalService {
       where: {
         parentId,
         tenantId,
-        branch: student.branch,
+        branch: student.branchCode,
         admissionNumber: student.admissionNumber,
       },
     });
@@ -413,7 +413,7 @@ export class ParentPortalService {
       const schoolRows = await this.studentRepo.find({
         where: {
           tenantId,
-          branch: child.branch,
+          branchCode: child.branchCode,
           admissionNumber: child.admissionNumber,
         },
         order: { academicYear: 'DESC' },
@@ -451,7 +451,7 @@ export class ParentPortalService {
           id: child.id,
           name: child.name,
           admissionNumber: child.admissionNumber,
-          branch: child.branch,
+          branch: child.branchCode,
           class: child.class,
           section: child.section,
           rollNo: child.rollNo,

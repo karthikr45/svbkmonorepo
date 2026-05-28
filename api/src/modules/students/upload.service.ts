@@ -19,7 +19,7 @@ import {
 import { NormalisedRow } from './utils/row-validator.util';
 import { UpsertStudentInput } from './dto/student.dto';
 import { CreateFeeInput } from '../fees/dto/fee.dto';
-import { Student } from './entities/student.entity';
+import { Student, StudentType } from './entities/student.entity';
 
 /**
  * Orchestrates the Excel upload:
@@ -116,14 +116,15 @@ export class UploadService {
         // be upserted once.
         const studentByKey = new Map<string, UpsertStudentInput>();
         for (const r of rows) {
-          // Per-row branch (the validator already enforced it equals
+          // Per-row branch code (the validator already enforced it equals
           // the JWT branch when one is set).
-          const rowBranch = r.branch || branch;
-          const key = `${rowBranch}::${r.admissionNumber}::${r.academicYear}`;
+          const rowBranchCode = r.branchCode || branch;
+          const key = `${rowBranchCode}::${r.admissionNumber}::${r.academicYear}`;
           if (!studentByKey.has(key)) {
             studentByKey.set(key, {
               tenantId,
-              branch: rowBranch,
+              branchCode: rowBranchCode,
+              type: r.type,
               admissionNumber: r.admissionNumber,
               academicYear: r.academicYear,
               name: r.name,
@@ -152,7 +153,7 @@ export class UploadService {
               email: s.email,
               name: s.name,
               phoneNumber: s.phoneNumber,
-              branch: s.branch,
+              branch: s.branchCode,
               admissionNumber: s.admissionNumber,
             },
             manager,
@@ -160,7 +161,7 @@ export class UploadService {
         }
 
         const feeInputs: CreateFeeInput[] = rows.map((r) => {
-          const rowBranch = r.branch || branch;
+          const rowBranchCode = r.branchCode || branch;
           const studentId = studentsResult.idByKey.get(
             this.studentsService.key(r.admissionNumber, r.academicYear),
           );
@@ -171,7 +172,7 @@ export class UploadService {
           }
           return {
             tenantId,
-            branch: rowBranch,
+            branch: rowBranchCode,
             academicYear: r.academicYear,
             studentId,
             term: r.term,
@@ -215,7 +216,7 @@ export class UploadService {
    */
   async createOne(
     tenantId: string,
-    branch: string,
+    branchCode: string,
     dto: {
       academicYear: string;
       admissionNumber: string;
@@ -227,6 +228,7 @@ export class UploadService {
       rollNo: string;
       imgUrl?: string | null;
       identityId?: string;
+      type?: StudentType;
       terms?: { term: string; amount: number; discount?: number }[];
     },
   ) {
@@ -250,7 +252,8 @@ export class UploadService {
         [
           {
             tenantId,
-            branch,
+            branchCode,
+            type: dto.type ?? null,
             admissionNumber: dto.admissionNumber.trim(),
             academicYear: dto.academicYear.trim(),
             name: dto.name.trim(),
@@ -285,7 +288,7 @@ export class UploadService {
           email: dto.email,
           name: dto.name,
           phoneNumber: dto.phoneNumber,
-          branch,
+          branch: branchCode,
           admissionNumber: dto.admissionNumber.trim(),
         },
         manager,
@@ -296,7 +299,7 @@ export class UploadService {
         feesCreated = await this.feesService.bulkCreate(
           dto.terms.map((t) => ({
             tenantId,
-            branch,
+            branch: branchCode,
             academicYear: dto.academicYear.trim(),
             studentId,
             term: t.term as any,

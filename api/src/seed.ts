@@ -23,7 +23,7 @@ import { randomBytes } from 'crypto';
 import { Admin } from './modules/admins/entities/admin.entity';
 import { Tenant } from './modules/tenants/entities/tenant.entity';
 import { AcademicYear } from './modules/academic-years/entities/academic-year.entity';
-import { Student } from './modules/students/entities/student.entity';
+import { Student, StudentType } from './modules/students/entities/student.entity';
 import { Fee, PaymentStatus, TermType } from './modules/fees/entities/fee.entity';
 import { Parent } from './modules/parents/entities/parent.entity';
 import { SystemMetadata } from './modules/system-metadata/entities/system-metadata.entity';
@@ -65,7 +65,8 @@ const TENANT_ADMIN = {
 };
 const ACADEMIC_YEAR = '2025-2026';
 const DEMO_STUDENT = {
-  branch: 'Main',
+  branchCode: 'SVBK-MAIN',
+  type: StudentType.SCHOOL,
   admissionNumber: 'ADM-2024-001',
   name: 'Arjun Kumar',
   email: 'arjun@example.com',
@@ -262,7 +263,7 @@ async function ensureStudent(
     .findOne({
       where: {
         tenantId,
-        branch: DEMO_STUDENT.branch,
+        branchCode: DEMO_STUDENT.branchCode,
         admissionNumber: DEMO_STUDENT.admissionNumber,
         academicYear: ACADEMIC_YEAR,
       },
@@ -292,7 +293,7 @@ async function ensureFees(
       .findOne({
         where: {
           tenantId: student.tenantId,
-          branch: student.branch,
+          branch: student.branchCode,
           studentId: student.id,
           academicYear: student.academicYear,
           term,
@@ -306,7 +307,7 @@ async function ensureFees(
     await repo.save(
       repo.create({
         tenantId: student.tenantId,
-        branch: student.branch,
+        branch: student.branchCode,
         academicYear: student.academicYear,
         studentId: student.id,
         term,
@@ -351,7 +352,7 @@ async function ensureParent(
       where: {
         parentId: parent.id,
         tenantId,
-        branch: DEMO_STUDENT.branch,
+        branch: DEMO_STUDENT.branchCode,
         admissionNumber: DEMO_STUDENT.admissionNumber,
       },
     })
@@ -362,7 +363,7 @@ async function ensureParent(
       linksRepo.create({
         parentId: parent.id,
         tenantId,
-        branch: DEMO_STUDENT.branch,
+        branch: DEMO_STUDENT.branchCode,
         admissionNumber: DEMO_STUDENT.admissionNumber,
         relationship: Relationship.FATHER,
         isPrimary: true,
