@@ -110,10 +110,9 @@ export class LlmFallbackService implements OnModuleInit {
     if (!this.enabled()) return;
     try {
       // Dynamic import so dev environments without the SDK still boot.
-      // Suppressed for TS — the package is declared in package.json and
-      // installed when the org turns LLM on. Type comes from our local
-      // AnthropicClient interface above.
-      // @ts-expect-error optional runtime dep
+      // Use @ts-ignore (not @ts-expect-error) so the line compiles
+      // whether or not the package is installed.
+      // @ts-ignore optional runtime dep
       const mod = (await import('@anthropic-ai/sdk')) as unknown as {
         default: new (opts: { apiKey: string }) => AnthropicClient;
       };
