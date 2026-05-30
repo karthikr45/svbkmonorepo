@@ -314,6 +314,12 @@ export default function DashboardPage() {
           </div>
           <div className="ml-auto flex items-center gap-4">
             <a
+              href="/assistant"
+              className="text-sm font-semibold text-[#6c739c] hover:underline"
+            >
+              Assistant
+            </a>
+            <a
               href="/fee-details"
               className="text-sm font-semibold text-[#6c739c] hover:underline"
             >
