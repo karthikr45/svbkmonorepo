@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
@@ -44,8 +45,39 @@ export interface ContactRow {
   tenantName: string | null;
 }
 
+/** Cheap UUID v1–v5 shape check — enough to keep bad strings out of
+ *  Postgres UUID columns without dragging in a validator dep. */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
+  /**
+   * `admin.tenantId` is declared `varchar` (legacy), so a corrupt row
+   * can hold a non-UUID like `"TNT001"`. Passing that to a `WHERE id
+   * IN (...)` against `tenants.id` (uuid) crashes the whole query.
+   * Filter to UUID-shaped strings and warn on the rest so the data
+   * issue is discoverable but the endpoint stays up.
+   */
+  private uuidsOnly(values: (string | null | undefined)[]): string[] {
+    const out = new Set<string>();
+    const bad: string[] = [];
+    for (const v of values) {
+      if (!v) continue;
+      if (UUID_RE.test(v)) out.add(v);
+      else bad.push(v);
+    }
+    if (bad.length) {
+      this.logger.warn(
+        `Skipping non-UUID tenant references on admin rows: ${[...new Set(bad)].join(', ')}. ` +
+          `Fix the bad admin.tenant_id values (UPDATE admins SET tenant_id = NULL WHERE tenant_id = '...').`,
+      );
+    }
+    return [...out];
+  }
+
   constructor(
     @InjectRepository(Conversation)
     private readonly convRepo: Repository<Conversation>,
@@ -104,9 +136,7 @@ export class ChatService {
       .orderBy('a.firstName', 'ASC')
       .getMany();
 
-    const tenantIds = Array.from(
-      new Set(admins.map((a) => a.tenantId).filter((t): t is string => !!t)),
-    );
+    const tenantIds = this.uuidsOnly(admins.map((a) => a.tenantId));
     const tenants = tenantIds.length
       ? await this.tenantRepo.find({ where: { id: In(tenantIds) } })
       : [];
@@ -166,11 +196,7 @@ export class ChatService {
     const adminRows = adminIds.length
       ? await this.adminRepo.find({ where: { id: In(adminIds) } })
       : [];
-    const tenantIds = Array.from(
-      new Set(
-        adminRows.map((a) => a.tenantId).filter((t): t is string => !!t),
-      ),
-    );
+    const tenantIds = this.uuidsOnly(adminRows.map((a) => a.tenantId));
     const tenants = tenantIds.length
       ? await this.tenantRepo.find({ where: { id: In(tenantIds) } })
       : [];
