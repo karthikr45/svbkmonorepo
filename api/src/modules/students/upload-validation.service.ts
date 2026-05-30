@@ -32,7 +32,7 @@ export class UploadValidationService {
     parsedRows: ParsedRow[],
     tenantId: string,
     branch: string,
-    ctx?: BillingContext,
+    ctx: BillingContext,
   ): Promise<ValidationOutput> {
     const jwtBranch = (branch ?? '').trim();
     // Stage 1: field-level validation

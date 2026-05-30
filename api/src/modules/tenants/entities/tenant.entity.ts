@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 
 /**
@@ -62,11 +63,22 @@ export class Tenant {
 
   /**
    * Service this tenant runs — a `tenant_type` metadata value
-   * (school / hostel / transport). Sibling tenants for one institution
+   * (School / Hostel / Transport). Sibling tenants for one institution
    * share a school code on their student records.
    */
   @Column({ nullable: true })
   type: string;
+
+  /**
+   * The institution this tenant belongs to. Sibling school/hostel/
+   * transport tenants for one campus share the same school_code, and
+   * student rows inherit it. Optional today so existing tenants don't
+   * break; new tenants should set it. Indexed so cross-tenant
+   * aggregation by school code is cheap.
+   */
+  @Index('idx_tenants_school_code')
+  @Column({ name: 'school_code', type: 'varchar', length: 32, nullable: true })
+  schoolCode: string | null;
 
   /**
    * Billing mode for this tenant's fees — a `billing_mode` metadata
@@ -76,6 +88,14 @@ export class Tenant {
    */
   @Column({ name: 'billing_mode', type: 'varchar', length: 20, nullable: true })
   billingMode: string | null;
+
+  /**
+   * Per-tenant monetization gate. Off by default so the six pilot
+   * institutions run free; flip on (per tenant, by super-admin) once
+   * the subscription/invoice flow exists.
+   */
+  @Column({ name: 'monetization_enabled', type: 'boolean', default: false })
+  monetizationEnabled: boolean;
 
   @Column({ nullable: true })
   boardType: string;

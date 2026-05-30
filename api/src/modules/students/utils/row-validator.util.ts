@@ -1,5 +1,10 @@
 import { EXCEL_COLUMNS, TERM_COLUMNS } from '../constants/excel.constants';
 import { TermType, MonthType, FeePeriod } from '../../fees/entities/fee.entity';
+import {
+  BILLING_MODE,
+  BillingModeValue,
+  isTransportTenant,
+} from '../../../common/constants/tenant';
 
 export const TERM_COLUMN_TO_ENUM: Record<string, TermType> = {
   [EXCEL_COLUMNS.TERM_1]: TermType.FIRST,
@@ -20,7 +25,7 @@ const TERM_TO_DISCOUNT_COL: Record<string, string> = {
 /** Academic-year months a monthly fee is billed for. */
 const MONTH_VALUES = Object.values(MonthType);
 
-export type BillingMode = 'term_wise' | 'monthly';
+export type BillingMode = BillingModeValue;
 
 /** Tenant context that decides which fee columns a row carries. */
 export interface BillingContext {
@@ -38,13 +43,14 @@ export function resolveBillingContext(
   type: string | null | undefined,
   billingMode: string | null | undefined,
 ): BillingContext {
-  const isTransport = (type ?? '').toLowerCase() === 'transport';
+  const isTransport = isTransportTenant(type);
   const mode: BillingMode =
-    billingMode === 'monthly' || billingMode === 'term_wise'
+    billingMode === BILLING_MODE.MONTHLY ||
+    billingMode === BILLING_MODE.TERM_WISE
       ? billingMode
       : isTransport
-        ? 'monthly'
-        : 'term_wise';
+        ? BILLING_MODE.MONTHLY
+        : BILLING_MODE.TERM_WISE;
   return { billingMode: mode, isTransport };
 }
 
@@ -81,7 +87,7 @@ export type ValidationResult =
 
 export function validateAndNormalise(
   raw: Record<string, unknown>,
-  ctx: BillingContext = { billingMode: 'term_wise', isTransport: false },
+  ctx: BillingContext,
 ): ValidationResult {
   const errors: FieldError[] = [];
 
@@ -170,7 +176,7 @@ export function validateAndNormalise(
   // five term columns; monthly tenants carry one Monthly Fee that is
   // billed for every month Apr–Mar.
   const periodValues =
-    ctx.billingMode === 'monthly'
+    ctx.billingMode === BILLING_MODE.MONTHLY
       ? collectMonthlyPeriods(raw, errors)
       : collectTermPeriods(raw, errors);
 

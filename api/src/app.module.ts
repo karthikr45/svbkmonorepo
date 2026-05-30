@@ -89,6 +89,15 @@ import { StudentIdentitiesModule } from './modules/student-identities/student-id
           // In prod (and any non-sync env) apply pending migrations on boot.
           migrationsRun: !sync,
           logging: false,
+          // Pool tuning: pg defaults to ~10 connections which exhausts
+          // quickly with concurrent uploads + dashboards across tenants.
+          // Override via DB_POOL_MAX / DB_POOL_MIN if needed.
+          extra: {
+            max: parseInt(process.env.DB_POOL_MAX ?? '30', 10) || 30,
+            min: parseInt(process.env.DB_POOL_MIN ?? '5', 10) || 5,
+            idleTimeoutMillis: 30_000,
+            connectionTimeoutMillis: 5_000,
+          },
         };
       },
       inject: [ConfigService],

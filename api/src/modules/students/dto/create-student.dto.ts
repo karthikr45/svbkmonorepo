@@ -14,6 +14,10 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { TermType } from '../../fees/entities/fee.entity';
+import {
+  SCHOOL_CODE_REGEX,
+  SCHOOL_CODE_MESSAGE,
+} from '../../../common/constants/tenant';
 
 export class CreateStudentTermDto {
   @ApiProperty({ enum: TermType, example: TermType.FIRST })
@@ -36,9 +40,12 @@ export class CreateStudentDto {
   @ApiPropertyOptional({
     description:
       'School code this student belongs to. Defaults to the tenant admin\'s JWT branch.',
+    pattern: SCHOOL_CODE_REGEX.source,
+    example: 'SVBK-BRD',
   })
   @IsOptional()
   @IsString()
+  @Matches(SCHOOL_CODE_REGEX, { message: `schoolCode ${SCHOOL_CODE_MESSAGE}` })
   schoolCode?: string;
 
   @ApiProperty({ example: '2025-2026' })

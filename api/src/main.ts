@@ -68,6 +68,14 @@ async function bootstrap() {
   app.use(helmet());
   app.use(compression());
 
+  // Behind a load balancer / reverse proxy the request IP is the LB's
+  // address unless we trust the X-Forwarded-* headers — without this,
+  // throttling keys on the LB IP and every tenant shares one bucket.
+  const expressApp = app.getHttpAdapter().getInstance();
+  if (typeof expressApp?.set === 'function') {
+    expressApp.set('trust proxy', 1);
+  }
+
   // Global prefix
   app.setGlobalPrefix('api');
 

@@ -12,6 +12,7 @@ import { Tenant } from './entities/tenant.entity';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { ReceiptTemplatesService } from '../receipt-templates/receipt-templates.service';
+import { normaliseTenantType } from '../../common/constants/tenant';
 
 export type SafeTenant = Omit<Tenant, 'clientId' | 'secretKey'>;
 
@@ -46,7 +47,16 @@ export class TenantsService {
     const clientId = `client_${randomBytes(8).toString('hex')}`;
     const secretKey = randomBytes(32).toString('hex');
 
-    const tenant = this.tenantsRepository.create({ ...dto, clientId, secretKey });
+    // Canonicalise admin-entered type ("school" → "School") so downstream
+    // services don't have to handle case variants.
+    const type = normaliseTenantType(dto.type) ?? dto.type;
+
+    const tenant = this.tenantsRepository.create({
+      ...dto,
+      type: type ?? undefined,
+      clientId,
+      secretKey,
+    });
     const saved = await this.tenantsRepository.save(tenant);
     // Seed a starter receipt template so the school can issue receipts
     // immediately. Pulled from system_metadata so the starter HTML
@@ -73,7 +83,11 @@ export class TenantsService {
   async update(id: string, dto: UpdateTenantDto): Promise<SafeTenant> {
     const tenant = await this.tenantsRepository.findOne({ where: { id } });
     if (!tenant) throw new NotFoundException(`Tenant ${id} not found`);
-    Object.assign(tenant, dto);
+    const normalised: UpdateTenantDto = { ...dto };
+    if (dto.type !== undefined) {
+      normalised.type = normaliseTenantType(dto.type) ?? dto.type;
+    }
+    Object.assign(tenant, normalised);
     return this.sanitize(await this.tenantsRepository.save(tenant));
   }
 

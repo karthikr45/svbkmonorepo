@@ -7,6 +7,11 @@ import {
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Fee, PaymentStatus, TermType } from './entities/fee.entity';
+import {
+  SIBLING_TENANT_TYPES,
+  TENANT_TYPE,
+  TenantTypeValue,
+} from '../../common/constants/tenant';
 import { FeePayment, ClearanceStatus, PaymentType } from './entities/fee-payment.entity';
 import { FeeAdjustment, FeeAdjustmentKind } from './entities/fee-adjustment.entity';
 import { ReceiptSequence } from './entities/receipt-sequence.entity';
@@ -1109,14 +1114,14 @@ async waivePenaltyForStudents(
 
   /**
    * Cross-tenant payment details. Finds the student in the current
-   * tenant, plus the matching student (by admissionNumber + name) in
-   * sibling tenants of type 'Hostel' / 'Transport'. Returns the fees
-   * (and their payment history) grouped per tenant.
+   * tenant, plus the matching student in sibling Hostel/Transport
+   * tenants. Returns the fees (and their payment history) grouped per
+   * tenant.
    *
-   * Multi-tenant safety: only sibling tenants whose `type` is in
-   * { Hostel, Transport } are considered, and the match requires
-   * BOTH admissionNumber and name to align — this stops cross-school
-   * collisions from leaking data.
+   * Multi-tenant safety: sibling records are linked by
+   * (school_code + admission_number) — sibling tenants for one
+   * institution share a school_code on their student rows, so a
+   * same-admission person in a different institution can't leak in.
    */
   async findPaymentDetails(
     callerTenantId: string,
@@ -1127,7 +1132,7 @@ async waivePenaltyForStudents(
     groups: {
       tenantId: string;
       tenantName: string;
-      type: 'School' | 'Hostel' | 'Transport';
+      type: TenantTypeValue;
       fees: (Fee & { payments?: FeePayment[] })[];
     }[];
   }> {
@@ -1156,7 +1161,7 @@ async waivePenaltyForStudents(
     const groups: {
       tenantId: string;
       tenantName: string;
-      type: 'School' | 'Hostel' | 'Transport';
+      type: TenantTypeValue;
       fees: (Fee & { payments?: FeePayment[] })[];
     }[] = [];
 
@@ -1172,15 +1177,15 @@ async waivePenaltyForStudents(
         (callerTenant?.t_tenant_name ??
           callerTenant?.t_name ??
           callerTenant?.tenantName ??
-          'School') as string,
-      type: 'School',
+          TENANT_TYPE.SCHOOL) as string,
+      type: TENANT_TYPE.SCHOOL,
       fees: ownFeesWithPayments,
     });
 
     // 4. Sibling Hostel + Transport tenants
     const siblings: any[] = await tenantsRepo
       .createQueryBuilder('t')
-      .where("t.type IN (:...types)", { types: ['Hostel', 'Transport'] })
+      .where('t.type IN (:...types)', { types: SIBLING_TENANT_TYPES })
       .andWhere('t.id != :id', { id: callerTenantId })
       .getRawMany();
 
@@ -1216,7 +1221,10 @@ async waivePenaltyForStudents(
       groups.push({
         tenantId: tId,
         tenantName: tName,
-        type: tType === 'Hostel' || tType === 'Transport' ? tType : 'School',
+        type:
+          tType === TENANT_TYPE.HOSTEL || tType === TENANT_TYPE.TRANSPORT
+            ? tType
+            : TENANT_TYPE.SCHOOL,
         fees: feesWithPayments,
       });
     }

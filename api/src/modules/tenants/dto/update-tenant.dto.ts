@@ -2,14 +2,21 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ReceiptResetPolicy } from '../entities/tenant.entity';
+import {
+  BILLING_MODES,
+  SCHOOL_CODE_REGEX,
+  TENANT_CODE_REGEX,
+} from '../../../common/constants/tenant';
 
 export class UpdateTenantDto {
   @ApiPropertyOptional()
@@ -25,6 +32,10 @@ export class UpdateTenantDto {
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
+  @Matches(TENANT_CODE_REGEX, {
+    message:
+      'tenantCode must be uppercase letters/digits/hyphens, 2–31 chars, starting with a letter',
+  })
   tenantCode?: string;
 
   @ApiPropertyOptional()
@@ -43,12 +54,32 @@ export class UpdateTenantDto {
   type?: string;
 
   @ApiPropertyOptional({
-    description:
-      'Billing mode (billing_mode metadata value: term_wise | monthly).',
+    description: 'School code this tenant belongs to.',
   })
   @IsString()
   @IsOptional()
+  @Matches(SCHOOL_CODE_REGEX, {
+    message:
+      'schoolCode must be uppercase letters/digits/hyphens, 2–31 chars, starting with a letter',
+  })
+  schoolCode?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Billing mode (billing_mode metadata value: term_wise | monthly).',
+  })
+  @IsOptional()
+  @IsIn(BILLING_MODES, {
+    message: `billingMode must be one of: ${BILLING_MODES.join(', ')}`,
+  })
   billingMode?: string;
+
+  @ApiPropertyOptional({
+    description: 'Per-tenant monetization gate. Super-admin only.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  monetizationEnabled?: boolean;
 
   @ApiPropertyOptional()
   @IsString()

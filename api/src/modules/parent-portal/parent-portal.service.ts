@@ -24,6 +24,10 @@ import { PaymentsService } from '../payments/payments.service';
 import { FeesService } from '../fees/fees.service';
 import { StudentsService } from '../students/students.service';
 import { AcademicYearsService } from '../academic-years/academic-years.service';
+import {
+  TENANT_TYPE,
+  TenantTypeValue,
+} from '../../common/constants/tenant';
 
 @Injectable()
 export class ParentPortalService {
@@ -374,7 +378,7 @@ export class ParentPortalService {
   private async buildCategory(
     categoryTenantId: string,
     tenantName: string,
-    type: 'School' | 'Hostel' | 'Transport',
+    type: TenantTypeValue,
     studentRows: Student[],
   ) {
     const ids = studentRows.map((s) => s.id);
@@ -443,7 +447,9 @@ export class ParentPortalService {
     });
     const siblings = await this.tenantRepo
       .createQueryBuilder('t')
-      .where('t.type IN (:...types)', { types: ['Hostel', 'Transport'] })
+      .where('t.type IN (:...types)', {
+        types: [TENANT_TYPE.HOSTEL, TENANT_TYPE.TRANSPORT],
+      })
       .andWhere('t.id != :id', { id: tenantId })
       .getMany();
 
@@ -461,8 +467,8 @@ export class ParentPortalService {
       const categories: any[] = [];
       const schoolCat = await this.buildCategory(
         tenantId,
-        school?.tenantName ?? school?.name ?? 'School',
-        'School',
+        school?.tenantName ?? school?.name ?? TENANT_TYPE.SCHOOL,
+        TENANT_TYPE.SCHOOL,
         schoolRows,
       );
       if (schoolCat) categories.push(schoolCat);
@@ -483,7 +489,9 @@ export class ParentPortalService {
         const cat = await this.buildCategory(
           sib.id,
           sib.tenantName ?? sib.name ?? sib.type,
-          (sib.type as 'Hostel' | 'Transport') ?? 'Hostel',
+          (sib.type === TENANT_TYPE.TRANSPORT
+            ? TENANT_TYPE.TRANSPORT
+            : TENANT_TYPE.HOSTEL) as TenantTypeValue,
           sibRows,
         );
         if (cat) categories.push(cat);

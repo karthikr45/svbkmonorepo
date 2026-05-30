@@ -45,7 +45,9 @@ export default () => ({
   },
   jwt: {
     secret: required('JWT_SECRET', 'dev-only-jwt-secret-do-not-use-in-prod'),
-    expiresIn: process.env.JWT_EXPIRES_IN || 86400, // seconds
+    // Access tokens are short-lived (15m); refresh tokens carry the
+    // long session (7d). Match auth.module.ts fallback to avoid drift.
+    expiresIn: process.env.JWT_EXPIRES_IN || 900, // seconds
     refreshSecret: required(
       'JWT_REFRESH_SECRET',
       'dev-only-jwt-refresh-secret-do-not-use-in-prod',

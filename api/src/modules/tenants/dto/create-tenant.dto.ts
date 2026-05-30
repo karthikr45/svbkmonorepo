@@ -1,15 +1,23 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Min,
   MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ReceiptResetPolicy } from '../entities/tenant.entity';
+import {
+  BILLING_MODES,
+  SCHOOL_CODE_REGEX,
+  TENANT_CODE_REGEX,
+} from '../../../common/constants/tenant';
 
 export class CreateTenantDto {
   @ApiProperty({ example: 'Sunrise High School' })
@@ -22,9 +30,17 @@ export class CreateTenantDto {
   @IsOptional()
   code?: string;
 
-  @ApiProperty({ example: 'TNT001' })
+  @ApiProperty({
+    example: 'SVBK-BRD',
+    description:
+      'Unique tenant code. Uppercase letters/digits/hyphens, 2–31 chars, must start with a letter.',
+  })
   @IsString()
   @IsNotEmpty()
+  @Matches(TENANT_CODE_REGEX, {
+    message:
+      'tenantCode must be uppercase letters/digits/hyphens, 2–31 chars, starting with a letter',
+  })
   tenantCode: string;
 
   @ApiProperty({ example: 'Sunrise Tenant' })
@@ -37,10 +53,27 @@ export class CreateTenantDto {
   @IsOptional()
   medium?: string;
 
-  @ApiPropertyOptional({ example: 'CBSE' })
+  @ApiPropertyOptional({
+    example: 'School',
+    description: 'Tenant type — School / Hostel / Transport.',
+  })
   @IsString()
   @IsOptional()
   type?: string;
+
+  @ApiPropertyOptional({
+    example: 'SVBK-BRD',
+    description:
+      'School code this tenant belongs to. Sibling school/hostel/' +
+      'transport tenants for one campus share the same school code.',
+  })
+  @IsString()
+  @IsOptional()
+  @Matches(SCHOOL_CODE_REGEX, {
+    message:
+      'schoolCode must be uppercase letters/digits/hyphens, 2–31 chars, starting with a letter',
+  })
+  schoolCode?: string;
 
   @ApiPropertyOptional({
     example: 'term_wise',
@@ -48,9 +81,21 @@ export class CreateTenantDto {
       'Billing mode (a billing_mode metadata value: term_wise | monthly). ' +
       'When omitted, derived from type — transport is monthly, others term-wise.',
   })
-  @IsString()
   @IsOptional()
+  @IsIn(BILLING_MODES, {
+    message: `billingMode must be one of: ${BILLING_MODES.join(', ')}`,
+  })
   billingMode?: string;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'Per-tenant monetization gate. Off today; flip on once the ' +
+      'subscription/invoice flow is built. Super-admin only.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  monetizationEnabled?: boolean;
 
   @ApiPropertyOptional({ example: 'State Board' })
   @IsString()

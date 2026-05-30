@@ -51,6 +51,7 @@ import {
   TERM_DEFINITIONS,
 } from './constants/excel.constants';
 import { resolveBillingContext } from './utils/row-validator.util';
+import { BILLING_MODE } from '../../common/constants/tenant';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tenant } from '../tenants/entities/tenant.entity';
@@ -123,7 +124,7 @@ export class StudentsController {
     const billing = resolveBillingContext(tenant?.type, tenant?.billingMode);
 
     const feeColumns =
-      billing.billingMode === 'monthly'
+      billing.billingMode === BILLING_MODE.MONTHLY
         ? [
             ...MONTHLY_FEE_COLUMNS,
             ...(billing.isTransport ? TRANSPORT_COLUMNS : []),
@@ -137,10 +138,10 @@ export class StudentsController {
     ];
 
     const sampleRows =
-      billing.billingMode === 'monthly' ? SAMPLE_ROWS_MONTHLY : SAMPLE_ROWS;
+      billing.billingMode === BILLING_MODE.MONTHLY ? SAMPLE_ROWS_MONTHLY : SAMPLE_ROWS;
 
     const descriptions = (
-      billing.billingMode === 'monthly'
+      billing.billingMode === BILLING_MODE.MONTHLY
         ? COLUMN_DESCRIPTIONS_MONTHLY
         : COLUMN_DESCRIPTIONS
     ).filter((d) => headers.includes(d.column));
