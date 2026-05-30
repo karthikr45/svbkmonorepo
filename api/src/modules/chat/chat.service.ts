@@ -17,6 +17,7 @@ import { Admin } from '../admins/entities/admin.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { Role } from '../../common/enums/roles.enum';
 import { AzureStorageService } from '../storage/azure-storage.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface MessageAttachment {
   url: string;
@@ -93,6 +94,7 @@ export class ChatService {
     private readonly storage: AzureStorageService,
     @Inject(forwardRef(() => ChatGateway))
     private readonly gateway: ChatGateway,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ─── Permission rules ────────────────────────────────────────────
@@ -530,7 +532,73 @@ export class ChatService {
     const enriched = await this.toWireWithReply(saved);
     // Fire-and-forget realtime fan-out to the conversation room.
     this.gateway?.emitMessage(conversationId, enriched);
+    // Persist an in-app notification for every other participant so the
+    // bell badge updates even if they're offline (websocket missed it).
+    // Awaited but its own failures must not break message delivery.
+    await this.notifyConversationPeers(caller, conversationId, saved).catch(
+      (err) =>
+        this.logger.warn(
+          `chat notify failed for conversation ${conversationId}: ${(err as Error).message}`,
+        ),
+    );
     return enriched;
+  }
+
+  /**
+   * One in-app notification per other participant. Title is the
+   * sender's name (`First Last`), body is a short message preview, and
+   * `linkUrl` drops the recipient straight into the conversation.
+   * tenantId on the notification is the recipient's own tenant so it
+   * shows up in their notification list.
+   */
+  private async notifyConversationPeers(
+    caller: ChatCaller,
+    conversationId: string,
+    msg: ChatMessage,
+  ): Promise<void> {
+    const peers = await this.partRepo
+      .createQueryBuilder('p')
+      .where('p.conversationId = :id', { id: conversationId })
+      .andWhere('p.adminId != :me', { me: caller.userId })
+      .getMany();
+    if (!peers.length) return;
+
+    const sender = await this.adminRepo.findOne({
+      where: { id: caller.userId },
+    });
+    const senderName =
+      [sender?.firstName, sender?.lastName].filter(Boolean).join(' ').trim() ||
+      'New message';
+
+    const preview = (msg.body ?? '').trim();
+    const body = preview
+      ? preview.length > 140
+        ? preview.slice(0, 137) + '…'
+        : preview
+      : '📎 Sent an attachment';
+
+    await Promise.allSettled(
+      peers.map((p) => {
+        // Recipient's own tenant scopes their notification list. For
+        // super-admin peers (tenantId NULL) fall back to the sender's
+        // tenant — the column is NOT NULL. If neither side has a
+        // tenant (super-admin → super-admin), skip the in-app row;
+        // the websocket fan-out already delivered the message.
+        const tid = p.tenantId ?? caller.tenantId;
+        if (!tid) return Promise.resolve();
+        return this.notifications.send(
+          tid,
+          {
+            title: senderName,
+            body,
+            type: 'chat',
+            recipientId: p.adminId,
+            linkUrl: `/chat?conversationId=${conversationId}`,
+          },
+          caller.userId,
+        );
+      }),
+    );
   }
 
   /** Edit own message body. Sender-only, not after delete. */

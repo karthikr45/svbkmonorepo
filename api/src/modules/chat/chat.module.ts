@@ -10,6 +10,7 @@ import { ChatMessage } from './entities/chat-message.entity';
 import { Admin } from '../admins/entities/admin.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { StorageModule } from '../storage/storage.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { StorageModule } from '../storage/storage.module';
     ]),
     StorageModule,
     JwtModule.register({}),
+    NotificationsModule,
   ],
   controllers: [ChatController],
   providers: [ChatService, ChatGateway],
