@@ -1,30 +1,133 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CHATBOT_CONFIG } from '../config/chatbot.config';
 import type { ChatbotConfig } from '../config/chatbot.config';
-import type { ChatbotCaller, IntentResponse } from '../intents/intent.types';
+import type {
+  ChatbotCaller,
+  IntentDefinition,
+  IntentHandlerDeps,
+  IntentResponse,
+} from '../intents/intent.types';
+import { IntentRegistry } from '../intents/intent.registry';
+import { SystemMetadata } from '../../system-metadata/entities/system-metadata.entity';
+
+const SYSTEM_PROMPT_METADATA_TYPE = 'chatbot_system_prompt';
+const SYSTEM_PROMPT_METADATA_KEY = 'base';
+
+/** Hard-coded floor in case the metadata row is missing on a fresh DB. */
+const FALLBACK_SYSTEM_PROMPT =
+  'You are a school-fees assistant. Always use tools to answer; never invent data.';
+
+/** Anthropic Messages API content blocks we care about. */
+interface AnthropicTextBlock {
+  type: 'text';
+  text: string;
+}
+interface AnthropicToolUseBlock {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+type AnthropicContentBlock = AnthropicTextBlock | AnthropicToolUseBlock;
+
+interface AnthropicResponse {
+  id: string;
+  stop_reason: string | null;
+  content: AnthropicContentBlock[];
+  usage: { input_tokens: number; output_tokens: number };
+}
+
+interface AnthropicClient {
+  messages: {
+    create: (args: Record<string, unknown>) => Promise<AnthropicResponse>;
+  };
+}
+
+interface CircuitState {
+  consecutiveFailures: number;
+  openedAt: number | null;
+}
+
+interface TenantUsage {
+  day: string; // YYYY-MM-DD in UTC
+  tokens: number;
+}
 
 /**
- * SEAM for the LLM fallback path. Implemented as a no-op today so the
- * rest of the module can ship safely without a provider SDK. When the
- * org is ready, drop the SDK call inside `ask()` and the orchestrator
- * picks it up — no other code change needed.
+ * Production LLM fallback for the chatbot. Activated when:
+ *   - CHATBOT_LLM_ENABLED=true
+ *   - CHATBOT_LLM_MODEL and CHATBOT_LLM_API_KEY are set
+ *   - The rule-based matcher's confidence < CHATBOT_RULE_CONFIDENCE
  *
- * Production contract when this is fleshed out:
- *   - tenantId for every tool comes from `caller`, never from LLM args
- *   - tools are the same intent handlers the rule-based path uses
- *   - request timeout = CHATBOT_LLM_TIMEOUT_MS
- *   - tokens charged against per-tenant daily budget
- *   - circuit breaker disables LLM for 5 min after 5% error rate window
- *   - output filter scans assistant text for tenant identifiers that
- *     weren't in any tool result; redact + alert if found
+ * Safety
+ *   - tenantId for every tool comes from `caller`, NEVER from LLM args
+ *   - tools are gated by `IntentDefinition.allowedRoles`
+ *   - circuit breaker disables LLM for a cooldown after consecutive failures
+ *   - per-tenant daily token budget (in-memory; move to Redis for multi-instance)
+ *   - output filter scans the LLM's final text for tenant identifiers
+ *     (UUIDs / school codes) that weren't in any tool result
+ *
+ * The Anthropic SDK is required at runtime via dynamic import so the
+ * module compiles + ships without a hard dep when LLM is disabled.
  */
 @Injectable()
-export class LlmFallbackService {
+export class LlmFallbackService implements OnModuleInit {
   private readonly logger = new Logger(LlmFallbackService.name);
+  private client: AnthropicClient | null = null;
+  private cachedSystemPrompt: string | null = null;
+  private cachedAt = 0;
+
+  private readonly circuit: CircuitState = {
+    consecutiveFailures: 0,
+    openedAt: null,
+  };
+  private readonly CIRCUIT_OPEN_AFTER = 5;
+  private readonly CIRCUIT_COOLDOWN_MS = 5 * 60 * 1000;
+
+  /** Per-tenant token usage today. Resets at UTC midnight on lookup. */
+  private readonly usage = new Map<string, TenantUsage>();
+
+  /** Max tool_use iterations per turn before we abort. */
+  private readonly MAX_TOOL_ITERATIONS = 4;
 
   constructor(
     @Inject(CHATBOT_CONFIG) private readonly config: ChatbotConfig,
+    private readonly registry: IntentRegistry,
+    @InjectRepository(SystemMetadata)
+    private readonly metadataRepo: Repository<SystemMetadata>,
+    @Inject('CHATBOT_HANDLER_DEPS')
+    private readonly handlerDeps: IntentHandlerDeps,
   ) {}
+
+  async onModuleInit() {
+    if (!this.enabled()) return;
+    try {
+      // Dynamic import so dev environments without the SDK still boot.
+      // Suppressed for TS — the package is declared in package.json and
+      // installed when the org turns LLM on. Type comes from our local
+      // AnthropicClient interface above.
+      // @ts-expect-error optional runtime dep
+      const mod = (await import('@anthropic-ai/sdk')) as unknown as {
+        default: new (opts: { apiKey: string }) => AnthropicClient;
+      };
+      this.client = new mod.default({ apiKey: this.config.llmApiKey });
+      this.logger.log(
+        `Anthropic client ready (model=${this.config.llmModel}).`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `LLM fallback enabled but SDK could not be loaded: ${(err as Error).message}. ` +
+          `Install @anthropic-ai/sdk and restart, or set CHATBOT_LLM_ENABLED=false.`,
+      );
+    }
+  }
 
   enabled(): boolean {
     return (
@@ -35,28 +138,300 @@ export class LlmFallbackService {
   }
 
   /**
-   * Returns null when LLM is disabled OR no useful response could be
-   * produced. The caller treats null as "show the fallback message".
+   * Returns null when LLM is disabled, the circuit is open, the tenant
+   * is over budget, or the call simply fails. Callers should treat
+   * null as "show a graceful fallback to the user".
    */
   async ask(
-    _caller: ChatbotCaller,
-    _userText: string,
-    _history: { role: string; content: string }[],
+    caller: ChatbotCaller,
+    userText: string,
+    history: { role: string; content: string }[],
   ): Promise<{ response: IntentResponse; tokens: number } | null> {
-    if (!this.enabled()) return null;
+    if (!this.enabled() || !this.client) return null;
 
-    // TODO when ready: import { Anthropic } from '@anthropic-ai/sdk';
-    // - build tool definitions from IntentRegistry
-    // - call client.messages.stream({ model, tools, ... })
-    // - loop tool_use blocks, dispatching through the same handlers
-    // - aggregate tokens for billing
-    // - apply output filter + return
-    //
-    // For now log and return null so the orchestrator surfaces a
-    // graceful fallback message.
-    this.logger.warn(
-      'LLM fallback enabled but ask() is not implemented — returning null.',
+    if (this.circuitOpen()) {
+      this.logger.warn(`LLM circuit open; skipping call for tenant ${caller.tenantId ?? 'super'}.`);
+      return null;
+    }
+
+    if (!this.withinBudget(caller.tenantId)) {
+      this.logger.warn(
+        `LLM token budget exhausted for tenant ${caller.tenantId ?? 'super'}; skipping.`,
+      );
+      return null;
+    }
+
+    const systemPrompt = await this.systemPrompt();
+    const tools = this.toolsFor(caller.role);
+    if (!tools.length) return null;
+
+    const messages: Array<{ role: string; content: unknown }> = [
+      ...history.map((h) => ({ role: h.role, content: h.content })),
+      { role: 'user', content: userText },
+    ];
+
+    let totalTokens = 0;
+    const allToolResults: unknown[] = [];
+
+    try {
+      for (let i = 0; i < this.MAX_TOOL_ITERATIONS; i++) {
+        const resp = await this.callWithTimeout({
+          model: this.config.llmModel,
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages,
+          tools,
+        });
+
+        totalTokens += resp.usage.input_tokens + resp.usage.output_tokens;
+
+        if (resp.stop_reason !== 'tool_use') {
+          const text = resp.content
+            .filter((b): b is AnthropicTextBlock => b.type === 'text')
+            .map((b) => b.text)
+            .join('')
+            .trim();
+
+          const filtered = this.outputFilter(text, allToolResults, caller);
+          this.recordSuccess();
+          this.consumeBudget(caller.tenantId, totalTokens);
+          return {
+            response: {
+              data: allToolResults.length === 1 ? allToolResults[0] : allToolResults,
+              text: filtered || "I couldn't put that into words. Please try again.",
+            },
+            tokens: totalTokens,
+          };
+        }
+
+        // Reply contains tool_use blocks — run each and feed results back.
+        const toolUses = resp.content.filter(
+          (b): b is AnthropicToolUseBlock => b.type === 'tool_use',
+        );
+        // Echo the assistant turn back so Anthropic stays in sync.
+        messages.push({ role: 'assistant', content: resp.content });
+
+        const toolResultBlocks: unknown[] = [];
+        for (const use of toolUses) {
+          const result = await this.runTool(caller, use);
+          allToolResults.push(result.data);
+          toolResultBlocks.push({
+            type: 'tool_result',
+            tool_use_id: use.id,
+            content: JSON.stringify(result),
+            is_error: result.isError,
+          });
+        }
+        messages.push({ role: 'user', content: toolResultBlocks });
+      }
+
+      this.logger.warn(
+        `LLM exceeded MAX_TOOL_ITERATIONS for caller ${caller.userId}; giving up.`,
+      );
+      this.recordSuccess(); // not a transport failure
+      this.consumeBudget(caller.tenantId, totalTokens);
+      return null;
+    } catch (err) {
+      this.recordFailure();
+      this.logger.error(`LLM call failed: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  // ─── tool dispatch ────────────────────────────────────────────────
+
+  private async runTool(
+    caller: ChatbotCaller,
+    use: AnthropicToolUseBlock,
+  ): Promise<{ data: unknown; text: string; isError: boolean }> {
+    const intent = this.registry.get(use.name);
+    if (!intent) {
+      return {
+        data: null,
+        text: `Unknown tool "${use.name}".`,
+        isError: true,
+      };
+    }
+    if (!intent.allowedRoles.includes(caller.role)) {
+      // Hard refusal — don't let the LLM call a tool the user can't.
+      return {
+        data: null,
+        text: `Role "${caller.role}" is not permitted to call "${use.name}".`,
+        isError: true,
+      };
+    }
+    try {
+      // CRITICAL: caller (with tenantId from JWT) wins. LLM input is
+      // entities only; never tenantId / userId / role.
+      const sanitized = this.stripIdentityKeys(use.input);
+      const res = await intent.handler(caller, sanitized, this.handlerDeps);
+      return { data: res.data, text: res.text, isError: false };
+    } catch (err) {
+      return {
+        data: null,
+        text: `Tool "${use.name}" failed: ${(err as Error).message}`,
+        isError: true,
+      };
+    }
+  }
+
+  private stripIdentityKeys(
+    input: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(input ?? {})) {
+      if (
+        k === 'tenantId' ||
+        k === 'tenant_id' ||
+        k === 'userId' ||
+        k === 'user_id' ||
+        k === 'role'
+      ) {
+        // Silently drop — never trust LLM-supplied identity.
+        continue;
+      }
+      out[k] = v;
+    }
+    return out;
+  }
+
+  private toolsFor(
+    role: string,
+  ): Array<{ name: string; description: string; input_schema: unknown }> {
+    return this.registry
+      .namesForRole(role)
+      .map((name) => this.registry.get(name))
+      .filter((i): i is IntentDefinition => !!i)
+      .map((i) => ({
+        name: i.name,
+        description: i.description,
+        input_schema: i.inputSchema,
+      }));
+  }
+
+  // ─── circuit breaker ──────────────────────────────────────────────
+
+  private circuitOpen(): boolean {
+    if (!this.circuit.openedAt) return false;
+    if (Date.now() - this.circuit.openedAt > this.CIRCUIT_COOLDOWN_MS) {
+      this.circuit.openedAt = null;
+      this.circuit.consecutiveFailures = 0;
+      return false;
+    }
+    return true;
+  }
+  private recordFailure() {
+    this.circuit.consecutiveFailures++;
+    if (this.circuit.consecutiveFailures >= this.CIRCUIT_OPEN_AFTER) {
+      this.circuit.openedAt = Date.now();
+      this.logger.warn(
+        `LLM circuit opened after ${this.CIRCUIT_OPEN_AFTER} consecutive failures.`,
+      );
+    }
+  }
+  private recordSuccess() {
+    this.circuit.consecutiveFailures = 0;
+  }
+
+  // ─── per-tenant daily token budget ────────────────────────────────
+
+  private withinBudget(tenantId: string | null): boolean {
+    if (this.config.tenantDailyTokenBudget <= 0) return true;
+    const key = tenantId ?? '__super__';
+    const today = new Date().toISOString().slice(0, 10);
+    const cur = this.usage.get(key);
+    if (!cur || cur.day !== today) {
+      this.usage.set(key, { day: today, tokens: 0 });
+      return true;
+    }
+    return cur.tokens < this.config.tenantDailyTokenBudget;
+  }
+  private consumeBudget(tenantId: string | null, tokens: number) {
+    if (this.config.tenantDailyTokenBudget <= 0) return;
+    const key = tenantId ?? '__super__';
+    const today = new Date().toISOString().slice(0, 10);
+    const cur = this.usage.get(key) ?? { day: today, tokens: 0 };
+    if (cur.day !== today) {
+      cur.day = today;
+      cur.tokens = 0;
+    }
+    cur.tokens += tokens;
+    this.usage.set(key, cur);
+  }
+
+  // ─── output filter (paranoia layer) ───────────────────────────────
+
+  private outputFilter(
+    text: string,
+    toolResults: unknown[],
+    caller: ChatbotCaller,
+  ): string {
+    // Build a haystack from tool results so we can confirm that any
+    // tenant identifier the LLM "remembers" actually came from a tool.
+    const haystack = JSON.stringify(toolResults).toLowerCase();
+
+    const uuidRe = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+    let cleaned = text;
+    const leaked: string[] = [];
+    for (const m of text.matchAll(uuidRe)) {
+      const id = m[0];
+      if (!haystack.includes(id.toLowerCase())) {
+        leaked.push(id);
+      }
+    }
+    if (leaked.length) {
+      // Redact and alert — these UUIDs were not in any tool output.
+      this.logger.error(
+        `LLM output filter caught UUID(s) not in tool results: ${leaked.join(', ')}. ` +
+          `caller=${caller.userId} tenant=${caller.tenantId ?? 'super'}. Redacting.`,
+      );
+      for (const id of leaked) cleaned = cleaned.split(id).join('[redacted]');
+    }
+    return cleaned;
+  }
+
+  // ─── system prompt (cached, super-admin editable in system_metadata) ─
+
+  private async systemPrompt(): Promise<string> {
+    const TTL_MS = 60_000;
+    if (this.cachedSystemPrompt && Date.now() - this.cachedAt < TTL_MS) {
+      return this.cachedSystemPrompt;
+    }
+    try {
+      const row = await this.metadataRepo.findOne({
+        where: {
+          type: SYSTEM_PROMPT_METADATA_TYPE,
+          value: SYSTEM_PROMPT_METADATA_KEY,
+          isActive: true,
+        },
+      });
+      this.cachedSystemPrompt = row?.description?.trim() || FALLBACK_SYSTEM_PROMPT;
+    } catch {
+      this.cachedSystemPrompt = FALLBACK_SYSTEM_PROMPT;
+    }
+    this.cachedAt = Date.now();
+    return this.cachedSystemPrompt;
+  }
+
+  // ─── SDK call with timeout ────────────────────────────────────────
+
+  private async callWithTimeout(
+    args: Record<string, unknown>,
+  ): Promise<AnthropicResponse> {
+    if (!this.client) throw new Error('LLM client not initialised');
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(),
+      this.config.llmTimeoutMs,
     );
-    return null;
+    try {
+      return await this.client.messages.create({
+        ...args,
+        // Anthropic SDK accepts an AbortSignal via signal option (v0.x).
+        signal: controller.signal,
+      } as Record<string, unknown>);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }

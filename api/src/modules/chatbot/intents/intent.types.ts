@@ -46,6 +46,25 @@ export interface IntentHandlerDeps {
 export interface IntentDefinition {
   /** Stable identifier, snake_case. Used as the corpus key. */
   name: string;
+  /**
+   * Plain-English description used by the LLM fallback to decide
+   * when to call this tool. Keep it tight — one sentence describing
+   * WHEN to use it, not HOW.
+   */
+  description: string;
+  /**
+   * JSON-Schema for the entities/inputs the LLM is allowed to supply.
+   * MUST NOT declare `tenantId` / `userId` / `role` — those come from
+   * the authenticated caller, never from the LLM.
+   */
+  inputSchema: {
+    type: 'object';
+    properties: Record<
+      string,
+      { type: string; description?: string; enum?: string[] }
+    >;
+    required?: string[];
+  };
   /** Roles permitted to invoke this intent. */
   allowedRoles: string[];
   /**

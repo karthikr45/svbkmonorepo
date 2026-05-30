@@ -37,6 +37,21 @@ function assertAdmin(role: string) {
 
 export const getFeeDefaultersIntent: IntentDefinition = {
   name: 'get_fee_defaulters',
+  description:
+    'List students with outstanding fees in the caller\'s tenant. Optional filters: term, academic year.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      term: {
+        type: 'string',
+        description: 'Term label such as "1st Term Fee" through "5th Term Fee".',
+      },
+      academicYear: {
+        type: 'string',
+        description: 'Academic year in YYYY-YYYY format.',
+      },
+    },
+  },
   allowedRoles: ADMIN_ROLES,
   async handler(caller, entities, d): Promise<IntentResponse> {
     assertAdmin(caller.role);
@@ -94,6 +109,9 @@ export const getFeeDefaultersIntent: IntentDefinition = {
 
 export const getPendingApprovalsIntent: IntentDefinition = {
   name: 'get_pending_approvals',
+  description:
+    'List discount / penalty-waive requests awaiting the tenant admin\'s decision.',
+  inputSchema: { type: 'object', properties: {} },
   allowedRoles: ADMIN_ROLES,
   async handler(caller, _entities, d): Promise<IntentResponse> {
     assertAdmin(caller.role);
@@ -123,6 +141,21 @@ export const getPendingApprovalsIntent: IntentDefinition = {
 
 export const getCollectionSummaryIntent: IntentDefinition = {
   name: 'get_collection_summary',
+  description:
+    'Total fees collected (sum of paid_amount) in the caller\'s tenant, optionally bounded by date.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      fromDate: {
+        type: 'string',
+        description: 'ISO 8601 inclusive lower bound (e.g. 2026-04-01).',
+      },
+      toDate: {
+        type: 'string',
+        description: 'ISO 8601 inclusive upper bound.',
+      },
+    },
+  },
   allowedRoles: ADMIN_ROLES,
   async handler(caller, entities, d): Promise<IntentResponse> {
     assertAdmin(caller.role);

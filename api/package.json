@@ -35,6 +35,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
     "@azure/storage-blob": "^12.27.0",
     "@nestjs/common": "^11.1.19",
     "@nestjs/config": "^4.0.4",

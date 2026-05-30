@@ -25,6 +25,9 @@ function rupees(amount: string | number | null | undefined): string {
 
 export const listMyChildrenIntent: IntentDefinition = {
   name: 'list_my_children',
+  description:
+    'List the children linked to the calling parent. Use when the parent asks who their kids/children are.',
+  inputSchema: { type: 'object', properties: {} },
   allowedRoles: [Role.PARENT],
   async handler(caller, _entities, d): Promise<IntentResponse> {
     if (!caller.tenantId) throw new ForbiddenException();
@@ -68,6 +71,22 @@ export const listMyChildrenIntent: IntentDefinition = {
 
 export const getMyChildFeesIntent: IntentDefinition = {
   name: 'get_my_child_fees',
+  description:
+    "Outstanding fees and a breakdown by service (school / hostel / transport) for one of the caller's children.",
+  inputSchema: {
+    type: 'object',
+    properties: {
+      childName: {
+        type: 'string',
+        description:
+          'First name of the child if mentioned. Optional — if absent, the only child is used.',
+      },
+      admissionNumber: {
+        type: 'string',
+        description: "Admission number such as ADM-2024-001 if mentioned.",
+      },
+    },
+  },
   allowedRoles: [Role.PARENT],
   async handler(caller, entities, d): Promise<IntentResponse> {
     if (!caller.tenantId) throw new ForbiddenException();
@@ -128,6 +147,9 @@ export const getMyChildFeesIntent: IntentDefinition = {
 
 export const getUpcomingAnnouncementsIntent: IntentDefinition = {
   name: 'get_upcoming_announcements',
+  description:
+    'List published announcements / school events visible to the calling parent.',
+  inputSchema: { type: 'object', properties: {} },
   allowedRoles: [Role.PARENT],
   async handler(caller, _entities, d): Promise<IntentResponse> {
     if (!caller.tenantId) throw new ForbiddenException();
