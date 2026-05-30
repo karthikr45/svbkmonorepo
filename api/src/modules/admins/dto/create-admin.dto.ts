@@ -2,22 +2,25 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateAdminDto {
-  @ApiProperty({ example: 'John' })
+  @ApiProperty({ example: 'Firstname' })
   @IsString()
   @IsNotEmpty()
   firstName: string;
 
-  @ApiProperty({ example: 'Doe' })
+  @ApiProperty({ example: 'Lastname' })
   @IsString()
   @IsNotEmpty()
   lastName: string;
 
-  @ApiPropertyOptional({ example: 'TNT001' })
+  @ApiPropertyOptional({
+    example: '00000000-0000-0000-0000-000000000000',
+    description: 'Tenant UUID (from /tenants). Omit for a super-admin.',
+  })
   @IsString()
   @IsOptional()
   tenantId?: string;
 
-  @ApiProperty({ example: 'john.doe@school.com' })
+  @ApiProperty({ example: 'admin@example.com' })
   @IsEmail()
   email: string;
 

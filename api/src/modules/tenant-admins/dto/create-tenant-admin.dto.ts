@@ -8,17 +8,17 @@ import {
 } from 'class-validator';
 
 export class CreateTenantAdminDto {
-  @ApiProperty({ example: 'Jane' })
+  @ApiProperty({ example: 'Firstname' })
   @IsString()
   @IsNotEmpty()
   firstName: string;
 
-  @ApiProperty({ example: 'Doe' })
+  @ApiProperty({ example: 'Lastname' })
   @IsString()
   @IsNotEmpty()
   lastName: string;
 
-  @ApiProperty({ example: 'jane.doe@school.com' })
+  @ApiProperty({ example: 'admin@example.com' })
   @IsEmail()
   email: string;
 

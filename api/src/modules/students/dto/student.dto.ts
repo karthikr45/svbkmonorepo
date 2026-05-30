@@ -43,14 +43,14 @@ export interface UpsertStudentsResult {
  *  - id, created_at, updated_at: managed by the DB.
  */
 export class UpdateStudentDto {
-  @ApiPropertyOptional({ example: 'John Doe', maxLength: 150 })
+  @ApiPropertyOptional({ example: 'Arjun Kumar', maxLength: 150 })
   @IsOptional()
   @IsString({ message: 'name must be a string' })
   @MinLength(1, { message: 'name cannot be empty' })
   @MaxLength(150, { message: 'name must be 150 characters or fewer' })
   name?: string;
 
-  @ApiPropertyOptional({ example: 'john.doe@example.com', maxLength: 150 })
+  @ApiPropertyOptional({ example: 'arjun@example.com', maxLength: 150 })
   @IsOptional()
   @IsEmail({}, { message: 'email must be a valid email address' })
   @MaxLength(150, { message: 'email must be 150 characters or fewer' })
