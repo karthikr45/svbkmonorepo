@@ -1,0 +1,43 @@
+{
+  "language": "en",
+  "audience": "admin",
+  "intents": {
+    "get_fee_defaulters": {
+      "utterances": [
+        "show fee defaulters",
+        "who hasn't paid",
+        "list pending fees",
+        "students with outstanding fees",
+        "defaulters list",
+        "unpaid term 2",
+        "unpaid fees for class 7"
+      ],
+      "allOf": [["fee", "fees", "defaulter", "defaulters", "unpaid", "outstanding"]],
+      "anyOf": ["defaulter", "defaulters", "unpaid", "outstanding", "pending"],
+      "boost": ["who", "list", "show", "students", "class", "section", "term"]
+    },
+    "get_pending_approvals": {
+      "utterances": [
+        "show pending approvals",
+        "what's waiting on me",
+        "discount requests to approve",
+        "pending discount approvals",
+        "approvals queue"
+      ],
+      "allOf": [["approval", "approvals"]],
+      "anyOf": ["pending", "waiting", "queue", "review"],
+      "boost": ["discount", "concession", "waive"]
+    },
+    "get_collection_summary": {
+      "utterances": [
+        "how much have we collected",
+        "fee collection summary",
+        "total collection this week",
+        "collection for today",
+        "how much money came in"
+      ],
+      "anyOf": ["collect", "collected", "collection", "received", "income"],
+      "boost": ["total", "today", "week", "month", "summary"]
+    }
+  }
+}

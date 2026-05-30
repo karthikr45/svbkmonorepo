@@ -1,0 +1,43 @@
+{
+  "language": "en",
+  "audience": "parent",
+  "intents": {
+    "list_my_children": {
+      "utterances": [
+        "show my children",
+        "list my kids",
+        "who are my children",
+        "my children",
+        "my kids"
+      ],
+      "anyOf": ["child", "children", "kid", "kids", "son", "daughter", "wards"],
+      "boost": ["my", "list", "show", "who"]
+    },
+    "get_my_child_fees": {
+      "utterances": [
+        "what fees are pending",
+        "show my child's fees",
+        "how much do i owe",
+        "fee balance",
+        "outstanding fee",
+        "pending fees for my son",
+        "transport fee due"
+      ],
+      "allOf": [["fee", "fees", "dues", "due", "balance", "owe"]],
+      "anyOf": ["pending", "outstanding", "owe", "balance", "due"],
+      "boost": ["my", "child", "kid", "son", "daughter", "transport", "hostel"]
+    },
+    "get_upcoming_announcements": {
+      "utterances": [
+        "any announcements",
+        "school events",
+        "upcoming events",
+        "what's happening at school",
+        "any news",
+        "any holidays"
+      ],
+      "anyOf": ["announcement", "announcements", "event", "events", "news", "holiday", "holidays"],
+      "boost": ["upcoming", "this", "week", "next"]
+    }
+  }
+}

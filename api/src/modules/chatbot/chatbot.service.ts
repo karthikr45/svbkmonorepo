@@ -1,0 +1,345 @@
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Observable } from 'rxjs';
+import {
+  ChatbotConversation,
+} from './entities/chatbot-conversation.entity';
+import {
+  ChatbotMessage,
+  ChatbotMessageRole,
+} from './entities/chatbot-message.entity';
+import { ChatbotIntentLog } from './entities/chatbot-intent-log.entity';
+import { IntentRegistry } from './intents/intent.registry';
+import { IntentMatcher } from './nlu/intent-matcher';
+import { ChatbotStreamEvent } from './dto/ask.dto';
+import type {
+  ChatbotCaller,
+  IntentDefinition,
+  IntentHandlerDeps,
+  IntentResponse,
+} from './intents/intent.types';
+import { LlmFallbackService } from './llm/llm-fallback.service';
+import { CHATBOT_CONFIG } from './config/chatbot.config';
+import type { ChatbotConfig } from './config/chatbot.config';
+
+/**
+ * Orchestrator. Per turn:
+ *   1. Resolve or create the conversation.
+ *   2. Persist the user message.
+ *   3. Match an intent against the user text.
+ *   4. If confidence >= threshold AND role allows → run the handler.
+ *      Else if LLM enabled → ask the fallback.
+ *      Else → graceful "I can help with X" reply + chips.
+ *   5. Persist assistant message + intent log.
+ *   6. Stream the answer back as SSE events.
+ *
+ * Tenant safety: caller.tenantId is read from the JWT (filled in the
+ * controller); intent handlers never receive a tenantId argument they
+ * could mutate.
+ */
+@Injectable()
+export class ChatbotService {
+  private readonly logger = new Logger(ChatbotService.name);
+
+  constructor(
+    @InjectRepository(ChatbotConversation)
+    private readonly convRepo: Repository<ChatbotConversation>,
+    @InjectRepository(ChatbotMessage)
+    private readonly msgRepo: Repository<ChatbotMessage>,
+    @InjectRepository(ChatbotIntentLog)
+    private readonly logRepo: Repository<ChatbotIntentLog>,
+    private readonly registry: IntentRegistry,
+    private readonly matcher: IntentMatcher,
+    private readonly llm: LlmFallbackService,
+    @Inject(CHATBOT_CONFIG) private readonly config: ChatbotConfig,
+    @Inject('CHATBOT_HANDLER_DEPS')
+    private readonly handlerDeps: IntentHandlerDeps,
+  ) {}
+
+  /** Server-Sent Events stream consumed by `EventSource` on the frontend. */
+  ask(
+    caller: ChatbotCaller,
+    userText: string,
+    conversationId?: string,
+  ): Observable<{ data: string; type: string }> {
+    return new Observable((subscriber) => {
+      // Wrap in an IIFE so we can use async/await but still return the
+      // synchronous teardown function rxjs expects.
+      let cancelled = false;
+      (async () => {
+        const started = Date.now();
+        const emit = (e: ChatbotStreamEvent) => {
+          if (cancelled) return;
+          subscriber.next({ type: e.event, data: JSON.stringify(e.data) });
+        };
+        try {
+          emit({ event: 'typing', data: {} });
+
+          const conv = await this.resolveConversation(
+            caller,
+            conversationId,
+            userText,
+          );
+          const userMsg = await this.saveMessage(
+            conv.id,
+            ChatbotMessageRole.USER,
+            userText,
+          );
+
+          const { match } = this.matcher.match(userText, caller.role);
+          const matchedAbove =
+            match && match.confidence >= this.config.ruleConfidenceThreshold;
+
+          let response: IntentResponse;
+          let llmUsed = false;
+          let intentName = match?.intent ?? 'unknown';
+          let confidence = match?.confidence ?? 0;
+          let source: 'rules' | 'llm' = 'rules';
+
+          if (matchedAbove) {
+            const intent = this.registry.get(match.intent);
+            if (!intent) {
+              // Registry/corpus drift — log and fall through.
+              this.logger.warn(
+                `Matcher returned "${match.intent}" but registry has no entry.`,
+              );
+              response = this.fallbackResponse(caller.role);
+              intentName = 'unknown';
+              confidence = 0;
+            } else {
+              this.assertRoleAllowed(intent, caller.role);
+              response = await intent.handler(
+                caller,
+                match.entities,
+                this.handlerDeps,
+              );
+            }
+          } else if (this.llm.enabled()) {
+            source = 'llm';
+            const history = await this.recentHistory(conv.id);
+            const llm = await this.llm.ask(caller, userText, history);
+            if (llm) {
+              llmUsed = true;
+              response = llm.response;
+              intentName = match?.intent ?? 'llm_freeform';
+              confidence = 1;
+            } else {
+              response = this.fallbackResponse(caller.role);
+              intentName = 'unknown';
+            }
+          } else {
+            response = this.fallbackResponse(caller.role);
+          }
+
+          emit({
+            event: 'intent',
+            data: { name: intentName, confidence, source },
+          });
+          if (response.data !== undefined && response.data !== null) {
+            emit({ event: 'data', data: response.data });
+          }
+          await this.streamText(response.text, emit, cancelled);
+          if (response.chips?.length) {
+            emit({ event: 'chips', data: response.chips });
+          }
+
+          const asstMsg = await this.saveMessage(
+            conv.id,
+            ChatbotMessageRole.ASSISTANT,
+            response.text,
+          );
+
+          await this.logRepo.save(
+            this.logRepo.create({
+              tenantId: caller.tenantId,
+              conversationId: conv.id,
+              messageId: userMsg.id,
+              userText,
+              matchedIntent:
+                intentName === 'unknown' ? null : intentName,
+              confidence,
+              entities: match?.entities ?? null,
+              handlerDurationMs: Date.now() - started,
+              succeeded: true,
+              fallbackUsed: !matchedAbove,
+              llmUsed,
+            }),
+          );
+
+          emit({
+            event: 'done',
+            data: {
+              messageId: asstMsg.id,
+              durationMs: Date.now() - started,
+              llmUsed,
+            },
+          });
+          subscriber.complete();
+        } catch (err) {
+          const message = (err as Error).message ?? 'Something went wrong.';
+          this.logger.error(`Chatbot ask failed: ${message}`);
+          await this.logRepo
+            .save(
+              this.logRepo.create({
+                tenantId: caller.tenantId,
+                conversationId: conversationId ?? '00000000-0000-0000-0000-000000000000',
+                messageId: '00000000-0000-0000-0000-000000000000',
+                userText,
+                matchedIntent: null,
+                confidence: 0,
+                entities: null,
+                handlerDurationMs: Date.now() - started,
+                succeeded: false,
+                fallbackUsed: true,
+                llmUsed: false,
+                errorMessage: message,
+              }),
+            )
+            .catch(() => undefined);
+          emit({ event: 'error', data: { message } });
+          subscriber.complete();
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    });
+  }
+
+  async listConversations(caller: ChatbotCaller) {
+    return this.convRepo.find({
+      where: { userId: caller.userId },
+      order: { lastMessageAt: 'DESC' },
+      take: 50,
+    });
+  }
+
+  async getConversation(caller: ChatbotCaller, id: string) {
+    const conv = await this.convRepo.findOne({
+      where: { id, userId: caller.userId },
+    });
+    if (!conv) throw new NotFoundException();
+    const messages = await this.msgRepo.find({
+      where: { conversationId: id },
+      order: { createdAt: 'ASC' },
+    });
+    return { conversation: conv, messages };
+  }
+
+  // ─── helpers ────────────────────────────────────────────────────
+
+  private async resolveConversation(
+    caller: ChatbotCaller,
+    id: string | undefined,
+    firstText: string,
+  ): Promise<ChatbotConversation> {
+    if (id) {
+      const existing = await this.convRepo.findOne({
+        where: { id, userId: caller.userId },
+      });
+      if (existing) return existing;
+    }
+    return this.convRepo.save(
+      this.convRepo.create({
+        tenantId: caller.tenantId,
+        userId: caller.userId,
+        userRole: caller.role,
+        title: firstText.slice(0, 200),
+        messageCount: 0,
+      }),
+    );
+  }
+
+  private async saveMessage(
+    conversationId: string,
+    role: ChatbotMessageRole,
+    content: string,
+  ): Promise<ChatbotMessage> {
+    const saved = await this.msgRepo.save(
+      this.msgRepo.create({ conversationId, role, content }),
+    );
+    await this.convRepo.update(
+      { id: conversationId },
+      {
+        lastMessageAt: saved.createdAt,
+        messageCount: () => 'message_count + 1',
+      },
+    );
+    return saved;
+  }
+
+  private async recentHistory(
+    conversationId: string,
+  ): Promise<{ role: string; content: string }[]> {
+    const rows = await this.msgRepo.find({
+      where: { conversationId },
+      order: { createdAt: 'DESC' },
+      take: this.config.historyTurns * 2,
+    });
+    return rows
+      .reverse()
+      .map((r) => ({ role: r.role as string, content: r.content }));
+  }
+
+  private assertRoleAllowed(intent: IntentDefinition, role: string) {
+    if (!intent.allowedRoles.includes(role)) {
+      throw new ForbiddenException(
+        `Your role is not permitted to run "${intent.name}".`,
+      );
+    }
+  }
+
+  /**
+   * Streams the assistant text out as small `token` events so the
+   * frontend can render a typewriter. Splits on word boundaries to
+   * avoid cutting words mid-letter. No LLM = no real token boundary;
+   * this just makes the experience feel responsive.
+   */
+  private async streamText(
+    text: string,
+    emit: (e: ChatbotStreamEvent) => void,
+    cancelled: boolean,
+  ): Promise<void> {
+    const parts = text.match(/\S+\s*|\s+/g) ?? [text];
+    // Keep the loop tight; the human eye can't keep up with sub-30ms anyway.
+    for (const p of parts) {
+      if (cancelled) return;
+      emit({ event: 'token', data: p });
+      await new Promise((r) => setTimeout(r, 18));
+    }
+  }
+
+  private fallbackResponse(role: string): IntentResponse {
+    const allowed = this.registry.namesForRole(role);
+    const friendly = allowed
+      .map((n) => `\`${n}\``)
+      .slice(0, 6)
+      .join(', ');
+    return {
+      data: null,
+      text:
+        "I'm not sure how to answer that yet. " +
+        `I can help with: ${friendly || 'a few things'}. ` +
+        "Try one of the suggestions below.",
+      chips: this.suggestionChipsFor(role),
+    };
+  }
+
+  private suggestionChipsFor(role: string): { label: string; message: string }[] {
+    // Chips reference intent names — text labels are deliberately
+    // generic so they don't drift from corpus phrasing.
+    const allowed = this.registry.namesForRole(role);
+    return allowed.slice(0, 3).map((n) => ({
+      label: n.replace(/_/g, ' '),
+      message: n.replace(/_/g, ' '),
+    }));
+  }
+}
