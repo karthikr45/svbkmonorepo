@@ -7,6 +7,29 @@ import {
   type ChatbotIntent,
 } from "../api/chatbot.api";
 
+function toErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || err.name || "Error";
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object") {
+    const m = (err as { message?: unknown }).message;
+    if (typeof m === "string" && m) return m;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return "Unknown error";
+    }
+  }
+  return String(err ?? "Unknown error");
+}
+function toErrorName(err: unknown): string {
+  if (err instanceof Error) return err.name;
+  if (err && typeof err === "object") {
+    const n = (err as { name?: unknown }).name;
+    if (typeof n === "string") return n;
+  }
+  return "";
+}
+
 export interface ChatbotTurn {
   id: string;
   role: "user" | "assistant";
@@ -105,8 +128,12 @@ export function useChatbot() {
           abortRef.current.signal,
         );
       } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setError((err as Error).message);
+        if (toErrorName(err) !== "AbortError") {
+          // Always coerce to a readable string so React never tries to
+          // render `[object Object]` from a thrown plain object.
+          // eslint-disable-next-line no-console
+          console.error("Chatbot ask failed:", err);
+          setError(toErrorMessage(err));
         }
       } finally {
         abortRef.current = null;

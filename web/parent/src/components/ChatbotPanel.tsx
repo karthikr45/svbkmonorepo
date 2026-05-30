@@ -7,6 +7,29 @@ import {
   type ChatbotIntent,
 } from "../lib/chatbot";
 
+function toErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || err.name || "Error";
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object") {
+    const m = (err as { message?: unknown }).message;
+    if (typeof m === "string" && m) return m;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return "Unknown error";
+    }
+  }
+  return String(err ?? "Unknown error");
+}
+function toErrorName(err: unknown): string {
+  if (err instanceof Error) return err.name;
+  if (err && typeof err === "object") {
+    const n = (err as { name?: unknown }).name;
+    if (typeof n === "string") return n;
+  }
+  return "";
+}
+
 interface Turn {
   id: string;
   role: "user" | "assistant";
@@ -102,8 +125,10 @@ export default function ChatbotPanel({ title = "Assistant" }: { title?: string }
           abortRef.current.signal,
         );
       } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setError((err as Error).message);
+        if (toErrorName(err) !== "AbortError") {
+          // eslint-disable-next-line no-console
+          console.error("Chatbot ask failed:", err);
+          setError(toErrorMessage(err));
         }
       } finally {
         abortRef.current = null;

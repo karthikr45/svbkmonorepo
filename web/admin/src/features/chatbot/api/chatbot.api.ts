@@ -62,25 +62,42 @@ export async function streamChatbotAsk(
   signal?: AbortSignal,
 ): Promise<void> {
   const token = getStoredToken();
-  const res = await fetch(`${getApiBaseUrl()}/chatbot/ask`, {
-    method: "POST",
-    signal,
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({
-      message: body.message,
-      conversationId: body.conversationId ?? undefined,
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${getApiBaseUrl()}/chatbot/ask`, {
+      method: "POST",
+      signal,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        message: body.message,
+        conversationId: body.conversationId ?? undefined,
+      }),
+    });
+  } catch (err) {
+    // Network errors (CORS, DNS, offline) — wrap to a real Error.
+    throw err instanceof Error
+      ? err
+      : new Error(`Network error: ${String(err)}`);
+  }
 
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => "");
-    throw new Error(
-      `Chatbot request failed (${res.status}): ${text || res.statusText}`,
-    );
+    // Try to surface the API's structured error message if present.
+    let detail = text || res.statusText;
+    if (text) {
+      try {
+        const j = JSON.parse(text) as { message?: string | string[] };
+        if (Array.isArray(j.message)) detail = j.message.join("; ");
+        else if (typeof j.message === "string") detail = j.message;
+      } catch {
+        // Not JSON — keep raw text.
+      }
+    }
+    throw new Error(`Chatbot request failed (${res.status}): ${detail}`);
   }
 
   const reader = res.body.getReader();

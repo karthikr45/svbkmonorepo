@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync, readFileSync } from 'fs';
+import { join, resolve } from 'path';
 import { IntentRegistry } from '../intents/intent.registry';
 
 export interface IntentCorpusEntry {
@@ -53,23 +53,48 @@ export class ChatbotCorpus implements OnModuleInit {
   }
 
   private loadAndValidate(): Record<string, IntentCorpusEntry> {
-    const dir = join(__dirname, 'corpus');
     // Hardcoding the file list is fine because the *contents* are not
     // hardcoded — files can be edited / added without touching code.
     // Add new files here when a new audience or language ships.
     const files = ['parent.en.json', 'admin.en.json'];
 
+    // __dirname at runtime points at dist/modules/chatbot/nlu/ in a
+    // compiled build OR src/modules/chatbot/nlu/ when ts-node runs the
+    // sources directly (e.g. `pnpm seed`). The nest-cli `assets` rule
+    // copies the JSON into dist on build, but try the source path as a
+    // fallback so dev/seed/test paths don't blow up if asset copying
+    // is misconfigured.
+    const distDir = join(__dirname, 'corpus');
+    const srcDir = resolve(
+      __dirname,
+      '..',
+      '..',
+      '..',
+      '..',
+      'src',
+      'modules',
+      'chatbot',
+      'nlu',
+      'corpus',
+    );
+
     const out: Record<string, IntentCorpusEntry> = {};
     for (const f of files) {
-      const path = join(dir, f);
+      const candidates = [join(distDir, f), join(srcDir, f)];
+      const found = candidates.find((p) => existsSync(p));
+      if (!found) {
+        throw new Error(
+          `Chatbot corpus file ${f} is missing. Looked in: ${candidates.join(
+            ', ',
+          )}. If you build with nest-cli, make sure modules/chatbot/nlu/corpus/*.json is in compilerOptions.assets.`,
+        );
+      }
       let parsed: CorpusFile;
       try {
-        parsed = JSON.parse(readFileSync(path, 'utf8')) as CorpusFile;
+        parsed = JSON.parse(readFileSync(found, 'utf8')) as CorpusFile;
       } catch (err) {
         throw new Error(
-          `Chatbot corpus file ${f} is missing or invalid JSON: ${
-            (err as Error).message
-          }`,
+          `Chatbot corpus file ${f} is invalid JSON: ${(err as Error).message}`,
         );
       }
       for (const [name, entry] of Object.entries(parsed.intents ?? {})) {
