@@ -8,9 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Observable } from 'rxjs';
-import {
-  ChatbotConversation,
-} from './entities/chatbot-conversation.entity';
+import { ChatbotConversation } from './entities/chatbot-conversation.entity';
 import {
   ChatbotMessage,
   ChatbotMessageRole,
@@ -71,23 +69,30 @@ export class ChatbotService {
   ): Observable<{ data: string; type: string }> {
     return new Observable((subscriber) => {
       // Wrap in an IIFE so we can use async/await but still return the
-      // synchronous teardown function rxjs expects.
+      // synchronous teardown function rxjs expects. `void` discards the
+      // returned promise — every reject path inside the IIFE is caught
+      // and reported via `subscriber`/`emit`, so there is no failure
+      // mode that should bubble to an unhandled rejection.
       let cancelled = false;
-      (async () => {
+      void (async () => {
         const started = Date.now();
         const emit = (e: ChatbotStreamEvent) => {
           if (cancelled) return;
           subscriber.next({ type: e.event, data: JSON.stringify(e.data) });
         };
+        // Declared outside the try so the catch can use real IDs for
+        // the audit log when the failure happens after they're created.
+        let conv: ChatbotConversation | null = null;
+        let userMsg: ChatbotMessage | null = null;
         try {
           emit({ event: 'typing', data: {} });
 
-          const conv = await this.resolveConversation(
+          conv = await this.resolveConversation(
             caller,
             conversationId,
             userText,
           );
-          const userMsg = await this.saveMessage(
+          userMsg = await this.saveMessage(
             conv.id,
             ChatbotMessageRole.USER,
             userText,
@@ -162,8 +167,7 @@ export class ChatbotService {
               conversationId: conv.id,
               messageId: userMsg.id,
               userText,
-              matchedIntent:
-                intentName === 'unknown' ? null : intentName,
+              matchedIntent: intentName === 'unknown' ? null : intentName,
               confidence,
               entities: match?.entities ?? null,
               handlerDurationMs: Date.now() - started,
@@ -183,26 +187,33 @@ export class ChatbotService {
           });
           subscriber.complete();
         } catch (err) {
-          const message = (err as Error).message ?? 'Something went wrong.';
+          const message =
+            err instanceof Error ? err.message : 'Something went wrong.';
           this.logger.error(`Chatbot ask failed: ${message}`);
-          await this.logRepo
-            .save(
-              this.logRepo.create({
-                tenantId: caller.tenantId,
-                conversationId: conversationId ?? '00000000-0000-0000-0000-000000000000',
-                messageId: '00000000-0000-0000-0000-000000000000',
-                userText,
-                matchedIntent: null,
-                confidence: 0,
-                entities: null,
-                handlerDurationMs: Date.now() - started,
-                succeeded: false,
-                fallbackUsed: true,
-                llmUsed: false,
-                errorMessage: message,
-              }),
-            )
-            .catch(() => undefined);
+          // Only write the audit row if we got far enough to have real
+          // conversation + message IDs — otherwise the FK-like values
+          // pollute the log table. The logger entry above is the
+          // canonical record for very-early failures.
+          if (conv && userMsg) {
+            await this.logRepo
+              .save(
+                this.logRepo.create({
+                  tenantId: caller.tenantId,
+                  conversationId: conv.id,
+                  messageId: userMsg.id,
+                  userText,
+                  matchedIntent: null,
+                  confidence: 0,
+                  entities: null,
+                  handlerDurationMs: Date.now() - started,
+                  succeeded: false,
+                  fallbackUsed: true,
+                  llmUsed: false,
+                  errorMessage: message,
+                }),
+              )
+              .catch(() => undefined);
+          }
           emit({ event: 'error', data: { message } });
           subscriber.complete();
         }
@@ -284,9 +295,7 @@ export class ChatbotService {
       order: { createdAt: 'DESC' },
       take: this.config.historyTurns * 2,
     });
-    return rows
-      .reverse()
-      .map((r) => ({ role: r.role as string, content: r.content }));
+    return rows.reverse().map((r) => ({ role: r.role, content: r.content }));
   }
 
   private assertRoleAllowed(intent: IntentDefinition, role: string) {
@@ -318,28 +327,33 @@ export class ChatbotService {
   }
 
   private fallbackResponse(role: string): IntentResponse {
-    const allowed = this.registry.namesForRole(role);
-    const friendly = allowed
-      .map((n) => `\`${n}\``)
-      .slice(0, 6)
-      .join(', ');
+    const chips = this.suggestionChipsFor(role);
+    const human = chips.map((c) => c.label).join(', ');
     return {
       data: null,
       text:
         "I'm not sure how to answer that yet. " +
-        `I can help with: ${friendly || 'a few things'}. ` +
-        "Try one of the suggestions below.",
-      chips: this.suggestionChipsFor(role),
+        `I can help with: ${human || 'a few things'}. ` +
+        'Try one of the suggestions below.',
+      chips,
     };
   }
 
-  private suggestionChipsFor(role: string): { label: string; message: string }[] {
-    // Chips reference intent names — text labels are deliberately
-    // generic so they don't drift from corpus phrasing.
-    const allowed = this.registry.namesForRole(role);
-    return allowed.slice(0, 3).map((n) => ({
-      label: n.replace(/_/g, ' '),
-      message: n.replace(/_/g, ' '),
-    }));
+  /**
+   * Turn intent names like `get_my_child_fees` into human-readable
+   * chip labels ("Get my child fees") and messages the bot can match
+   * back via its corpus. Title-case the words; keep it simple.
+   */
+  private suggestionChipsFor(
+    role: string,
+  ): { label: string; message: string }[] {
+    const humanise = (name: string) => {
+      const cleaned = name.replace(/^(get|list)_/, '').replace(/_/g, ' ');
+      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    };
+    return this.registry
+      .namesForRole(role)
+      .slice(0, 3)
+      .map((n) => ({ label: humanise(n), message: humanise(n) }));
   }
 }

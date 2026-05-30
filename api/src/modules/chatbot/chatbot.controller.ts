@@ -25,8 +25,15 @@ import { ChatbotService } from './chatbot.service';
 import { AskChatbotDto } from './dto/ask.dto';
 import { ChatbotCaller } from './intents/intent.types';
 
+/**
+ * Lift the authenticated caller off the request. `Request.user` is
+ * typed via the global augmentation in src/types/express.d.ts —
+ * matches what JwtStrategy.validate returns. Throws 401 if missing,
+ * which only happens for unauthenticated calls (guards normally catch
+ * those first; belt-and-braces).
+ */
 function callerFrom(req: Request): ChatbotCaller {
-  const u = (req as any).user;
+  const u = req.user;
   if (!u?.userId) throw new UnauthorizedException();
   return {
     userId: u.userId,
@@ -59,15 +66,13 @@ export class ChatbotController {
     @Body() dto: AskChatbotDto,
   ): Observable<MessageEvent> {
     const caller = callerFrom(req);
-    return this.chatbot.ask(
-      caller,
-      dto.message,
-      dto.conversationId,
-    ) as Observable<MessageEvent>;
+    return this.chatbot.ask(caller, dto.message, dto.conversationId);
   }
 
   @Get('conversations')
-  @ApiOperation({ summary: 'List my chatbot conversations (most recent first)' })
+  @ApiOperation({
+    summary: 'List my chatbot conversations (most recent first)',
+  })
   listConversations(@Req() req: Request) {
     return this.chatbot.listConversations(callerFrom(req));
   }

@@ -83,7 +83,7 @@ export const getMyChildFeesIntent: IntentDefinition = {
       },
       admissionNumber: {
         type: 'string',
-        description: "Admission number such as ADM-2024-001 if mentioned.",
+        description: 'Admission number such as ADM-2024-001 if mentioned.',
       },
     },
   },
@@ -104,8 +104,12 @@ export const getMyChildFeesIntent: IntentDefinition = {
 
     // Resolve the requested child from extracted entities, else
     // default to the only child / the first one.
-    const wantedName = (entities.childName as string | undefined)?.toLowerCase();
-    const wantedAdm = (entities.admissionNumber as string | undefined)?.toUpperCase();
+    const wantedName = (
+      entities.childName as string | undefined
+    )?.toLowerCase();
+    const wantedAdm = (
+      entities.admissionNumber as string | undefined
+    )?.toUpperCase();
     const child =
       children.find(
         (c) =>
@@ -127,8 +131,7 @@ export const getMyChildFeesIntent: IntentDefinition = {
       );
     }
 
-    const summary =
-      children.length > 1 ? `For ${child.name}: ` : '';
+    const summary = children.length > 1 ? `For ${child.name}: ` : '';
     const text =
       view.services.length === 0
         ? `${summary}No fees on file yet.`

@@ -9,7 +9,8 @@ import {
 
 export class AskChatbotDto {
   @ApiProperty({
-    description: 'Free-form question from the user. Plain text, max 1000 chars.',
+    description:
+      'Free-form question from the user. Plain text, max 1000 chars.',
   })
   @IsString()
   @MinLength(1)

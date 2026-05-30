@@ -38,9 +38,7 @@ export class ChatbotCorpus implements OnModuleInit {
   onModuleInit() {
     this.merged = this.loadAndValidate();
     const intentNames = Object.keys(this.merged);
-    this.logger.log(
-      `Chatbot corpus loaded: ${intentNames.length} intent(s).`,
-    );
+    this.logger.log(`Chatbot corpus loaded: ${intentNames.length} intent(s).`);
   }
 
   /** Inspect entry for a known intent (returns null if not in corpus). */
@@ -95,6 +93,7 @@ export class ChatbotCorpus implements OnModuleInit {
       } catch (err) {
         throw new Error(
           `Chatbot corpus file ${f} is invalid JSON: ${(err as Error).message}`,
+          { cause: err },
         );
       }
       for (const [name, entry] of Object.entries(parsed.intents ?? {})) {

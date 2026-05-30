@@ -37,7 +37,12 @@ export class ChatbotIntentLog {
   userText: string;
 
   /** Null = no rule matched and (LLM disabled or LLM also failed). */
-  @Column({ name: 'matched_intent', type: 'varchar', length: 100, nullable: true })
+  @Column({
+    name: 'matched_intent',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+  })
   matchedIntent: string | null;
 
   @Column({ type: 'real', nullable: true })

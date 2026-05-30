@@ -1,9 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CHATBOT_CONFIG } from '../config/chatbot.config';
@@ -109,11 +104,13 @@ export class LlmFallbackService implements OnModuleInit {
   async onModuleInit() {
     if (!this.enabled()) return;
     try {
-      // Dynamic import so dev environments without the SDK still boot.
-      // Use @ts-ignore (not @ts-expect-error) so the line compiles
-      // whether or not the package is installed.
-      // @ts-ignore optional runtime dep
-      const mod = (await import('@anthropic-ai/sdk')) as unknown as {
+      // Optional runtime dep. We *do* declare @anthropic-ai/sdk in
+      // package.json so types resolve, but routing the import through
+      // a string variable means seed/dev environments where the
+      // package isn't installed yet (or `pnpm install` was skipped)
+      // still boot. The catch below logs and disables the client.
+      const sdkModule = '@anthropic-ai/sdk';
+      const mod = (await import(sdkModule)) as unknown as {
         default: new (opts: { apiKey: string }) => AnthropicClient;
       };
       this.client = new mod.default({ apiKey: this.config.llmApiKey });
@@ -149,7 +146,9 @@ export class LlmFallbackService implements OnModuleInit {
     if (!this.enabled() || !this.client) return null;
 
     if (this.circuitOpen()) {
-      this.logger.warn(`LLM circuit open; skipping call for tenant ${caller.tenantId ?? 'super'}.`);
+      this.logger.warn(
+        `LLM circuit open; skipping call for tenant ${caller.tenantId ?? 'super'}.`,
+      );
       return null;
     }
 
@@ -196,8 +195,12 @@ export class LlmFallbackService implements OnModuleInit {
           this.consumeBudget(caller.tenantId, totalTokens);
           return {
             response: {
-              data: allToolResults.length === 1 ? allToolResults[0] : allToolResults,
-              text: filtered || "I couldn't put that into words. Please try again.",
+              data:
+                allToolResults.length === 1
+                  ? allToolResults[0]
+                  : allToolResults,
+              text:
+                filtered || "I couldn't put that into words. Please try again.",
             },
             tokens: totalTokens,
           };
@@ -261,8 +264,12 @@ export class LlmFallbackService implements OnModuleInit {
     }
     try {
       // CRITICAL: caller (with tenantId from JWT) wins. LLM input is
-      // entities only; never tenantId / userId / role.
-      const sanitized = this.stripIdentityKeys(use.input);
+      // entities only; never tenantId / userId / role — recursively
+      // stripped, so nested objects can't smuggle them in.
+      const sanitized = this.stripIdentityKeys(use.input) as Record<
+        string,
+        unknown
+      >;
       const res = await intent.handler(caller, sanitized, this.handlerDeps);
       return { data: res.data, text: res.text, isError: false };
     } catch (err) {
@@ -274,24 +281,34 @@ export class LlmFallbackService implements OnModuleInit {
     }
   }
 
-  private stripIdentityKeys(
-    input: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(input ?? {})) {
-      if (
-        k === 'tenantId' ||
-        k === 'tenant_id' ||
-        k === 'userId' ||
-        k === 'user_id' ||
-        k === 'role'
-      ) {
-        // Silently drop — never trust LLM-supplied identity.
-        continue;
-      }
-      out[k] = v;
+  private static readonly IDENTITY_KEYS = new Set([
+    'tenantId',
+    'tenant_id',
+    'userId',
+    'user_id',
+    'adminId',
+    'admin_id',
+    'role',
+  ]);
+
+  /**
+   * Recursively drops identity keys from any LLM-supplied object,
+   * including nested objects + arrays. The LLM can't sneak a
+   * `{ filters: { tenantId: '...' } }` through.
+   */
+  private stripIdentityKeys(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((v) => this.stripIdentityKeys(v));
     }
-    return out;
+    if (value && typeof value === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (LlmFallbackService.IDENTITY_KEYS.has(k)) continue;
+        out[k] = this.stripIdentityKeys(v);
+      }
+      return out;
+    }
+    return value;
   }
 
   private toolsFor(
@@ -360,32 +377,55 @@ export class LlmFallbackService implements OnModuleInit {
 
   // ─── output filter (paranoia layer) ───────────────────────────────
 
+  /**
+   * Patterns that look like institution-specific identifiers. Anything
+   * matching one of these in the assistant text MUST also appear in
+   * the tool result haystack — otherwise the LLM has "remembered"
+   * (hallucinated) an identifier that we never returned.
+   */
+  private static readonly LEAK_PATTERNS: { name: string; re: RegExp }[] = [
+    {
+      name: 'uuid',
+      re: /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
+    },
+    // Admission numbers, e.g. ADM-2024-G-101
+    { name: 'admission', re: /\bADM-[A-Z0-9-]{2,40}\b/gi },
+    // School/tenant codes — same shape as our regex in
+    // common/constants/tenant.ts: uppercase letters + digits + dashes,
+    // starting with a letter, 2–31 chars. Word boundary on both sides.
+    { name: 'schoolCode', re: /\b[A-Z][A-Z0-9-]{2,30}\b/g },
+  ];
+
   private outputFilter(
     text: string,
     toolResults: unknown[],
     caller: ChatbotCaller,
   ): string {
-    // Build a haystack from tool results so we can confirm that any
-    // tenant identifier the LLM "remembers" actually came from a tool.
-    const haystack = JSON.stringify(toolResults).toLowerCase();
+    if (!text) return text;
+    // Haystack of strings we *gave* the LLM. If a token appears in the
+    // text but not here, the LLM made it up.
+    const haystack = JSON.stringify(toolResults);
+    const haystackLower = haystack.toLowerCase();
 
-    const uuidRe = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
-    let cleaned = text;
-    const leaked: string[] = [];
-    for (const m of text.matchAll(uuidRe)) {
-      const id = m[0];
-      if (!haystack.includes(id.toLowerCase())) {
-        leaked.push(id);
+    const leaked: { name: string; value: string }[] = [];
+    for (const { name, re } of LlmFallbackService.LEAK_PATTERNS) {
+      for (const m of text.matchAll(re)) {
+        const id = m[0];
+        if (!haystackLower.includes(id.toLowerCase())) {
+          leaked.push({ name, value: id });
+        }
       }
     }
-    if (leaked.length) {
-      // Redact and alert — these UUIDs were not in any tool output.
-      this.logger.error(
-        `LLM output filter caught UUID(s) not in tool results: ${leaked.join(', ')}. ` +
-          `caller=${caller.userId} tenant=${caller.tenantId ?? 'super'}. Redacting.`,
-      );
-      for (const id of leaked) cleaned = cleaned.split(id).join('[redacted]');
-    }
+    if (!leaked.length) return text;
+
+    this.logger.error(
+      `LLM output filter caught identifier(s) not in tool results: ` +
+        leaked.map((l) => `${l.name}=${l.value}`).join(', ') +
+        ` caller=${caller.userId} tenant=${caller.tenantId ?? 'super'}. Redacting.`,
+    );
+    let cleaned = text;
+    for (const { value } of leaked)
+      cleaned = cleaned.split(value).join('[redacted]');
     return cleaned;
   }
 
@@ -404,7 +444,8 @@ export class LlmFallbackService implements OnModuleInit {
           isActive: true,
         },
       });
-      this.cachedSystemPrompt = row?.description?.trim() || FALLBACK_SYSTEM_PROMPT;
+      this.cachedSystemPrompt =
+        row?.description?.trim() || FALLBACK_SYSTEM_PROMPT;
     } catch {
       this.cachedSystemPrompt = FALLBACK_SYSTEM_PROMPT;
     }
@@ -428,7 +469,7 @@ export class LlmFallbackService implements OnModuleInit {
         ...args,
         // Anthropic SDK accepts an AbortSignal via signal option (v0.x).
         signal: controller.signal,
-      } as Record<string, unknown>);
+      });
     } finally {
       clearTimeout(timer);
     }

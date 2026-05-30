@@ -38,13 +38,14 @@ function assertAdmin(role: string) {
 export const getFeeDefaultersIntent: IntentDefinition = {
   name: 'get_fee_defaulters',
   description:
-    'List students with outstanding fees in the caller\'s tenant. Optional filters: term, academic year.',
+    "List students with outstanding fees in the caller's tenant. Optional filters: term, academic year.",
   inputSchema: {
     type: 'object',
     properties: {
       term: {
         type: 'string',
-        description: 'Term label such as "1st Term Fee" through "5th Term Fee".',
+        description:
+          'Term label such as "1st Term Fee" through "5th Term Fee".',
       },
       academicYear: {
         type: 'string',
@@ -85,10 +86,9 @@ export const getFeeDefaultersIntent: IntentDefinition = {
     if (!count) {
       return {
         data: [],
-        text:
-          `No outstanding fees${term ? ` for ${term}` : ''}${
-            academicYear ? ` (${academicYear})` : ''
-          }.`,
+        text: `No outstanding fees${term ? ` for ${term}` : ''}${
+          academicYear ? ` (${academicYear})` : ''
+        }.`,
       };
     }
 
@@ -110,7 +110,7 @@ export const getFeeDefaultersIntent: IntentDefinition = {
 export const getPendingApprovalsIntent: IntentDefinition = {
   name: 'get_pending_approvals',
   description:
-    'List discount / penalty-waive requests awaiting the tenant admin\'s decision.',
+    "List discount / penalty-waive requests awaiting the tenant admin's decision.",
   inputSchema: { type: 'object', properties: {} },
   allowedRoles: ADMIN_ROLES,
   async handler(caller, _entities, d): Promise<IntentResponse> {
@@ -142,7 +142,7 @@ export const getPendingApprovalsIntent: IntentDefinition = {
 export const getCollectionSummaryIntent: IntentDefinition = {
   name: 'get_collection_summary',
   description:
-    'Total fees collected (sum of paid_amount) in the caller\'s tenant, optionally bounded by date.',
+    "Total fees collected (sum of paid_amount) in the caller's tenant, optionally bounded by date.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -183,10 +183,9 @@ export const getCollectionSummaryIntent: IntentDefinition = {
 
     return {
       data: { totalCollected: total.toFixed(2), feesCount: count },
-      text:
-        `${rupees(total)} collected across ${count} fee row${
-          count === 1 ? '' : 's'
-        }${fromDate || toDate ? ` (${fromDate ?? 'all-time'} → ${toDate ?? 'now'})` : ''}.`,
+      text: `${rupees(total)} collected across ${count} fee row${
+        count === 1 ? '' : 's'
+      }${fromDate || toDate ? ` (${fromDate ?? 'all-time'} → ${toDate ?? 'now'})` : ''}.`,
     };
   },
 };
