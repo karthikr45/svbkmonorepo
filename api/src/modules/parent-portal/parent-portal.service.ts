@@ -79,11 +79,14 @@ export class ParentPortalService {
       .findCurrentYear(tenantId)
       .catch(() => null);
 
+    // Note: ParentStudent.branch is the historical column name on the
+    // link table; its value is the school code (same string that now
+    // lives in Student.schoolCode after the rename).
     if (currentYear) {
       const students = await this.studentRepo.find({
         where: links.map((l) => ({
           tenantId,
-          branch: l.branch,
+          schoolCode: l.branch,
           admissionNumber: l.admissionNumber,
           academicYear: currentYear.academicYear,
         })),
@@ -95,7 +98,7 @@ export class ParentPortalService {
     const all = await this.studentRepo.find({
       where: links.map((l) => ({
         tenantId,
-        branch: l.branch,
+        schoolCode: l.branch,
         admissionNumber: l.admissionNumber,
       })),
       order: { academicYear: 'DESC', createdAt: 'DESC' },
