@@ -32,5 +32,6 @@ import { ParentPortalController } from './parent-portal.controller';
   ],
   providers: [ParentPortalService],
   controllers: [ParentPortalController],
+  exports: [ParentPortalService],
 })
 export class ParentPortalModule {}
