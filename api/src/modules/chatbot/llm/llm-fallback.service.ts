@@ -346,7 +346,10 @@ export class LlmFallbackService implements OnModuleInit {
     }
   }
   private recordSuccess() {
+    // A successful call closes the circuit immediately — no need to
+    // wait out the cooldown when the LLM is clearly working again.
     this.circuit.consecutiveFailures = 0;
+    this.circuit.openedAt = null;
   }
 
   // ─── per-tenant daily token budget ────────────────────────────────
