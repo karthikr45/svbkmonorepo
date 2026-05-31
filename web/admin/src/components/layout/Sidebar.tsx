@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useUi } from "@/context/ui-context";
 import { useAuth } from "@/features/auth";
-import { useChatbotStatus } from "@/features/chatbot/hooks/useChatbotStatus";
 
 type NavItem =
   | { type: "item"; href: string; label: string; icon: string }
@@ -20,7 +19,6 @@ type NavItem =
 
 const tenantAdminNav: NavItem[] = [
   { type: "item", href: "/dashboard", label: "Dashboard", icon: "grid" },
-  { type: "item", href: "/assistant", label: "Assistant", icon: "sparkles" },
   { type: "item", href: "/students", label: "Students", icon: "students" },
   {
     type: "item",
@@ -68,7 +66,6 @@ const tenantAdminNav: NavItem[] = [
 
 const superAdminNav: NavItem[] = [
   { type: "item", href: "/super-admin", label: "Dashboard", icon: "grid" },
-  { type: "item", href: "/assistant", label: "Assistant", icon: "sparkles" },
   { type: "item", href: "/tenants", label: "Tenants", icon: "building" },
   {
     type: "item",
@@ -189,12 +186,6 @@ function NavIcon({ name }: { name: string }) {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v5c0 1.657 3.582 3 8 3s8-1.343 8-3V7M4 12v5c0 1.657 3.582 3 8 3s8-1.343 8-3v-5" />
       </svg>
     );
-  if (name === "sparkles")
-    return (
-      <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
-      </svg>
-    );
   return null;
 }
 
@@ -210,18 +201,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen } = useUi();
   const { user, logout } = useAuth();
-  const chatbot = useChatbotStatus();
-  const navItems = useMemo(() => {
-    const base = navItemsFor(user?.role);
-    // Hide the Assistant entry until we know the tenant has enabled it.
-    // Super-admins always see it (their tenant lookup returns true).
-    if (!chatbot.loaded || !chatbot.enabled) {
-      return base.filter(
-        (i) => !(i.type === "item" && i.href === "/assistant"),
-      );
-    }
-    return base;
-  }, [user?.role, chatbot.loaded, chatbot.enabled]);
+  const navItems = useMemo(() => navItemsFor(user?.role), [user?.role]);
 
   const email = user?.email ?? "";
   const displayName =

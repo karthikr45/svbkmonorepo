@@ -97,15 +97,6 @@ export class Tenant {
   @Column({ name: 'monetization_enabled', type: 'boolean', default: false })
   monetizationEnabled: boolean;
 
-  /**
-   * Per-tenant chatbot kill switch. Off by default so newly-provisioned
-   * tenants don't get an unreviewed bot. Super-admin can enable per
-   * tenant once they're satisfied with the experience for that school.
-   * Also lets support cut off a single tenant fast without a deploy.
-   */
-  @Column({ name: 'chatbot_enabled', type: 'boolean', default: false })
-  chatbotEnabled: boolean;
-
   @Column({ nullable: true })
   boardType: string;
 

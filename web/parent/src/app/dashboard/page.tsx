@@ -13,7 +13,6 @@ import {
   type Fee,
 } from "@/lib/parent-portal";
 import { apiErrorMessage } from "@/lib/api";
-import { fetchChatbotStatus } from "@/lib/chatbot";
 import { FeeCard } from "@/components/FeeCard";
 
 const AVATAR_COLORS = [
@@ -54,19 +53,6 @@ export default function DashboardPage() {
   const [feesLoading, setFeesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [chatbotEnabled, setChatbotEnabled] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchChatbotStatus()
-      .then((s) => {
-        if (!cancelled) setChatbotEnabled(!!s.enabled);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -327,14 +313,6 @@ export default function DashboardPage() {
             )}
           </div>
           <div className="ml-auto flex items-center gap-4">
-            {chatbotEnabled && (
-              <a
-                href="/assistant"
-                className="text-sm font-semibold text-[#6c739c] hover:underline"
-              >
-                Assistant
-              </a>
-            )}
             <a
               href="/fee-details"
               className="text-sm font-semibold text-[#6c739c] hover:underline"

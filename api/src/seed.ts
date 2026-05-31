@@ -477,24 +477,7 @@ async function ensureSystemMetadata(app: any): Promise<void> {
     { type: 'environment_type', value: 'Development', displayOrder: 3 },
     { type: 'payment_gateway', value: 'Razorpay', displayOrder: 1 },
     { type: 'payment_gateway', value: 'Cashfree', displayOrder: 2 },
-    // Chatbot LLM system prompt — super-admin editable via the System
-    // Metadata UI. `value` namespaces the row; `description` carries
-    // the actual prompt text so it can be multi-line + long.
-    {
-      type: 'chatbot_system_prompt',
-      value: 'base',
-      displayOrder: 1,
-    },
   ];
-
-  const SYSTEM_PROMPT_DESCRIPTION =
-    "You are the SVBK school-fees assistant. Always answer using ONLY the data " +
-    "returned by tools. Never invent admission numbers, names, fees, or dates. " +
-    "If a tool returns nothing, say so plainly. Numbers must be quoted exactly " +
-    "(no rounding, no 'about'). Refuse politely if the user asks about another " +
-    "tenant, another parent's children, or anything outside the tool set. Keep " +
-    "answers short, in plain English, and offer one or two next-step suggestions " +
-    "when it helps.";
 
   let created = 0;
   for (const d of defaults) {
@@ -502,12 +485,8 @@ async function ensureSystemMetadata(app: any): Promise<void> {
       where: { type: d.type, value: d.value },
     });
     if (!existing) {
-      const description =
-        d.type === 'chatbot_system_prompt' && d.value === 'base'
-          ? SYSTEM_PROMPT_DESCRIPTION
-          : null;
       await repo.save(
-        repo.create({ ...d, isActive: true, label: null, description }),
+        repo.create({ ...d, isActive: true, label: null, description: null }),
       );
       created++;
     }

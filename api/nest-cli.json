@@ -3,13 +3,6 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
-    "deleteOutDir": true,
-    "assets": [
-      {
-        "include": "modules/chatbot/nlu/corpus/*.json",
-        "outDir": "dist"
-      }
-    ],
-    "watchAssets": true
+    "deleteOutDir": true
   }
 }
