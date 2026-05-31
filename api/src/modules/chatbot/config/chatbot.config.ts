@@ -26,6 +26,10 @@ export interface ChatbotConfig {
   llmTimeoutMs: number;
   /** Conversation rows older than this are eligible for purging. */
   conversationRetentionDays: number;
+  /** Heartbeat interval — keeps the SSE stream alive through proxies. */
+  ssePingMs: number;
+  /** Cap on a single ask() stream lifetime; client must retry past it. */
+  sseMaxDurationMs: number;
 }
 
 function envInt(name: string, def: number): number {
@@ -62,6 +66,8 @@ export function loadChatbotConfig(): ChatbotConfig {
       'CHATBOT_CONVERSATION_RETENTION_DAYS',
       90,
     ),
+    ssePingMs: envInt('CHATBOT_SSE_PING_MS', 25_000),
+    sseMaxDurationMs: envInt('CHATBOT_SSE_MAX_DURATION_MS', 60_000),
   };
 }
 

@@ -105,6 +105,27 @@ export class ChatbotService {
       // and reported via `subscriber`/`emit`, so there is no failure
       // mode that should bubble to an unhandled rejection.
       let cancelled = false;
+      // Heartbeat — keeps the connection alive through LB/CDN idle
+      // timeouts. Nest's @Sse emits each `next()` as a frame; events
+      // named `ping` are conventional and ignored by the client.
+      const heartbeat = setInterval(() => {
+        if (cancelled) return;
+        subscriber.next({ type: 'ping', data: JSON.stringify({}) });
+      }, this.config.ssePingMs);
+      // Hard cap on stream lifetime — proxies hate forever-streams,
+      // and we don't want a runaway tool loop to hold a connection.
+      // The client retries with a new POST if it wasn't done yet.
+      const watchdog = setTimeout(() => {
+        if (cancelled) return;
+        subscriber.next({
+          type: 'error',
+          data: JSON.stringify({
+            message: 'Stream exceeded maximum duration. Please try again.',
+          }),
+        });
+        cancelled = true;
+        subscriber.complete();
+      }, this.config.sseMaxDurationMs);
       void (async () => {
         const started = Date.now();
         const emit = (e: ChatbotStreamEvent) => {
@@ -264,6 +285,8 @@ export class ChatbotService {
 
       return () => {
         cancelled = true;
+        clearInterval(heartbeat);
+        clearTimeout(watchdog);
       };
     });
   }
