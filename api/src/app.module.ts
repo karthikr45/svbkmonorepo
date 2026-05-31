@@ -13,6 +13,7 @@ import configuration from './config/configuration';
 import { HealthModule } from './modules/health/health.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
+import { RequestContextMiddleware } from './common/middleware/request-context.middleware';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminsModule } from './modules/admins/admins.module';
 import { UsersModule } from './modules/users/users.module';
@@ -144,6 +145,10 @@ import { StudentIdentitiesModule } from './modules/student-identities/student-id
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestLoggerMiddleware).forRoutes('*');
+    // Order matters: the context middleware must run first so the
+    // request logger (and everything downstream) sees the ALS scope.
+    consumer
+      .apply(RequestContextMiddleware, RequestLoggerMiddleware)
+      .forRoutes('*');
   }
 }

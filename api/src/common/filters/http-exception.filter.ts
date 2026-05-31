@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { captureError } from '../../observability/sentry';
+import { getRequestContext } from '../middleware/request-context.middleware';
 
 /**
  * Catches every exception, returns a consistent error envelope, and logs
@@ -60,10 +61,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
       this.logger.error(`${status} ${where} — ${message}`, stack);
       // Forward to Sentry with tags useful for triage. No-op when
       // SENTRY_DSN isn't configured.
+      const ctx = getRequestContext();
       captureError(exception, {
+        requestId: ctx?.requestId,
         route: `${request?.method} ${request?.route?.path ?? request?.originalUrl}`,
         tenantId,
-        userId: (request as { user?: { userId?: string } })?.user?.userId,
+        userId:
+          ctx?.userId ??
+          (request as { user?: { userId?: string } })?.user?.userId,
         status,
       });
     } else if (status !== HttpStatus.UNAUTHORIZED && status !== 422) {

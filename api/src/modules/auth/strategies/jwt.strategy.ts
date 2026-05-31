@@ -5,6 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Repository } from 'typeorm';
 import { Tenant } from '../../tenants/entities/tenant.entity';
+import { setRequestContextUser } from '../../../common/middleware/request-context.middleware';
 
 export interface JwtPayload {
   sub: string;
@@ -54,6 +55,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // Future seam — see class comment.
       // if (tenant.monetizationEnabled && !subscriptionActive(...)) throw 402
     }
+
+    // Patch the per-request ALS context so every log line emitted by
+    // this request carries the authenticated user's tenant + id.
+    setRequestContextUser(payload.tenantId, payload.sub);
 
     return {
       userId: payload.sub,
