@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { captureError } from '../../observability/sentry';
 
 /**
  * Catches every exception, returns a consistent error envelope, and logs
@@ -57,6 +58,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
       const stack =
         exception instanceof Error ? exception.stack : String(exception);
       this.logger.error(`${status} ${where} — ${message}`, stack);
+      // Forward to Sentry with tags useful for triage. No-op when
+      // SENTRY_DSN isn't configured.
+      captureError(exception, {
+        route: `${request?.method} ${request?.route?.path ?? request?.originalUrl}`,
+        tenantId,
+        userId: (request as { user?: { userId?: string } })?.user?.userId,
+        status,
+      });
     } else if (status !== HttpStatus.UNAUTHORIZED && status !== 422) {
       this.logger.warn(`${status} ${where} — ${message}`);
     }

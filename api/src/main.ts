@@ -8,6 +8,7 @@ import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { WinstonLoggerService } from './logger/winston-logger.service';
+import { initSentry } from './observability/sentry';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SystemMetadata } from './modules/system-metadata/entities/system-metadata.entity';
@@ -55,6 +56,19 @@ async function checkMetadataHealth(app: Awaited<ReturnType<typeof NestFactory.cr
 }
 
 async function bootstrap() {
+  // Init Sentry before Nest spins up so any early-boot errors get
+  // captured. No-op when SENTRY_DSN isn't set.
+  await initSentry(
+    process.env.SENTRY_DSN
+      ? {
+          dsn: process.env.SENTRY_DSN,
+          environment: process.env.NODE_ENV,
+          release: process.env.SENTRY_RELEASE,
+          tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 0),
+        }
+      : null,
+  );
+
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
     bufferLogs: true,
