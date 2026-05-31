@@ -14,6 +14,7 @@ import {
   ChatbotMessageRole,
 } from './entities/chatbot-message.entity';
 import { ChatbotIntentLog } from './entities/chatbot-intent-log.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 import { IntentRegistry } from './intents/intent.registry';
 import { IntentMatcher } from './nlu/intent-matcher';
 import { ChatbotStreamEvent } from './dto/ask.dto';
@@ -53,6 +54,8 @@ export class ChatbotService {
     private readonly msgRepo: Repository<ChatbotMessage>,
     @InjectRepository(ChatbotIntentLog)
     private readonly logRepo: Repository<ChatbotIntentLog>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepo: Repository<Tenant>,
     private readonly registry: IntentRegistry,
     private readonly matcher: IntentMatcher,
     private readonly llm: LlmFallbackService,
@@ -60,6 +63,34 @@ export class ChatbotService {
     @Inject('CHATBOT_HANDLER_DEPS')
     private readonly handlerDeps: IntentHandlerDeps,
   ) {}
+
+  /**
+   * Per-tenant feature gate. Super-admins (no tenantId) always pass —
+   * they need the bot to test/onboard new tenants. Everyone else needs
+   * their tenant's `chatbot_enabled` set to true.
+   *
+   * Cached briefly (10s) per tenant so the per-turn lookup is cheap.
+   */
+  private readonly gateCache = new Map<
+    string,
+    { enabled: boolean; at: number }
+  >();
+  private readonly GATE_TTL_MS = 10_000;
+
+  async isEnabledFor(caller: ChatbotCaller): Promise<boolean> {
+    if (!caller.tenantId) return true; // super-admin bypass
+    const cached = this.gateCache.get(caller.tenantId);
+    if (cached && Date.now() - cached.at < this.GATE_TTL_MS) {
+      return cached.enabled;
+    }
+    const t = await this.tenantRepo.findOne({
+      where: { id: caller.tenantId },
+      select: ['id', 'chatbotEnabled'],
+    });
+    const enabled = !!t?.chatbotEnabled;
+    this.gateCache.set(caller.tenantId, { enabled, at: Date.now() });
+    return enabled;
+  }
 
   /** Server-Sent Events stream consumed by `EventSource` on the frontend. */
   ask(
@@ -85,6 +116,18 @@ export class ChatbotService {
         let conv: ChatbotConversation | null = null;
         let userMsg: ChatbotMessage | null = null;
         try {
+          if (!(await this.isEnabledFor(caller))) {
+            emit({
+              event: 'error',
+              data: {
+                message:
+                  'The assistant is not enabled for your account. ' +
+                  'Please ask your school administrator.',
+              },
+            });
+            subscriber.complete();
+            return;
+          }
           emit({ event: 'typing', data: {} });
 
           conv = await this.resolveConversation(
@@ -226,6 +269,11 @@ export class ChatbotService {
   }
 
   async listConversations(caller: ChatbotCaller) {
+    if (!(await this.isEnabledFor(caller))) {
+      throw new ForbiddenException(
+        'The assistant is not enabled for your account.',
+      );
+    }
     return this.convRepo.find({
       where: { userId: caller.userId },
       order: { lastMessageAt: 'DESC' },
@@ -234,6 +282,11 @@ export class ChatbotService {
   }
 
   async getConversation(caller: ChatbotCaller, id: string) {
+    if (!(await this.isEnabledFor(caller))) {
+      throw new ForbiddenException(
+        'The assistant is not enabled for your account.',
+      );
+    }
     const conv = await this.convRepo.findOne({
       where: { id, userId: caller.userId },
     });

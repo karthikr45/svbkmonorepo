@@ -16,6 +16,7 @@ import { CHATBOT_CONFIG, loadChatbotConfig } from './config/chatbot.config';
 import { Fee } from '../fees/entities/fee.entity';
 import { AdjustmentApproval } from '../approvals/entities/adjustment-approval.entity';
 import { SystemMetadata } from '../system-metadata/entities/system-metadata.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 import { ParentPortalModule } from '../parent-portal/parent-portal.module';
 import { ParentPortalService } from '../parent-portal/parent-portal.service';
 import { AnnouncementsModule } from '../announcements/announcements.module';
@@ -40,6 +41,7 @@ const HANDLER_DEPS_TOKEN = 'CHATBOT_HANDLER_DEPS';
       Fee,
       AdjustmentApproval,
       SystemMetadata,
+      Tenant,
     ]),
     ParentPortalModule,
     AnnouncementsModule,

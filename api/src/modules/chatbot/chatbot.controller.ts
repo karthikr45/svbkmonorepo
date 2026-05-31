@@ -69,6 +69,17 @@ export class ChatbotController {
     return this.chatbot.ask(caller, dto.message, dto.conversationId);
   }
 
+  @Get('status')
+  @ApiOperation({
+    summary: 'Whether the chatbot is enabled for the caller\'s tenant',
+    description:
+      'Lets the frontend hide the assistant UI when the tenant ' +
+      'admin has not turned the bot on. Returns `{ enabled: boolean }`.',
+  })
+  async status(@Req() req: Request): Promise<{ enabled: boolean }> {
+    return { enabled: await this.chatbot.isEnabledFor(callerFrom(req)) };
+  }
+
   @Get('conversations')
   @ApiOperation({
     summary: 'List my chatbot conversations (most recent first)',

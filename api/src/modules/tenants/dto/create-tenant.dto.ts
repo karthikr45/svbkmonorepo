@@ -97,6 +97,16 @@ export class CreateTenantDto {
   @IsBoolean()
   monetizationEnabled?: boolean;
 
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'Per-tenant chatbot gate. Off by default; enable per tenant once ' +
+      "the bot's behaviour is reviewed for that school. Super-admin only.",
+  })
+  @IsOptional()
+  @IsBoolean()
+  chatbotEnabled?: boolean;
+
   @ApiPropertyOptional({ example: 'State Board' })
   @IsString()
   @IsOptional()

@@ -174,6 +174,24 @@ function dispatchFrame(frame: string, cb: ChatbotStreamCallbacks): void {
   }
 }
 
+/** Tells the FE whether to show the assistant UI at all. */
+export async function fetchChatbotStatus(): Promise<{ enabled: boolean }> {
+  const token = getStoredToken();
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/chatbot/status`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!res.ok) return { enabled: false };
+    const body = (await res.json()) as
+      | { enabled?: boolean }
+      | { data?: { enabled?: boolean } };
+    const payload = "data" in body ? (body.data ?? body) : body;
+    return { enabled: !!(payload as { enabled?: boolean }).enabled };
+  } catch {
+    return { enabled: false };
+  }
+}
+
 export async function listChatbotConversations(): Promise<
   ChatbotConversationSummary[]
 > {

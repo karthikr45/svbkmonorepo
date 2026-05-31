@@ -35,6 +35,23 @@ export interface ChatbotStreamCallbacks {
   }) => void;
 }
 
+export async function fetchChatbotStatus(): Promise<{ enabled: boolean }> {
+  const token = getTokens()?.accessToken;
+  try {
+    const res = await fetch(`${API_BASE}/chatbot/status`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!res.ok) return { enabled: false };
+    const body = (await res.json()) as
+      | { enabled?: boolean }
+      | { data?: { enabled?: boolean } };
+    const payload = "data" in body ? (body.data ?? body) : body;
+    return { enabled: !!(payload as { enabled?: boolean }).enabled };
+  } catch {
+    return { enabled: false };
+  }
+}
+
 export async function streamChatbotAsk(
   body: { message: string; conversationId?: string | null },
   cb: ChatbotStreamCallbacks,

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useUi } from "@/context/ui-context";
 import { useAuth } from "@/features/auth";
+import { useChatbotStatus } from "@/features/chatbot/hooks/useChatbotStatus";
 
 type NavItem =
   | { type: "item"; href: string; label: string; icon: string }
@@ -209,7 +210,18 @@ export function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen } = useUi();
   const { user, logout } = useAuth();
-  const navItems = useMemo(() => navItemsFor(user?.role), [user?.role]);
+  const chatbot = useChatbotStatus();
+  const navItems = useMemo(() => {
+    const base = navItemsFor(user?.role);
+    // Hide the Assistant entry until we know the tenant has enabled it.
+    // Super-admins always see it (their tenant lookup returns true).
+    if (!chatbot.loaded || !chatbot.enabled) {
+      return base.filter(
+        (i) => !(i.type === "item" && i.href === "/assistant"),
+      );
+    }
+    return base;
+  }, [user?.role, chatbot.loaded, chatbot.enabled]);
 
   const email = user?.email ?? "";
   const displayName =

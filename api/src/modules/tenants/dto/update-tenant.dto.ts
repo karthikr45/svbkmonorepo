@@ -81,6 +81,13 @@ export class UpdateTenantDto {
   @IsBoolean()
   monetizationEnabled?: boolean;
 
+  @ApiPropertyOptional({
+    description: 'Per-tenant chatbot gate. Super-admin only.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  chatbotEnabled?: boolean;
+
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
