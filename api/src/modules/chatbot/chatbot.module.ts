@@ -7,6 +7,7 @@ import { ChatbotMessage } from './entities/chatbot-message.entity';
 import { ChatbotIntentLog } from './entities/chatbot-intent-log.entity';
 import { ChatbotController } from './chatbot.controller';
 import { ChatbotService } from './chatbot.service';
+import { ChatbotCleanupService } from './chatbot-cleanup.service';
 import { IntentRegistry } from './intents/intent.registry';
 import { IntentMatcher } from './nlu/intent-matcher';
 import { ChatbotCorpus } from './nlu/corpus.loader';
@@ -57,6 +58,7 @@ const HANDLER_DEPS_TOKEN = 'CHATBOT_HANDLER_DEPS';
     IntentMatcher,
     LlmFallbackService,
     ChatbotService,
+    ChatbotCleanupService,
     {
       provide: HANDLER_DEPS_TOKEN,
       useFactory: (

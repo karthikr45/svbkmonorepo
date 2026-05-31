@@ -8,6 +8,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import configuration from './config/configuration';
 import { HealthModule } from './modules/health/health.module';
 import { AuditModule } from './modules/audit/audit.module';
@@ -48,6 +49,8 @@ import { StudentIdentitiesModule } from './modules/student-identities/student-id
     }),
     // Global rate limit: 120 req / 60s per IP. Auth + OTP endpoints
     // add stricter per-route limits via @Throttle.
+    // Schedules @Cron-annotated methods (chatbot purge, etc.).
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       { name: 'default', ttl: 60_000, limit: 120 },
     ]),
