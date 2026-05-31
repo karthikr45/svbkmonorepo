@@ -88,3 +88,66 @@ jobs:
           fi
           pnpm migration:run
           pnpm migration:check
+
+  # Tenant-isolation e2e for the chatbot. Spins up its own Postgres so
+  # it can't pollute db-drift, runs the migrations, then drives every
+  # intent through ChatbotService while impersonating tenant-A — fails
+  # if any tenant-B identifier shows up in the response stream.
+  chatbot-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: svbk_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Migrate (test DB)
+        working-directory: api
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: svbk_test
+        run: |
+          if ! ls src/migrations/*.ts >/dev/null 2>&1; then
+            echo "No baseline migration yet — skipping isolation gate."
+            exit 0
+          fi
+          pnpm migration:run
+      - name: Run chatbot tenant-isolation e2e
+        working-directory: api
+        env:
+          RUN_DB_E2E: "true"
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: svbk_test
+          # JWT secrets aren't actually used by this suite, but Nest
+          # refuses to boot without them in production-leaning configs.
+          JWT_SECRET: ci-only-not-a-secret
+          JWT_REFRESH_SECRET: ci-only-not-a-secret-refresh
+        run: |
+          if ! ls src/migrations/*.ts >/dev/null 2>&1; then
+            echo "No baseline migration yet — skipping isolation gate."
+            exit 0
+          fi
+          pnpm test:e2e -- chatbot-tenant-isolation
