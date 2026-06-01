@@ -63,7 +63,8 @@ export function AddStudentModal({
   // a caller forgets to pass academicYearOptions. The prop is honored
   // when provided (avoids a duplicate request); we fall back to the
   // hook's data otherwise.
-  const { academicYears: ownYears } = useFetchAcademicYears();
+  const { academicYears: ownYears, loading: yearsLoading } =
+    useFetchAcademicYears();
   const academicYearOptions = useMemo(() => {
     if (academicYearOptionsProp && academicYearOptionsProp.length > 0)
       return academicYearOptionsProp;
@@ -438,35 +439,28 @@ export function AddStudentModal({
           <SectionHeading>Identity</SectionHeading>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             <Field label="Academic year" required>
-              {academicYearOptions.length > 0 ? (
-                <select
-                  value={form.academicYear}
-                  onChange={(e) =>
-                    setForm({ ...form, academicYear: e.target.value })
-                  }
-                  className="form-input"
-                  required
-                >
-                  {!form.academicYear && (
-                    <option value="">Select academic year</option>
-                  )}
-                  {academicYearOptions.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  value={form.academicYear}
-                  onChange={(e) =>
-                    setForm({ ...form, academicYear: e.target.value })
-                  }
-                  placeholder="2025-2026"
-                  className="form-input"
-                  required
-                />
-              )}
+              <select
+                value={form.academicYear}
+                onChange={(e) =>
+                  setForm({ ...form, academicYear: e.target.value })
+                }
+                className="form-input"
+                required
+                disabled={yearsLoading}
+              >
+                <option value="">
+                  {yearsLoading
+                    ? "Loading…"
+                    : academicYearOptions.length === 0
+                      ? "No academic years configured"
+                      : "Select academic year"}
+                </option>
+                {academicYearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Branch">
               <input value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} placeholder="defaults to your branch" className="form-input" />
