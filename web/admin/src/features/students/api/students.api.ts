@@ -134,7 +134,8 @@ export interface CreateStudentTermPayload {
 }
 
 export interface CreateStudentPayload {
-  branch?: string;
+  /** Historically "branch" on the UI; sent to the API as `schoolCode`. */
+  schoolCode?: string;
   academicYear: string;
   admissionNumber: string;
   name: string;

@@ -232,9 +232,12 @@ export function AddStudentModal({
 
     setSubmitting(true);
     try {
+      // Backend uses `schoolCode` (whitelist DTO rejects unknown
+      // fields). Strip the form's UI-level `branch` before sending.
+      const { branch: branchValue, ...rest } = form;
       await createStudentApi({
-        ...form,
-        branch: form.branch || undefined,
+        ...rest,
+        schoolCode: branchValue || undefined,
         identityId: linkedIdentity?.identity.id,
         terms: payloadTerms.length ? payloadTerms : undefined,
       });
