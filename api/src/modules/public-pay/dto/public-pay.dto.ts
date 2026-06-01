@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class PublicInitiateDto {
   @IsString()
@@ -19,9 +19,14 @@ export class PublicVerifyDto {
   @IsNotEmpty()
   gatewayOrderId: string;
 
+  // Cashfree's modal flow only returns the order id — we fetch the
+  // payment id and verify against the gateway server-side. Razorpay's
+  // handler callback supplies both.
+  @IsOptional()
   @IsString()
   gatewayPaymentId?: string;
 
+  @IsOptional()
   @IsString()
   signature?: string;
 }
