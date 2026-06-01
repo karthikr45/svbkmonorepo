@@ -70,6 +70,51 @@ export default function PublicPayPage() {
       });
   }, []);
 
+  // If Cashfree fell back to a full-page redirect (card 3DS), it
+  // returns the parent to /pay?order_id=... — auto-verify so the
+  // user lands directly on the success state without re-typing
+  // their admission number. Strips the query param after handling
+  // so a refresh doesn't re-trigger.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get("order_id");
+    if (!orderId) return;
+    const host = window.location.host;
+    verifyPublicPayment({ host, gatewayOrderId: orderId })
+      .then((result) => {
+        setSuccessMsg("Payment successful.");
+        setLastReceiptId(result.feePaymentId ?? null);
+        if (result.feePaymentId) {
+          try {
+            window.open(
+              publicReceiptUrl(host, result.feePaymentId),
+              "_blank",
+              "noopener,noreferrer",
+            );
+          } catch {
+            /* popup blocked */
+          }
+        }
+      })
+      .catch((err) => {
+        setPayError(
+          publicApiErrorMessage(
+            err,
+            "Could not confirm the payment. Please contact the school office.",
+          ),
+        );
+      })
+      .finally(() => {
+        // Clean URL so a refresh / share doesn't replay the verify.
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname,
+        );
+      });
+  }, []);
+
   const logoSrc = tenant?.logoUrl || "/svbk_logo.webp";
   const isCustomLogo = !!tenant?.logoUrl;
 

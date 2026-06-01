@@ -217,6 +217,16 @@ export class PublicPayService {
     const resolvedGateway = await this.paymentsService.resolveActiveGateway(
       cfg.tenantId,
     );
+    // For Cashfree's card 3DS fallback: send the parent back to the
+    // same /pay they came from with the order id so the page can
+    // auto-verify on mount. Modal stays inline for UPI / wallets.
+    // Use the raw host (port + protocol preserved) so localhost dev
+    // works too — http for localhost / 127.0.0.1, https otherwise.
+    const rawHost = (dto.host ?? '').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(rawHost);
+    const returnUrl = rawHost
+      ? `${isLocal ? 'http' : 'https'}://${rawHost}/pay?order_id={order_id}`
+      : undefined;
     const order = await this.paymentsService.createOrder(cfg.tenantId, {
       tenantId: cfg.tenantId,
       feeId: fee.id,
@@ -225,6 +235,7 @@ export class PublicPayService {
       // Amount in rupees — the gateway layer scales to the SDK's unit.
       amount: balance,
       currency: 'INR',
+      returnUrl,
       ADMISSION: student.admissionNumber,
       academicYear: student.academicYear,
       term: fee.term,

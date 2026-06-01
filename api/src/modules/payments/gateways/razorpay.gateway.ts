@@ -37,6 +37,8 @@ export class RazorpayGateway implements IPaymentGateway {
     amount: number,
     currency: string,
     notes?: OrderNotes,
+    /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+    _returnUrl?: string,
   ): Promise<GatewayOrderResult> {
     try {
       const client = this.buildClient(creds);

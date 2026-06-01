@@ -206,7 +206,13 @@ export class PaymentsService {
     // Online payment — call the gateway using THIS tenant's credentials.
     const gateway = this.gatewayFactory.get(dto.gateway!);
     const creds = await this.credsForTenant(tenantId);
-    const result = await gateway.createOrder(creds, dto.amount, dto.currency, notes);
+    const result = await gateway.createOrder(
+      creds,
+      dto.amount,
+      dto.currency,
+      notes,
+      dto.returnUrl,
+    );
 
     const payment = await this.paymentsRepository.save(
       this.paymentsRepository.create({

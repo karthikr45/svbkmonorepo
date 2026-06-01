@@ -96,7 +96,18 @@ export class CreateOrderDto {
   @IsOptional()
   @IsDateString()
   ddDate?: string;
-  
+
+  @ApiPropertyOptional({
+    description:
+      'Cashfree fallback redirect after 3DS. Modal stays inline by default; ' +
+      'gateway falls back to this when the card flow has to leave the iframe. ' +
+      'Use {order_id} placeholder so the caller can pick up the order on return.',
+    example: 'https://pay.school.com/pay?order_id={order_id}',
+  })
+  @IsOptional()
+  @IsString()
+  returnUrl?: string;
+
 
   
 }

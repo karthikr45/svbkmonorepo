@@ -48,6 +48,12 @@ export interface IPaymentGateway {
     amount: number,
     currency: string,
     notes: OrderNotes,
+    /**
+     * Optional fallback URL Cashfree redirects to when card 3DS has
+     * to leave the iframe. Razorpay ignores it (its handler keeps
+     * everything in the same window).
+     */
+    returnUrl?: string,
   ): Promise<GatewayOrderResult>;
   verifyPayment(
     creds: GatewayCredentials,

@@ -39,6 +39,7 @@ export class CashfreeGateway implements IPaymentGateway {
     amount: number,
     currency: string,
     notes?: OrderNotes,
+    returnUrl?: string,
   ): Promise<GatewayOrderResult> {
     try {
       const client = this.buildClient(creds);
@@ -47,12 +48,11 @@ export class CashfreeGateway implements IPaymentGateway {
         ? `${notes.studentName} | ${notes.admission} | ${notes.term} | ${notes.academicYear}`
         : undefined;
 
-      // Cashfree webhook — fires async after payment. We deliberately
-      // do NOT set order_meta.return_url: setting it makes the Drop-in
-      // JS SDK fall back to a full-page redirect (it can't wrap a 3DS
-      // challenge if a return URL is configured). Our parent flow
-      // uses redirectTarget="_modal" with onSuccess, so no return URL
-      // is needed.
+      // notify_url is the unified webhook (async confirmation). The
+      // return_url is the redirect-mode fallback for card 3DS: modal
+      // stays inline by default, but if the card scheme forces 3DS
+      // out of the iframe Cashfree uses this URL to bring the user
+      // back. Pages reading ?order_id= on mount can self-verify.
       const apiBase = (process.env.PUBLIC_API_BASE_URL ?? '').replace(/\/$/, '');
       const notifyUrl = apiBase ? `${apiBase}/api/payments/webhooks` : undefined;
 
@@ -65,7 +65,14 @@ export class CashfreeGateway implements IPaymentGateway {
           customer_id: 'guest',
           customer_phone: '9999999999',
         },
-        ...(notifyUrl ? { order_meta: { notify_url: notifyUrl } } : {}),
+        ...(notifyUrl || returnUrl
+          ? {
+              order_meta: {
+                ...(notifyUrl ? { notify_url: notifyUrl } : {}),
+                ...(returnUrl ? { return_url: returnUrl } : {}),
+              },
+            }
+          : {}),
       });
 
       const order = response.data;
