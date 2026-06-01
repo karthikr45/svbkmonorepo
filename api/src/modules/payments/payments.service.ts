@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Payment, PaymentGateway, PaymentStatus, PaymentType } from './entities/payment.entity';
 import { Transaction, TransactionType } from './entities/transaction.entity';
+import { Fee, PaymentStatus as FeePaymentStatus } from '../fees/entities/fee.entity';
 import { CreateOrderDto } from './dto/create-payment.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
@@ -23,10 +24,49 @@ export class PaymentsService {
     private readonly paymentsRepository: Repository<Payment>,
     @InjectRepository(Transaction)
     private readonly transactionsRepository: Repository<Transaction>,
+    @InjectRepository(Fee)
+    private readonly feeRepository: Repository<Fee>,
     private readonly gatewayFactory: PaymentGatewayFactory,
     private readonly auditService: PaymentAuditService,
     private readonly tenantConfigsService: TenantConfigsService,
   ) {}
+
+  /**
+   * Applies a successful payment to a fee row — same logic the
+   * webhook handler uses, so verify-time updates and webhook updates
+   * stay consistent. Idempotent in the sense that re-running it
+   * against the same paid fee won't move the status backwards.
+   */
+  private async applyPaymentToFee(
+    feeId: string,
+    amountPaidInRupees: number,
+  ): Promise<void> {
+    const fee = await this.feeRepository.findOne({ where: { id: feeId } });
+    if (!fee) return;
+    const totalOwed =
+      parseFloat(fee.originalAmount) +
+      parseFloat(fee.totalPenalty) -
+      parseFloat(fee.totalDiscount);
+    const newPaidAmount = parseFloat(fee.paidAmount) + amountPaidInRupees;
+    const remaining = totalOwed - newPaidAmount;
+    let paidAmount: string;
+    let netAmount: string;
+    let paymentStatus: FeePaymentStatus;
+    if (remaining <= 0) {
+      paidAmount = totalOwed.toFixed(2);
+      netAmount = '0.00';
+      paymentStatus = FeePaymentStatus.PAID;
+    } else {
+      paidAmount = newPaidAmount.toFixed(2);
+      netAmount = remaining.toFixed(2);
+      paymentStatus = FeePaymentStatus.PARTIAL;
+    }
+    await this.feeRepository.update(feeId, {
+      paidAmount,
+      netAmount,
+      paymentStatus,
+    });
+  }
 
   /**
    * Resolves the gateway credentials for a tenant. Reads the active
@@ -320,6 +360,20 @@ export class PaymentsService {
     payment.gatewayPaymentId = result.gatewayPaymentId;
     payment.paidAt = new Date();
     const savedPayment = await this.paymentsRepository.save(payment);
+
+    // Mark the linked fee paid immediately so the parent UI updates
+    // on the success callback — don't wait for the gateway's webhook.
+    // Webhook later is a safety net; fee logic is idempotent.
+    if (payment.feeId) {
+      try {
+        await this.applyPaymentToFee(
+          payment.feeId,
+          Number(payment.amount) / 100, // paise → rupees
+        );
+      } catch {
+        /* non-fatal — webhook will reconcile */
+      }
+    }
 
     const transaction = await this.transactionsRepository.save(
       this.transactionsRepository.create({

@@ -47,6 +47,16 @@ export class CashfreeGateway implements IPaymentGateway {
         ? `${notes.studentName} | ${notes.admission} | ${notes.term} | ${notes.academicYear}`
         : undefined;
 
+      // Tell Cashfree where to ping us when payment completes (the
+      // unified webhook), and where to send the browser back when the
+      // checkout is in redirect mode. PUBLIC_API_BASE_URL takes
+      // precedence over CLIENT_URL so the webhook hits the API host,
+      // not the frontend host.
+      const apiBase = (process.env.PUBLIC_API_BASE_URL ?? '').replace(/\/$/, '');
+      const clientBase = (process.env.CLIENT_URL ?? '').replace(/\/$/, '');
+      const notifyUrl = apiBase ? `${apiBase}/api/payments/webhooks` : undefined;
+      const returnUrl = clientBase ? `${clientBase}/pay?order_id={order_id}` : undefined;
+
       const response = await client.PGCreateOrder({
         order_id: orderId,
         order_amount: amount,
@@ -56,6 +66,14 @@ export class CashfreeGateway implements IPaymentGateway {
           customer_id: 'guest',
           customer_phone: '9999999999',
         },
+        ...(notifyUrl || returnUrl
+          ? {
+              order_meta: {
+                ...(notifyUrl ? { notify_url: notifyUrl } : {}),
+                ...(returnUrl ? { return_url: returnUrl } : {}),
+              },
+            }
+          : {}),
       });
 
       const order = response.data;

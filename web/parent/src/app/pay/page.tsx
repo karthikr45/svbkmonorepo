@@ -127,8 +127,15 @@ export default function PublicPayPage() {
       }) {
         try {
           await verifyPublicPayment({ host, ...args });
-          setSuccessMsg("Payment successful. Receipt will be sent shortly.");
+          setSuccessMsg(
+            "Payment successful. Your receipt will be emailed shortly.",
+          );
+          // Re-pull the fee list so the just-paid row flips to PAID
+          // and the Pay button disappears.
           await refreshFees();
+          if (typeof window !== "undefined") {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }
         } catch (err) {
           setPayError(
             publicApiErrorMessage(
