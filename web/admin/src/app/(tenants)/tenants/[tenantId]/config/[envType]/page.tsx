@@ -188,14 +188,18 @@ export default function EnvConfigPage() {
     setConfig((prev) => ({ ...prev, ...updates }));
 
   const validateInput = (field: keyof TenantConfigForm, value: string) => {
-    if (!value.trim()) return "This field is required";
+    // All fields are optional — super-admin can save partial configs
+    // and come back to fill the rest later. Format checks still run
+    // when the user *has* typed something into a field.
+    const trimmed = value.trim();
+    if (!trimmed) return "";
     if (["logoUrl", "domainUrl", "backendUrl", "webhookUrl"].includes(field)) {
-      if (!/^https?:\/\//.test(value.trim())) return "Enter a valid URL";
+      if (!/^https?:\/\//.test(trimmed)) return "Enter a valid URL";
     }
-    if (field === "smtpFromEmail" && value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
+    if (field === "smtpFromEmail" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
       return "Enter a valid email address";
     }
-    if (field === "smtpPort" && value.trim() && !/^\d+$/.test(value.trim())) {
+    if (field === "smtpPort" && !/^\d+$/.test(trimmed)) {
       return "Enter a valid port number";
     }
     return "";

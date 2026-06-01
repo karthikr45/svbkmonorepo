@@ -68,43 +68,38 @@ const emptyConfig: NewConfig = {
   smtpSecure: true,
 };
 
-function getNewConfigRequiredKeys(cfg: NewConfig): (keyof NewConfig)[] {
-  const baseRequired: (keyof NewConfig)[] = [
-    "envType",
-    "configName",
-    "logoUrl",
-    "domainUrl",
-    "backendUrl",
-    "gatewayType",
-    "paymentKey",
-    "paymentSecret",
-    "webhookUrl",
-  ];
-  const storageRequired: (keyof NewConfig)[] =
-    cfg.storageTab === "connectionString"
-      ? ["accessKey"]
-      : ["accessKey", "secretKey", "bucketName"];
-  return [...baseRequired, ...storageRequired];
+function getNewConfigRequiredKeys(_cfg: NewConfig): (keyof NewConfig)[] {
+  // Super-admin can save any time, with whatever they have so far.
+  // Fields are validated for *format* when filled (see
+  // validateNewConfigField), but none are required.
+  return [];
 }
 
 function validateNewConfigField(field: keyof NewConfig, value: string): string {
-  if (!value.trim()) return "This field is required";
+  // Empty is always fine — fields are optional. Only validate the
+  // *format* of values the user has typed something into.
+  const trimmed = value.trim();
+  if (!trimmed) return "";
   if (["logoUrl", "domainUrl", "backendUrl", "webhookUrl"].includes(field)) {
-    if (!/^https?:\/\//.test(value.trim())) return "Enter a valid URL";
+    if (!/^https?:\/\//.test(trimmed)) return "Enter a valid URL";
   }
-  if (field === "smtpFromEmail" && value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
+  if (field === "smtpFromEmail" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
     return "Enter a valid email address";
   }
-  if (field === "smtpPort" && value.trim() && !/^\d+$/.test(value.trim())) {
+  if (field === "smtpPort" && !/^\d+$/.test(trimmed)) {
     return "Enter a valid port number";
   }
   return "";
 }
 
 function getNewConfigValidationErrors(cfg: NewConfig): Partial<Record<keyof NewConfig, string>> {
+  // Validate every key that has a typed value — catches bad URLs / emails
+  // / ports even when the user didn't fill the form completely.
   const errs: Partial<Record<keyof NewConfig, string>> = {};
-  getNewConfigRequiredKeys(cfg).forEach((key) => {
-    const err = validateNewConfigField(key, cfg[key] as string);
+  (Object.keys(cfg) as (keyof NewConfig)[]).forEach((key) => {
+    const value = cfg[key];
+    if (typeof value !== "string") return;
+    const err = validateNewConfigField(key, value);
     if (err) errs[key] = err;
   });
   return errs;
@@ -628,7 +623,7 @@ function TenantDetailsPageContent() {
               disabled={modalSaving || !canSaveConfiguration}
               isLoading={modalSaving}
               className="w-full sm:w-auto"
-              title={!canSaveConfiguration && !modalSaving ? "Complete all required fields to save" : undefined}
+              title={!canSaveConfiguration && !modalSaving ? "Fix the highlighted field formats to save" : undefined}
             >
               Save Configuration
             </Button>
@@ -654,10 +649,9 @@ function TenantDetailsPageContent() {
                 options={ENV_TYPE_OPTIONS}
                 error={newConfigErrors.envType}
                 placeholder="Select environment"
-                required
               />
               <Input
-                label="Configuration Name *"
+                label="Configuration Name"
                 placeholder="e.g. Production Config"
                 value={newConfig.configName}
                 onChange={(e) => updateNew({ configName: e.target.value })}
@@ -676,7 +670,7 @@ function TenantDetailsPageContent() {
             </legend>
             <div className="grid min-w-0 gap-4 sm:grid-cols-2">
               <Input
-                label="Logo URL *"
+                label="Logo URL"
                 placeholder="https://example.com/logo.png"
                 value={newConfig.logoUrl}
                 onChange={(e) => updateNew({ logoUrl: e.target.value })}
@@ -684,7 +678,7 @@ function TenantDetailsPageContent() {
                 fullWidth
               />
               <Input
-                label="Domain URL *"
+                label="Domain URL"
                 placeholder="https://app.example.com"
                 value={newConfig.domainUrl}
                 onChange={(e) => updateNew({ domainUrl: e.target.value })}
@@ -692,7 +686,7 @@ function TenantDetailsPageContent() {
                 fullWidth
               />
               <Input
-                label="Backend API URL *"
+                label="Backend API URL"
                 placeholder="https://api.example.com"
                 value={newConfig.backendUrl}
                 onChange={(e) => updateNew({ backendUrl: e.target.value })}
@@ -730,7 +724,7 @@ function TenantDetailsPageContent() {
             {newConfig.storageTab === "accessKeys" && (
               <div className="grid min-w-0 gap-4 sm:grid-cols-2">
                 <Input
-                  label="Client ID / Access Key *"
+                  label="Client ID / Access Key"
                   placeholder="Enter access key"
                   value={newConfig.accessKey}
                   onChange={(e) => updateNew({ accessKey: e.target.value })}
@@ -740,7 +734,7 @@ function TenantDetailsPageContent() {
                 <div className="relative">
                   <Input
                     id="tenant-cfg-storage-secret"
-                    label="Secret Key *"
+                    label="Secret Key"
                     type={showSecret ? "text" : "password"}
                     placeholder="Enter secret key"
                     value={newConfig.secretKey}
@@ -758,7 +752,7 @@ function TenantDetailsPageContent() {
                   </button>
                 </div>
                 <Input
-                  label="Bucket Name *"
+                  label="Bucket Name"
                   placeholder="e.g. my-storage-bucket"
                   value={newConfig.bucketName}
                   onChange={(e) => updateNew({ bucketName: e.target.value })}
@@ -770,7 +764,7 @@ function TenantDetailsPageContent() {
 
             {newConfig.storageTab === "connectionString" && (
               <Input
-                label="Connection String *"
+                label="Connection String"
                 placeholder="DefaultEndpointsProtocol=https;..."
                 value={newConfig.accessKey}
                 onChange={(e) => updateNew({ accessKey: e.target.value })}
@@ -796,10 +790,9 @@ function TenantDetailsPageContent() {
                 options={GATEWAY_TYPE_OPTIONS}
                 error={newConfigErrors.gatewayType}
                 placeholder="Select gateway"
-                required
               />
               <Input
-                label="Client ID / Key ID *"
+                label="Client ID / Key ID"
                 placeholder="rzp_live_..."
                 value={newConfig.paymentKey}
                 onChange={(e) => updateNew({ paymentKey: e.target.value })}
@@ -809,7 +802,7 @@ function TenantDetailsPageContent() {
               <div className="relative">
                 <Input
                   id="tenant-cfg-payment-secret"
-                  label="Payment Secret Key *"
+                  label="Payment Secret Key"
                   type={showSecret ? "text" : "password"}
                   placeholder="Enter payment secret"
                   value={newConfig.paymentSecret}
@@ -827,7 +820,7 @@ function TenantDetailsPageContent() {
                 </button>
               </div>
               <Input
-                label="Webhook URL *"
+                label="Webhook URL"
                 placeholder="https://api.example.com/webhooks/payment"
                 value={newConfig.webhookUrl}
                 onChange={(e) => updateNew({ webhookUrl: e.target.value })}
