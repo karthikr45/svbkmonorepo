@@ -15,7 +15,6 @@ export type TenantConfig = {
   configName: string;
   logoUrl: string;
   domainUrl: string;
-  backendUrl: string;
   storageTab: "accessKeys" | "connectionString";
   accessKey: string;
   secretKey: string;
@@ -115,7 +114,7 @@ function formatGatewayLabel(raw: string): string {
 
 /**
  * Maps backend tenant-config DTOs (camelCase or snake_case) into the shape the UI saves/edits.
- * Backend example: environmentType, configurationName, backendApiUrl, paymentClientId, storageAccessKey, …
+ * Backend example: environmentType, configurationName, paymentClientId, storageAccessKey, …
  */
 function mapRemoteTenantConfigToPayload(row: unknown): SaveTenantConfigPayload {
   const r = shallowSnakeToCamel(row) as Record<string, unknown>;
@@ -143,7 +142,6 @@ function mapRemoteTenantConfigToPayload(row: unknown): SaveTenantConfigPayload {
     configName: pickStr(r, ["configurationName", "configName", "config_name", "name", "configuration_name"]),
     logoUrl: pickStr(r, ["logoUrl", "logo_url"]),
     domainUrl: pickStr(r, ["domainUrl", "domain_url"]),
-    backendUrl: pickStr(r, ["backendApiUrl", "backendUrl", "backend_api_url"]),
     storageTab,
     accessKey,
     secretKey,

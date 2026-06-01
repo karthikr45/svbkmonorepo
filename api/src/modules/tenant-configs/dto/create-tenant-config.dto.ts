@@ -52,10 +52,6 @@ export class CreateTenantConfigDto {
   @IsOptional()
   domainUrl?: string;
 
-  @IsString()
-  @IsOptional()
-  backendUrl?: string;
-
   // ─── File Storage ─────────────────────────────────────────
 
   @IsString()

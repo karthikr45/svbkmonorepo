@@ -27,7 +27,6 @@ type NewConfig = {
   configName: string;
   logoUrl: string;
   domainUrl: string;
-  backendUrl: string;
   storageTab: "accessKeys" | "connectionString";
   accessKey: string;
   secretKey: string;
@@ -50,7 +49,6 @@ const emptyConfig: NewConfig = {
   configName: "",
   logoUrl: "",
   domainUrl: "",
-  backendUrl: "",
   storageTab: "accessKeys",
   accessKey: "",
   secretKey: "",
@@ -80,7 +78,7 @@ function validateNewConfigField(field: keyof NewConfig, value: string): string {
   // *format* of values the user has typed something into.
   const trimmed = value.trim();
   if (!trimmed) return "";
-  if (["logoUrl", "domainUrl", "backendUrl", "webhookUrl"].includes(field)) {
+  if (["logoUrl", "domainUrl", "webhookUrl"].includes(field)) {
     if (!/^https?:\/\//.test(trimmed)) return "Enter a valid URL";
   }
   if (field === "smtpFromEmail" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
@@ -413,7 +411,6 @@ function TenantDetailsPageContent() {
         configName: newConfig.configName,
         logoUrl: newConfig.logoUrl,
         domainUrl: newConfig.domainUrl,
-        backendUrl: newConfig.backendUrl,
         storageTab: newConfig.storageTab,
         accessKey: newConfig.accessKey,
         secretKey: newConfig.secretKey,
@@ -683,14 +680,6 @@ function TenantDetailsPageContent() {
                 value={newConfig.domainUrl}
                 onChange={(e) => updateNew({ domainUrl: e.target.value })}
                 error={newConfigErrors.domainUrl}
-                fullWidth
-              />
-              <Input
-                label="Backend API URL"
-                placeholder="https://api.example.com"
-                value={newConfig.backendUrl}
-                onChange={(e) => updateNew({ backendUrl: e.target.value })}
-                error={newConfigErrors.backendUrl}
                 fullWidth
                 className="sm:col-span-2"
               />

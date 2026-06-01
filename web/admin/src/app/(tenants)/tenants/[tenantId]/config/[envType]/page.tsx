@@ -24,7 +24,6 @@ function emptyTenantConfigForm(envTypeLabel: string): TenantConfigForm {
     configName: "",
     logoUrl: "",
     domainUrl: "",
-    backendUrl: "",
     storageTab: "accessKeys",
     accessKey: "",
     secretKey: "",
@@ -51,7 +50,6 @@ function serverConfigToForm(row: SaveTenantConfigPayload): TenantConfigForm {
     configName: row.configName ?? "",
     logoUrl: row.logoUrl ?? "",
     domainUrl: row.domainUrl ?? "",
-    backendUrl: row.backendUrl ?? "",
     storageTab,
     accessKey: row.accessKey ?? "",
     secretKey: row.secretKey ?? "",
@@ -210,7 +208,7 @@ export default function EnvConfigPage() {
     // when the user *has* typed something into a field.
     const trimmed = value.trim();
     if (!trimmed) return "";
-    if (["logoUrl", "domainUrl", "backendUrl", "webhookUrl"].includes(field)) {
+    if (["logoUrl", "domainUrl", "webhookUrl"].includes(field)) {
       if (!/^https?:\/\//.test(trimmed)) return "Enter a valid URL";
     }
     if (field === "smtpFromEmail" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
@@ -227,7 +225,6 @@ export default function EnvConfigPage() {
       "configName",
       "logoUrl",
       "domainUrl",
-      "backendUrl",
       "gatewayType",
       "paymentKey",
       "paymentSecret",
@@ -260,7 +257,6 @@ export default function EnvConfigPage() {
       configName: config.configName,
       logoUrl: config.logoUrl,
       domainUrl: config.domainUrl,
-      backendUrl: config.backendUrl,
       storageTab: config.storageTab,
       accessKey: config.accessKey,
       secretKey: config.secretKey,
@@ -396,13 +392,6 @@ export default function EnvConfigPage() {
             value={config.domainUrl}
             onChange={(e) => updateConfig({ domainUrl: e.target.value })}
             error={errors.domainUrl}
-            fullWidth
-          />
-          <Input
-            label="Backend API URL"
-            value={config.backendUrl}
-            onChange={(e) => updateConfig({ backendUrl: e.target.value })}
-            error={errors.backendUrl}
             fullWidth
           />
         </ConfigSection>

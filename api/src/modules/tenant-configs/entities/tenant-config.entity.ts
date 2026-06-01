@@ -48,9 +48,6 @@ export class TenantConfig {
   @Column({ name: 'domain_url', type: 'text', nullable: true })
   domainUrl: string | null;
 
-  @Column({ name: 'backend_api_url', type: 'text', nullable: true })
-  backendApiUrl: string | null;
-
   // ─── File Storage ─────────────────────────────────────────
 
   @Column({ name: 'storage_access_key', type: 'text', nullable: true })

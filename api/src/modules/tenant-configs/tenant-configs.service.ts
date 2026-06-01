@@ -23,7 +23,6 @@ export class TenantConfigsService {
       configurationName: dto.configName,
       logoUrl: dto.logoUrl,
       domainUrl: dto.domainUrl,
-      backendApiUrl: dto.backendUrl,
       accessKey: dto.accessKey,
       storageConnectionString: dto.connectionString,
       storageSecretKey: dto.secretKey,
