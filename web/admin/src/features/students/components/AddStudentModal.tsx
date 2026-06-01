@@ -8,6 +8,7 @@ import {
 } from "@/features/students/api/students.api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
+import { useFetchAcademicYears } from "@/features/students/hooks/useFetchStudents";
 import {
   getOutstandingApi,
   searchIdentitiesApi,
@@ -54,10 +55,30 @@ export function AddStudentModal({
   open,
   defaultAcademicYear = "",
   defaultBranch = "",
-  academicYearOptions = [],
+  academicYearOptions: academicYearOptionsProp,
   onClose,
   onCreated,
 }: Props) {
+  // Fetch academic years self-sufficiently so the modal works even if
+  // a caller forgets to pass academicYearOptions. The prop is honored
+  // when provided (avoids a duplicate request); we fall back to the
+  // hook's data otherwise.
+  const { academicYears: ownYears } = useFetchAcademicYears();
+  const academicYearOptions = useMemo(() => {
+    if (academicYearOptionsProp && academicYearOptionsProp.length > 0)
+      return academicYearOptionsProp;
+    return (ownYears ?? []).map((y) => y.academicYear);
+  }, [academicYearOptionsProp, ownYears]);
+  const computedDefaultAcademicYear = useMemo(() => {
+    if (defaultAcademicYear) return defaultAcademicYear;
+    if (!ownYears?.length) return "";
+    return (
+      ownYears.find((y) => y.isCurrentYear)?.academicYear ??
+      ownYears[0]?.academicYear ??
+      ""
+    );
+  }, [defaultAcademicYear, ownYears]);
+
   const { options: termOptions } = useMetadata("term", {
     fallback: FALLBACK_TERMS.map((v, i) => ({
       value: v,
@@ -76,7 +97,7 @@ export function AddStudentModal({
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     branch: defaultBranch,
-    academicYear: defaultAcademicYear,
+    academicYear: computedDefaultAcademicYear,
     admissionNumber: "",
     name: "",
     email: "",
@@ -88,14 +109,14 @@ export function AddStudentModal({
 
   // Defaults arrive asynchronously (academic-years fetch + JWT user
   // hydration). Keep the form's branch / AY in sync with the latest
-  // props as long as the admin hasn't typed into those fields yet.
+  // values as long as the admin hasn't typed into those fields yet.
   useEffect(() => {
     setForm((prev) => ({
       ...prev,
       branch: prev.branch || defaultBranch,
-      academicYear: prev.academicYear || defaultAcademicYear,
+      academicYear: prev.academicYear || computedDefaultAcademicYear,
     }));
-  }, [defaultBranch, defaultAcademicYear]);
+  }, [defaultBranch, computedDefaultAcademicYear]);
 
   // ─── Identity search (re-admission flow) ────────────────────────
   const [identitySearch, setIdentitySearch] = useState({
@@ -167,7 +188,7 @@ export function AddStudentModal({
   function reset() {
     setForm({
       branch: defaultBranch,
-      academicYear: defaultAcademicYear,
+      academicYear: computedDefaultAcademicYear,
       admissionNumber: "",
       name: "",
       email: "",
