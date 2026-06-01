@@ -172,7 +172,10 @@ export function PaymentPageContent() {
       setSuccess(true);
     }
   }
-const gateway:any="cashfree"
+  // Gateway is whatever the tenant has configured under
+  // tenant_configurations.gateway_type — never hardcoded. The backend
+  // normalises to "razorpay" / "cashfree".
+  const gateway = (activePayment?.gatewayType ?? "").toLowerCase();
 
   const getEffectiveTotal = (): number => {
     if (!fee || !student) return 0;
@@ -202,6 +205,14 @@ const gateway:any="cashfree"
       }
     }
 
+    if (!gateway) {
+      setError(
+        "Online payment is not configured for this tenant yet. " +
+          "Ask your tenant admin to add the gateway credentials under Configuration.",
+      );
+      return;
+    }
+
     setPaying(true);
     setError(null);
     setPartialAmountError(null);
@@ -209,7 +220,6 @@ const gateway:any="cashfree"
       const amountToCharge = paymentMode === "partial" ? parseFloat(partialAmount) : effectiveTotal;
 
       const order = await createOrder(amountToCharge, admissionNumber, academicYear, termName, currency, gateway, student.name, student.email, user?.tenantId ?? "", "online", student.feeId ?? "", student.class, student.rollNo, student.section);
-      console.log("order response:", order);
 
       setPaidAmount(amountToCharge);
 
