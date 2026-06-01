@@ -368,7 +368,10 @@ export class ParentPortalService {
       feeId: fee.id,
       paymentType: PaymentType.ONLINE,
       gateway: resolvedGateway,
-      amount: Math.round(balance * 100), // paise
+      // Amount in rupees; the gateway layer converts to the unit the
+      // SDK expects (Razorpay multiplies to paise, Cashfree leaves
+      // as-is). Sending paise here made Cashfree show 100x.
+      amount: balance,
       currency: 'INR',
       ADMISSION: student.admissionNumber,
       academicYear: student.academicYear,

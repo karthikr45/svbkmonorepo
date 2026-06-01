@@ -222,7 +222,8 @@ export class PublicPayService {
       feeId: fee.id,
       paymentType: PaymentType.ONLINE,
       gateway: resolvedGateway,
-      amount: Math.round(balance * 100),
+      // Amount in rupees — the gateway layer scales to the SDK's unit.
+      amount: balance,
       currency: 'INR',
       ADMISSION: student.admissionNumber,
       academicYear: student.academicYear,
