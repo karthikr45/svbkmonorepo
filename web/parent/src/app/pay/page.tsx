@@ -8,6 +8,7 @@ import {
   initiatePublicPayment,
   verifyPublicPayment,
   publicApiErrorMessage,
+  publicReceiptUrl,
   type PublicTenantInfo,
   type PublicFee,
   type PublicFeesResponse,
@@ -47,6 +48,8 @@ export default function PublicPayPage() {
   const [payingFeeId, setPayingFeeId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  // FeePayment id from /verify — drives the Download Receipt button.
+  const [lastReceiptId, setLastReceiptId] = useState<string | null>(null);
 
   // Read host once on mount, fetch the tenant + AY list.
   useEffect(() => {
@@ -126,10 +129,9 @@ export default function PublicPayPage() {
         signature?: string;
       }) {
         try {
-          await verifyPublicPayment({ host, ...args });
-          setSuccessMsg(
-            "Payment successful. Your receipt will be emailed shortly.",
-          );
+          const result = await verifyPublicPayment({ host, ...args });
+          setSuccessMsg("Payment successful.");
+          setLastReceiptId(result.feePaymentId ?? null);
           // Re-pull the fee list so the just-paid row flips to PAID
           // and the Pay button disappears.
           await refreshFees();
@@ -321,8 +323,18 @@ export default function PublicPayPage() {
             </div>
 
             {successMsg && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-800">
-                {successMsg}
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-800 flex items-center justify-between gap-3">
+                <span>{successMsg}</span>
+                {lastReceiptId && (
+                  <a
+                    href={publicReceiptUrl(window.location.host, lastReceiptId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md bg-green-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-800"
+                  >
+                    Download receipt
+                  </a>
+                )}
               </div>
             )}
             {payError && (

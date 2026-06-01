@@ -8,7 +8,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Payment, PaymentGateway, PaymentStatus, PaymentType } from './entities/payment.entity';
 import { Transaction, TransactionType } from './entities/transaction.entity';
-import { Fee, PaymentStatus as FeePaymentStatus } from '../fees/entities/fee.entity';
+import { FeesService } from '../fees/fees.service';
+import { FeePayment, PaymentType as FeePaymentType } from '../fees/entities/fee-payment.entity';
 import { CreateOrderDto } from './dto/create-payment.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
@@ -24,47 +25,45 @@ export class PaymentsService {
     private readonly paymentsRepository: Repository<Payment>,
     @InjectRepository(Transaction)
     private readonly transactionsRepository: Repository<Transaction>,
-    @InjectRepository(Fee)
-    private readonly feeRepository: Repository<Fee>,
+    @InjectRepository(FeePayment)
+    private readonly feePaymentRepository: Repository<FeePayment>,
     private readonly gatewayFactory: PaymentGatewayFactory,
     private readonly auditService: PaymentAuditService,
     private readonly tenantConfigsService: TenantConfigsService,
+    private readonly feesService: FeesService,
   ) {}
 
   /**
-   * Applies a successful payment to a fee row — same logic the
-   * webhook handler uses, so verify-time updates and webhook updates
-   * stay consistent. Idempotent in the sense that re-running it
-   * against the same paid fee won't move the status backwards.
+   * Records the FeePayment receipt row and updates the Fee balance
+   * atomically — shared between verify-time and webhook paths so they
+   * can't double-count. Idempotent by orderId: if a FeePayment row
+   * already exists for this gateway order, we return it without
+   * inserting again.
+   *
+   * Returns the FeePayment id so callers can hand it to the receipt
+   * endpoint.
    */
-  private async applyPaymentToFee(
+  async recordOnlineFeePayment(
+    tenantId: string,
     feeId: string,
+    orderId: string,
+    transactionId: string,
     amountPaidInRupees: number,
-  ): Promise<void> {
-    const fee = await this.feeRepository.findOne({ where: { id: feeId } });
-    if (!fee) return;
-    const totalOwed =
-      parseFloat(fee.originalAmount) +
-      parseFloat(fee.totalPenalty) -
-      parseFloat(fee.totalDiscount);
-    const newPaidAmount = parseFloat(fee.paidAmount) + amountPaidInRupees;
-    const remaining = totalOwed - newPaidAmount;
-    let paidAmount: string;
-    let netAmount: string;
-    let paymentStatus: FeePaymentStatus;
-    if (remaining <= 0) {
-      paidAmount = totalOwed.toFixed(2);
-      netAmount = '0.00';
-      paymentStatus = FeePaymentStatus.PAID;
-    } else {
-      paidAmount = newPaidAmount.toFixed(2);
-      netAmount = remaining.toFixed(2);
-      paymentStatus = FeePaymentStatus.PARTIAL;
-    }
-    await this.feeRepository.update(feeId, {
-      paidAmount,
-      netAmount,
-      paymentStatus,
+    gateway: PaymentGateway,
+  ): Promise<FeePayment> {
+    const existing = await this.feePaymentRepository.findOne({
+      where: { tenantId, feeId, orderId },
+    });
+    if (existing) return existing;
+    return this.feesService.recordOnlinePayment(tenantId, feeId, {
+      amount: amountPaidInRupees,
+      paymentType:
+        gateway === PaymentGateway.CASHFREE
+          ? FeePaymentType.CASHFREE
+          : FeePaymentType.RAZORPAY,
+      orderId,
+      transactionId,
+      recordedBy: null,
     });
   }
 
@@ -273,7 +272,14 @@ export class PaymentsService {
     };
   }
 
-  async verifyPayment(tenantId: string, dto: VerifyPaymentDto): Promise<{ payment: Payment; transaction: Transaction }> {
+  async verifyPayment(
+    tenantId: string,
+    dto: VerifyPaymentDto,
+  ): Promise<{
+    payment: Payment;
+    transaction: Transaction;
+    feePaymentId: string | null;
+  }> {
     const orderId   = dto.gatewayOrderId   ?? dto.razorpay_order_id;
     const paymentId = dto.gatewayPaymentId ?? dto.razorpay_payment_id;
     const signature = dto.signature        ?? dto.razorpay_signature ?? '';
@@ -292,7 +298,7 @@ export class PaymentsService {
       const transaction = await this.transactionsRepository.findOne({
         where: { paymentId: payment.id, type: TransactionType.PAYMENT_SUCCESS },
       });
-      return { payment, transaction: transaction! };
+      return { payment, transaction: transaction!, feePaymentId: null };
     }
 
     const gateway = this.gatewayFactory.get(resolvedGateway);
@@ -361,20 +367,6 @@ export class PaymentsService {
     payment.paidAt = new Date();
     const savedPayment = await this.paymentsRepository.save(payment);
 
-    // Mark the linked fee paid immediately so the parent UI updates
-    // on the success callback — don't wait for the gateway's webhook.
-    // Webhook later is a safety net; fee logic is idempotent.
-    if (payment.feeId) {
-      try {
-        await this.applyPaymentToFee(
-          payment.feeId,
-          Number(payment.amount) / 100, // paise → rupees
-        );
-      } catch {
-        /* non-fatal — webhook will reconcile */
-      }
-    }
-
     const transaction = await this.transactionsRepository.save(
       this.transactionsRepository.create({
         tenantId,
@@ -413,7 +405,30 @@ export class PaymentsService {
       },
     });
 
-    return { payment: savedPayment, transaction };
+    // Create the receipt-bearing FeePayment row and update the Fee
+    // balance — idempotent by gatewayOrderId, so verify-then-webhook
+    // (or vice versa) won't double-count. Non-fatal: the webhook
+    // reconciles if this fails.
+    let feePaymentId: string | null = null;
+    if (savedPayment.feeId) {
+      try {
+        const amountPaisePerUnit =
+          resolvedGateway === PaymentGateway.CASHFREE ? 1 : 100;
+        const fp = await this.recordOnlineFeePayment(
+          tenantId,
+          savedPayment.feeId,
+          orderId,
+          transaction.id,
+          Number(savedPayment.amount) / amountPaisePerUnit,
+          resolvedGateway,
+        );
+        feePaymentId = fp.id;
+      } catch {
+        /* webhook safety net */
+      }
+    }
+
+    return { payment: savedPayment, transaction, feePaymentId };
   }
 
   async findAll(tenantId: string): Promise<Payment[]> {

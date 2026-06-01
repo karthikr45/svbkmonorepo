@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PublicPayService } from './public-pay.service';
@@ -50,5 +60,30 @@ export class PublicPayController {
   @ApiOperation({ summary: 'Confirm a public payment after the gateway closes' })
   verify(@Body() dto: PublicVerifyDto) {
     return this.service.verify(dto);
+  }
+
+  /**
+   * PDF receipt for a FeePayment id returned from /verify. The endpoint
+   * is scoped to the calling host's tenant inside the service, so a
+   * stray id from a different school resolves to 404.
+   */
+  @Get('receipt/:feePaymentId.pdf')
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @Header('Content-Type', 'application/pdf')
+  @ApiOperation({ summary: 'Download the PDF receipt for a public payment' })
+  async receipt(
+    @Query('host') host: string,
+    @Param('feePaymentId') feePaymentId: string,
+    @Res() res: Response,
+  ) {
+    const { pdf, filename } = await this.service.renderReceiptPdf(
+      host,
+      feePaymentId,
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${filename}"`,
+    );
+    res.send(pdf);
   }
 }

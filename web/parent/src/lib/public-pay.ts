@@ -103,9 +103,22 @@ export async function verifyPublicPayment(args: {
   gatewayOrderId: string;
   gatewayPaymentId?: string;
   signature?: string;
-}): Promise<{ payment: { id: string } }> {
+}): Promise<{ payment: { id: string }; feePaymentId: string | null }> {
   const { data } = await publicApi.post("/public-pay/verify", args);
-  return unwrap<{ payment: { id: string } }>(data);
+  return unwrap<{ payment: { id: string }; feePaymentId: string | null }>(data);
+}
+
+/**
+ * Returns a fully-formed URL the browser can hit to download the PDF
+ * receipt for a FeePayment created on this same host.
+ */
+export function publicReceiptUrl(host: string, feePaymentId: string): string {
+  const base =
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
+    "http://localhost:3001/api";
+  return `${base}/public-pay/receipt/${encodeURIComponent(
+    feePaymentId,
+  )}.pdf?host=${encodeURIComponent(host)}`;
 }
 
 export function publicApiErrorMessage(

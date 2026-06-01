@@ -10,7 +10,10 @@ import { AcademicYear } from '../academic-years/entities/academic-year.entity';
 import { Student } from '../students/entities/student.entity';
 import { Fee } from '../fees/entities/fee.entity';
 import { Payment, PaymentGateway, PaymentType } from '../payments/entities/payment.entity';
+import { FeePayment } from '../fees/entities/fee-payment.entity';
 import { PaymentsService } from '../payments/payments.service';
+import { FeesService } from '../fees/fees.service';
+import { ReceiptPdfService } from '../fees/receipt-pdf.service';
 import { PublicInitiateDto, PublicVerifyDto } from './dto/public-pay.dto';
 
 @Injectable()
@@ -26,8 +29,37 @@ export class PublicPayService {
     private readonly feeRepo: Repository<Fee>,
     @InjectRepository(Payment)
     private readonly paymentRepo: Repository<Payment>,
+    @InjectRepository(FeePayment)
+    private readonly feePaymentRepo: Repository<FeePayment>,
     private readonly paymentsService: PaymentsService,
+    private readonly feesService: FeesService,
+    private readonly receiptPdf: ReceiptPdfService,
   ) {}
+
+  /**
+   * Render the PDF receipt for one FeePayment, scoped to the calling
+   * host's tenant so a stray id from a different school can't be
+   * pulled. Falls back to 404 rather than leaking which ids exist.
+   */
+  async renderReceiptPdf(
+    host: string,
+    feePaymentId: string,
+  ): Promise<{ pdf: Buffer; filename: string }> {
+    const cfg = await this.resolveConfigByHost(host);
+    if (!cfg) {
+      throw new NotFoundException('No school is configured for this domain.');
+    }
+    const fp = await this.feePaymentRepo.findOne({
+      where: { id: feePaymentId, tenantId: cfg.tenantId },
+    });
+    if (!fp) {
+      throw new NotFoundException('Receipt not found.');
+    }
+    const html = await this.feesService.renderReceipt(cfg.tenantId, fp.id);
+    const pdf = await this.receiptPdf.htmlToPdf(html);
+    const filename = `receipt-${fp.receiptNumber ?? fp.id}.pdf`;
+    return { pdf, filename };
+  }
 
   /**
    * Strip protocol, port and trailing slash so a configured domainUrl of

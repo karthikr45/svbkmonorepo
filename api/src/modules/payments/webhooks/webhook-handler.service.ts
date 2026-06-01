@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Payment, PaymentStatus, PaymentGateway } from '../entities/payment.entity';
@@ -7,6 +7,7 @@ import { RazorpayWebhookDto, CashfreeWebhookDto } from '../dto/webhook.dto';
 import { PaymentAuditService } from '../payment-audit.service';
 import { AuditAction } from '../entities/payment-audit-log.entity';
 import { Fee, PaymentStatus as FeePaymentStatus } from '../../fees/entities/fee.entity';
+import { PaymentsService } from '../payments.service';
 
 @Injectable()
 export class WebhookHandlerService {
@@ -19,14 +20,45 @@ export class WebhookHandlerService {
     private readonly transactionsRepository: Repository<Transaction>,
     @InjectRepository(Fee)
     private readonly feeRepository: Repository<Fee>,
+    @Inject(forwardRef(() => PaymentsService))
+    private readonly paymentsService: PaymentsService,
     private readonly auditService: PaymentAuditService,
   ) {}
 
   /**
-   * Updates the fee row after a successful payment:
-   *  - paidAmount  += amountPaidInRupees
-   *  - netAmount    = remaining balance (totalOwed − newPaidAmount), or 0 if fully paid
-   *  - paymentStatus = PAID | PARTIAL
+   * Records the FeePayment + fee balance update via the shared
+   * idempotent path. If the verify endpoint already created the
+   * FeePayment for this gatewayOrderId, this is a no-op — preventing
+   * the historical double-count bug.
+   */
+  private async applyFeeUpdate(
+    tenantId: string,
+    feeId: string,
+    orderId: string,
+    transactionId: string,
+    amountPaidInRupees: number,
+    gateway: PaymentGateway,
+  ): Promise<void> {
+    try {
+      await this.paymentsService.recordOnlineFeePayment(
+        tenantId,
+        feeId,
+        orderId,
+        transactionId,
+        amountPaidInRupees,
+        gateway,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Webhook fee update failed for ${feeId}: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /**
+   * Legacy fee updater — kept only so existing call sites still
+   * compile while we migrate. Forwards to applyFeeUpdate. New code
+   * should call applyFeeUpdate directly.
    */
   private async updateFeeOnPayment(feeId: string, amountPaidInRupees: number): Promise<void> {
     const fee = await this.feeRepository.findOne({ where: { id: feeId } });
@@ -121,11 +153,6 @@ export class WebhookHandlerService {
       payment.paidAt = new Date();
       payment = await this.paymentsRepository.save(payment);
 
-      if (payment.feeId) {
-        // Razorpay sends amount in paise — convert to rupees
-        await this.updateFeeOnPayment(payment.feeId, payload.payment.amount / 100);
-      }
-
       const tx = await this.transactionsRepository.save(
         this.transactionsRepository.create({
           tenantId,
@@ -149,6 +176,20 @@ export class WebhookHandlerService {
           },
         }),
       ) as unknown as Transaction;
+
+      if (payment.feeId) {
+        // Razorpay sends amount in paise — convert to rupees.
+        // Idempotent by gatewayOrderId — won't double-count if the
+        // /verify endpoint already ran first.
+        await this.applyFeeUpdate(
+          tenantId,
+          payment.feeId,
+          orderId,
+          tx.id,
+          payload.payment.amount / 100,
+          PaymentGateway.RAZORPAY,
+        );
+      }
 
       void this.auditService.log({
         tenantId,
@@ -280,12 +321,6 @@ export class WebhookHandlerService {
       payment.paidAt = new Date();
       payment = await this.paymentsRepository.save(payment);
 
-      if (payment.feeId) {
-        // Cashfree sends amount in rupees
-        const amountInRupees = data.payment?.payment_amount ?? data.order?.order_amount ?? 0;
-        await this.updateFeeOnPayment(payment.feeId, amountInRupees);
-      }
-
       const tx = await this.transactionsRepository.save(
         this.transactionsRepository.create({
           tenantId,
@@ -309,7 +344,19 @@ export class WebhookHandlerService {
         }),
       ) as unknown as Transaction;
 
-      console.log(tx, "logged transaction for cashfree payment success") // Debug log to confirm transaction logging
+      if (payment.feeId) {
+        // Cashfree amounts are in rupees. Idempotent by gatewayOrderId.
+        const amountInRupees =
+          data.payment?.payment_amount ?? data.order?.order_amount ?? 0;
+        await this.applyFeeUpdate(
+          tenantId,
+          payment.feeId,
+          orderId,
+          tx.id,
+          amountInRupees,
+          PaymentGateway.CASHFREE,
+        );
+      }
 
       void this.auditService.log({
         tenantId,

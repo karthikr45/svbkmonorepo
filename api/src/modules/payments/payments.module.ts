@@ -16,6 +16,7 @@ import { WebhookGatewayDetectorService } from './webhooks/webhook-gateway-detect
 import { UnifiedWebhookService } from './webhooks/unified-webhook.service';
 import { TenantConfigsModule } from '../tenant-configs/tenant-configs.module';
 import { TenantConfig } from '../tenant-configs/entities/tenant-config.entity';
+import { FeesModule } from '../fees/fees.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { TenantConfig } from '../tenant-configs/entities/tenant-config.entity';
       TenantConfig,
     ]),
     TenantConfigsModule,
+    FeesModule,
   ],
   controllers: [PaymentsController],
   providers: [

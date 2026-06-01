@@ -7,6 +7,7 @@ import { ReceiptSequence } from './entities/receipt-sequence.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { FeesService } from './fees.service';
 import { StudentFeesService } from './student-fees.service';
+import { ReceiptPdfService } from './receipt-pdf.service';
 import { FeesController } from './fees.controller';
 import { ReceiptTemplatesModule } from '../receipt-templates/receipt-templates.module';
 import { ApprovalsModule } from '../approvals/approvals.module';
@@ -18,7 +19,7 @@ import { ApprovalsModule } from '../approvals/approvals.module';
     forwardRef(() => ApprovalsModule),
   ],
   controllers: [FeesController],
-  providers: [FeesService, StudentFeesService],
-  exports: [FeesService, StudentFeesService],
+  providers: [FeesService, StudentFeesService, ReceiptPdfService],
+  exports: [FeesService, StudentFeesService, ReceiptPdfService],
 })
 export class FeesModule {}
