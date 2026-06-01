@@ -8,6 +8,7 @@ import {
 } from "@/features/students/api/students.api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
+import { AcademicYearSelect } from "@/components/common/AcademicYearSelect";
 import {
   getOutstandingApi,
   searchIdentitiesApi,
@@ -58,26 +59,13 @@ export function AddStudentModal({
   onClose,
   onCreated,
 }: Props) {
-  // Academic year options come from super-admin-curated system_metadata
-  // (type='academic_year') — same source the Terms field already uses.
-  // No per-tenant fetch needed. `academicYearOptionsProp` is honored
-  // when a caller passes its own list (e.g. limited to AYs that have
-  // data in this tenant).
-  const { options: ayMetadataOptions, loading: yearsLoading } = useMetadata(
-    "academic_year",
-    { activeOnly: true },
-  );
-  const academicYearOptions = useMemo(() => {
-    if (academicYearOptionsProp && academicYearOptionsProp.length > 0)
-      return academicYearOptionsProp;
-    return ayMetadataOptions.map((o) => o.value);
-  }, [academicYearOptionsProp, ayMetadataOptions]);
-  const computedDefaultAcademicYear = useMemo(() => {
-    if (defaultAcademicYear) return defaultAcademicYear;
-    // Pick the newest AY in the metadata list — assumes displayOrder
-    // is chronological (lowest = oldest), which the seed enforces.
-    return academicYearOptions[academicYearOptions.length - 1] ?? "";
-  }, [defaultAcademicYear, academicYearOptions]);
+  // AcademicYearSelect (used in the form below) owns its own data
+  // source (system_metadata + current-year default), so the modal
+  // doesn't need to fetch the AY list here. `defaultAcademicYear` /
+  // `academicYearOptions` props are retained for callers that still
+  // want to pre-seed the form state at mount.
+  const computedDefaultAcademicYear = defaultAcademicYear;
+  void academicYearOptionsProp;
 
   const { options: termOptions } = useMetadata("term", {
     fallback: FALLBACK_TERMS.map((v, i) => ({
@@ -438,28 +426,11 @@ export function AddStudentModal({
           <SectionHeading>Identity</SectionHeading>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             <Field label="Academic year" required>
-              <select
+              <AcademicYearSelect
                 value={form.academicYear}
-                onChange={(e) =>
-                  setForm({ ...form, academicYear: e.target.value })
-                }
+                onChange={(v) => setForm({ ...form, academicYear: v })}
                 className="form-input"
-                required
-                disabled={yearsLoading}
-              >
-                <option value="">
-                  {yearsLoading
-                    ? "Loading…"
-                    : academicYearOptions.length === 0
-                      ? "No academic years configured"
-                      : "Select academic year"}
-                </option>
-                {academicYearOptions.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
+              />
             </Field>
             <Field label="Branch">
               <input value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} placeholder="defaults to your branch" className="form-input" />

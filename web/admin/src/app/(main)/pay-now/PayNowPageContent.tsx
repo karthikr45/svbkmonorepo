@@ -1,23 +1,17 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getApiErrorMessage } from "@/lib/api-client";
-import type { StudentFeeRow, AcademicYearItem } from "@/features/students/types";
+import type { StudentFeeRow } from "@/features/students/types";
 import { getStudentWithFees } from "@/features/payNow/services/payNow.service";
+import { AcademicYearSelect } from "@/components/common/AcademicYearSelect";
 
 /* ─── helpers ──────────────────────────────────────── */
 function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency", currency: "INR", maximumFractionDigits: 0,
   }).format(n);
-}
-function filterCurrentAndPastYear(all: AcademicYearItem[]): AcademicYearItem[] {
-  const cur = all.find((y) => y.isCurrentYear);
-  if (!cur) return all;
-  const start = parseInt(cur.academicYear.split("-")[0], 10);
-  const prev  = all.find((y) => y.academicYear === `${start - 1}-${start}`);
-  return prev ? [cur, prev] : [cur];
 }
 function getInitials(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
@@ -80,23 +74,9 @@ export function PayNowPageContent() {
 
   const [admissionNo,  setAdmissionNo]  = useState("");
   const [academicYear, setAcademicYear] = useState("");
-  const [allYears,     setAllYears]     = useState<AcademicYearItem[]>([]);
-  const [yearsLoading, setYearsLoading] = useState(true);
   const [student,      setStudent]      = useState<StudentFeeRow | null>(null);
   const [searching,    setSearching]    = useState(false);
   const [error,        setError]        = useState<string | null>(null);
-
-  const academicYears = useMemo(() => filterCurrentAndPastYear(allYears), [allYears]);
-
-  useEffect(() => {
-    const dummyYears: AcademicYearItem[] = [
-      { id: "1", _id: "1", academicYear: "2025-2026", isCurrentYear: false },
-      { id: "2", _id: "2", academicYear: "2026-2027", isCurrentYear: true },
-    ];
-    setAllYears(dummyYears);
-    setAcademicYear("2025-2026");
-    setYearsLoading(false);
-  }, []);
 
   const handleSearch = useCallback(async () => {
     if (!admissionNo.trim() || !academicYear) return;
@@ -215,21 +195,11 @@ export function PayNowPageContent() {
                 <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
                   <Icon d={I.cal} cls="h-4 w-4" style={{ color: "var(--app-text-secondary)" }} />
                 </span>
-                <select
-                  className="w-full appearance-none rounded-xl border py-2.5 pl-10 pr-8 text-sm outline-none transition-colors focus:ring-2"
-                  style={fieldBase}
+                <AcademicYearSelect
                   value={academicYear}
-                  onChange={(e) => setAcademicYear(e.target.value)}
-                  disabled={yearsLoading}
-                >
-                  {yearsLoading
-                    ? <option>Loading…</option>
-                    : academicYears.length === 0
-                      ? <option>No years</option>
-                      : academicYears.map((y) => (
-                          <option key={y._id} value={y.academicYear}>{y.academicYear}</option>
-                        ))}
-                </select>
+                  onChange={setAcademicYear}
+                  className="w-full appearance-none rounded-xl border py-2.5 pl-10 pr-8 text-sm outline-none transition-colors focus:ring-2"
+                />
                 <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
                   <Icon d={I.chevron} cls="h-4 w-4" style={{ color: "var(--app-text-secondary)" }} />
                 </span>

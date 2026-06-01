@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui";
+import { AcademicYearSelect } from "@/components/common/AcademicYearSelect";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
   applyPenaltyManualApi,
@@ -166,10 +167,10 @@ function RulesPanel() {
               />
             </Field>
             <Field label="Academic year (optional)" hint="Leave blank to apply to all years">
-              <input
+              <AcademicYearSelect
                 value={form.academicYear ?? ""}
-                onChange={(e) => setForm({ ...form, academicYear: e.target.value || undefined })}
-                placeholder="2025-2026"
+                onChange={(v) => setForm({ ...form, academicYear: v || undefined })}
+                includeAll
                 className="form-input"
               />
             </Field>
@@ -405,10 +406,9 @@ function ManualPanel() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
         <Field label="Academic year" required>
-          <input
+          <AcademicYearSelect
             value={academicYear}
-            onChange={(e) => setAcademicYear(e.target.value)}
-            placeholder="2025-2026"
+            onChange={setAcademicYear}
             className="form-input"
           />
         </Field>
