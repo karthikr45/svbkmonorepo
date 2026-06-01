@@ -153,27 +153,26 @@ export function PaymentPageContent() {
 
   async function openCashfreeCheckout(order: CreateOrderResponse) {
     const _window: any = window;
-    // Mode must match the backend's CASHFREE_MODE / NODE_ENV; the
-    // order response carries that signal.
+    // Cashfree v3 Drop-in: Promise-based API. Mode flows from the
+    // backend order response (tenant payment_mode), not env. No
+    // onSuccess/onFailure props — those are silently dropped and the
+    // SDK falls back to a full-page redirect to payments.cashfree.com.
     const cashfree = _window.Cashfree({
       mode: order.cashfreeMode ?? "sandbox",
     });
     const result = await cashfree.checkout({
       paymentSessionId: order.paymentSessionId,
       redirectTarget: "_modal",
-      onSuccess: (data: any) => {
-        verifyPayment(data); 
-        
-    } ,
-     onFailure: (_data: any) => {
-  },
-  
-  });
-    
+    });
+
     if (result?.error) {
-      setError(result.error.message ?? "Cashfree payment failed.");
+      setError(result.error.message ?? "Cashfree payment cancelled.");
+      // Verify anyway in case the user paid and closed before the SDK
+      // resolved cleanly — backend short-circuits if nothing captured.
+      verifyPayment({ orderId: order.orderId });
     } else if (result?.paymentDetails) {
       setSuccess(true);
+      verifyPayment({ orderId: order.orderId });
     }
   }
   // Gateway is whatever the tenant has configured under

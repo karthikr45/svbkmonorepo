@@ -163,24 +163,26 @@ export function FeeCard({
         if (!ok) throw new Error("Failed to load the Cashfree checkout.");
         const w = window as unknown as {
           Cashfree: (o: { mode: string }) => {
-            checkout: (o: unknown) => Promise<{ error?: { message?: string } }>;
+            checkout: (o: unknown) => Promise<{
+              error?: { message?: string };
+              redirect?: boolean;
+              paymentDetails?: unknown;
+            }>;
           };
         };
-        // Mode must match what the backend used to create the order.
+        // Cashfree v3: Promise-based API (no onSuccess/onFailure).
+        // Passing unknown props makes the SDK silently fall back to
+        // a full redirect — that's why the modal stopped working.
         const cashfree = w.Cashfree({ mode: res.cashfreeMode ?? "sandbox" });
         const result = await cashfree.checkout({
           paymentSessionId: sessionId,
           redirectTarget: "_modal",
-          onSuccess: () => {
-            void settle({ gatewayOrderId: orderId });
-          },
-          onFailure: () => {
-            setPaying(false);
-            setPayError("Cashfree payment failed.");
-          },
         });
-        if (result?.error) {
-          throw new Error(result.error.message ?? "Cashfree payment failed.");
+        // Verify on either resolution path: paymentDetails means the
+        // user paid; error covers "closed mid-flow", which is harmless
+        // (verify is a no-op if no payment was captured).
+        if (result?.paymentDetails || result?.error) {
+          await settle({ gatewayOrderId: orderId });
         }
       }
     } catch (err) {

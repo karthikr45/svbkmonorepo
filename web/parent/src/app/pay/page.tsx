@@ -203,26 +203,30 @@ export default function PublicPayPage() {
         if (!ok) throw new Error("Failed to load the Cashfree checkout.");
         const w = window as unknown as {
           Cashfree: (o: { mode: string }) => {
-            checkout: (o: unknown) => Promise<{ error?: { message?: string } }>;
+            checkout: (o: unknown) => Promise<{
+              error?: { message?: string };
+              redirect?: boolean;
+              paymentDetails?: unknown;
+            }>;
           };
         };
-        // Mode must match what the backend used to create the order
-        // (sandbox in dev, production in prod) or the SDK rejects the
-        // payment_session_id as invalid.
+        // Cashfree v3 Drop-in: Promise-based API. No onSuccess/
+        // onFailure props — those silently get dropped and the SDK
+        // falls back to redirecting to payments.cashfree.com, which
+        // is why the parent saw the checkout open on a new domain.
         const cashfree = w.Cashfree({ mode: res.cashfreeMode ?? "sandbox" });
         const result = await cashfree.checkout({
           paymentSessionId: sessionId,
           redirectTarget: "_modal",
-          onSuccess: () => {
-            void settle({ gatewayOrderId: orderId });
-          },
-          onFailure: () => {
-            setPayingFeeId(null);
-            setPayError("Cashfree payment failed.");
-          },
         });
         if (result?.error) {
-          throw new Error(result.error.message ?? "Cashfree payment failed.");
+          // result.error fires for both user-closed-modal and real
+          // failures. Run verify anyway — it's a no-op if no payment
+          // was attempted, and catches the "user paid but closed
+          // before SDK could resolve" edge case.
+          await settle({ gatewayOrderId: orderId });
+        } else if (result?.paymentDetails) {
+          await settle({ gatewayOrderId: orderId });
         }
       }
     } catch (err) {
