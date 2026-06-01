@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useUi } from "@/context/ui-context";
 import { useAuth } from "@/features/auth";
+import { useTenantBranding } from "@/hooks/useTenantBranding";
 
 type NavItem =
   | { type: "item"; href: string; label: string; icon: string }
@@ -201,6 +202,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen } = useUi();
   const { user, logout } = useAuth();
+  const { logoUrl: brandLogoUrl, isCustom: brandIsCustom } = useTenantBranding();
   const navItems = useMemo(() => navItemsFor(user?.role), [user?.role]);
 
   const email = user?.email ?? "";
@@ -303,12 +305,13 @@ export function Sidebar() {
               }}
             >
               <Image
-                src="/svbk_logo.webp"
+                src={brandLogoUrl}
                 alt="SVBK"
                 width={34}
                 height={34}
                 className="object-contain p-0.5"
                 priority
+                unoptimized={brandIsCustom}
               />
             </span>
             <span className="min-w-0 leading-tight">

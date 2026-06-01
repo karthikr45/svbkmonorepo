@@ -52,6 +52,35 @@ export class TenantConfigsController {
     };
   }
 
+  /**
+   * Non-secret branding fields for the caller's tenant. Used by both
+   * admin and parent apps to display the school's logo in sidebars,
+   * headers, receipts, etc. Returns nulls when the tenant has no
+   * active config — clients then render their generic fallback.
+   *
+   * Both admin and parent JWTs carry `tenantId`, so a single endpoint
+   * serves both surfaces.
+   */
+  @Get('me/branding')
+  @UseGuards(JwtAuthGuard)
+  async myBranding(
+    @CurrentUser() user: any,
+  ): Promise<{
+    logoUrl: string | null;
+    tenantId: string | null;
+  }> {
+    if (!user?.tenantId) {
+      return { logoUrl: null, tenantId: null };
+    }
+    const cfg = await this.tenantConfigsService.findActiveForTenant(
+      user.tenantId,
+    );
+    return {
+      logoUrl: cfg?.logoUrl ?? null,
+      tenantId: user.tenantId,
+    };
+  }
+
   // POST /tenant-configs
   @Post()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)

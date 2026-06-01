@@ -1,7 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-
-const SCHOOL_LOGO_SRC = "/svbk_logo.webp";
+import { useTenantBranding } from "@/hooks/useTenantBranding";
 
 // Use a short brand label in the sidebar (school full name lives in the
 // header / page contexts). This keeps the rail clean and consistent with
@@ -10,6 +11,7 @@ const brandShort = "SVBK";
 const brandSub = "School Console";
 
 export function SidebarBrand() {
+  const { logoUrl, isCustom } = useTenantBranding();
   return (
     <Link
       href="/dashboard"
@@ -20,13 +22,14 @@ export function SidebarBrand() {
         style={{ backgroundColor: "var(--app-card-bg)" }}
       >
         <Image
-          src={SCHOOL_LOGO_SRC}
+          src={logoUrl}
           alt=""
           width={36}
           height={36}
           className="object-contain p-0.5"
           sizes="36px"
           priority
+          unoptimized={isCustom}
         />
       </span>
       <span className="min-w-0 flex-1 leading-tight">

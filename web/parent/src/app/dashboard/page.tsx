@@ -13,6 +13,7 @@ import {
   type Fee,
 } from "@/lib/parent-portal";
 import { apiErrorMessage } from "@/lib/api";
+import { useTenantBranding } from "@/lib/branding";
 import { FeeCard } from "@/components/FeeCard";
 
 const AVATAR_COLORS = [
@@ -43,6 +44,7 @@ function inr(n: number | string) {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { logoUrl: brandLogoUrl, isCustom: brandIsCustom } = useTenantBranding();
   const [mounted, setMounted] = useState(false);
   const [parent, setParentState] = useState<{ name: string; email: string } | null>(
     null,
@@ -147,7 +149,7 @@ export default function DashboardPage() {
                 "0 0 0 1px rgba(255,255,255,0.10), 0 8px 20px -8px rgba(108,115,156,0.6)",
             }}
           >
-            <Image src="/svbk_logo.webp" alt="SVBK" width={34} height={34} className="w-full h-full object-contain" />
+            <Image src={brandLogoUrl} alt="SVBK" width={34} height={34} className="w-full h-full object-contain" unoptimized={brandIsCustom} />
           </div>
           <div className="min-w-0">
             <p className="font-extrabold text-white text-[15px] leading-tight truncate">SVBK</p>
