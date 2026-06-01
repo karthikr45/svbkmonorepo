@@ -21,6 +21,17 @@ export enum GatewayType {
   CASHFREE = 'cashfree',
 }
 
+/**
+ * Whether the configured gateway credentials are test/sandbox or live.
+ * Independent of EnvironmentType — a tenant on the production app
+ * environment can still pilot the gateway in test mode before going
+ * live.
+ */
+export enum PaymentMode {
+  TEST = 'test',
+  PRODUCTION = 'production',
+}
+
 @Entity('tenant_configurations')
 @Unique(['tenantId', 'configurationName'])
 @Index(['tenantId', 'isActive'])
@@ -83,6 +94,14 @@ export class TenantConfig {
 
   @Column({ name: 'payment_secret_key', type: 'text', nullable: true })
   paymentSecretKey: string | null;
+
+  @Column({
+    name: 'payment_mode',
+    type: 'enum',
+    enum: PaymentMode,
+    default: PaymentMode.TEST,
+  })
+  paymentMode: PaymentMode;
 
   @Column({ name: 'payment_webhook_url', type: 'text', nullable: true })
   paymentWebhookUrl: string | null;

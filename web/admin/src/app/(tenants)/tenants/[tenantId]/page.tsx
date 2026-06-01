@@ -34,6 +34,7 @@ type NewConfig = {
   gatewayType: string;
   paymentKey: string;
   paymentSecret: string;
+  paymentMode: string;
   webhookUrl: string;
   smtpHost: string;
   smtpPort: string;
@@ -56,6 +57,7 @@ const emptyConfig: NewConfig = {
   gatewayType: "",
   paymentKey: "",
   paymentSecret: "",
+  paymentMode: "test",
   webhookUrl: "",
   smtpHost: "",
   smtpPort: "",
@@ -187,6 +189,12 @@ function TenantDetailsPageContent() {
     value: o.value,
     label: o.label,
   }));
+  // Sandbox vs live for the configured gateway. Stored as 'test' or
+  // 'production' on tenant_configurations.payment_mode.
+  const PAYMENT_MODE_OPTIONS: SelectMenuOption[] = [
+    { value: "test", label: "Test (sandbox)" },
+    { value: "production", label: "Production (live)" },
+  ];
 
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
@@ -418,6 +426,7 @@ function TenantDetailsPageContent() {
         gatewayType: newConfig.gatewayType,
         paymentKey: newConfig.paymentKey,
         paymentSecret: newConfig.paymentSecret,
+        paymentMode: newConfig.paymentMode,
         webhookUrl: newConfig.webhookUrl,
         smtpHost: newConfig.smtpHost,
         smtpPort: newConfig.smtpPort,
@@ -779,6 +788,15 @@ function TenantDetailsPageContent() {
                 options={GATEWAY_TYPE_OPTIONS}
                 error={newConfigErrors.gatewayType}
                 placeholder="Select gateway"
+              />
+              <ModalSelectMenu
+                label="Mode"
+                ariaLabel="Payment gateway mode"
+                value={newConfig.paymentMode}
+                onChange={(v) => updateNew({ paymentMode: v })}
+                options={PAYMENT_MODE_OPTIONS}
+                error={newConfigErrors.paymentMode}
+                placeholder="Test (sandbox)"
               />
               <Input
                 label="Client ID / Key ID"

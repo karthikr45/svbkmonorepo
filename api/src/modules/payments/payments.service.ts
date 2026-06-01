@@ -47,7 +47,7 @@ export class PaymentsService {
       clientId: cfg.paymentClientId,
       secretKey: cfg.paymentSecretKey,
       mode:
-        cfg.environmentType === 'production' ? 'production' : 'sandbox',
+        cfg.paymentMode === 'production' ? 'production' : 'sandbox',
     };
   }
 
@@ -60,7 +60,7 @@ export class PaymentsService {
     tenantId: string,
   ): Promise<'sandbox' | 'production'> {
     const cfg = await this.tenantConfigsService.findActiveForTenant(tenantId);
-    return cfg?.environmentType === 'production' ? 'production' : 'sandbox';
+    return cfg?.paymentMode === 'production' ? 'production' : 'sandbox';
   }
 
   /**

@@ -30,6 +30,7 @@ export class TenantConfigsService {
       gatewayType: dto.gatewayType,
       paymentClientId: dto.paymentKey,
       paymentSecretKey: dto.paymentSecret,
+      paymentMode: dto.paymentMode,
       paymentWebhookUrl: dto.webhookUrl,
       smtpHost: dto.smtpHost,
       smtpPort: dto.smtpPort,

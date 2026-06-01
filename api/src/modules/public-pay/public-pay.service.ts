@@ -206,9 +206,9 @@ export class PublicPayService {
       gatewayType: cfg.gatewayType,
       gatewayPublicKey: cfg.paymentClientId,
       // Cashfree JS SDK must be initialised in the same mode the order
-      // was created in. Comes from this tenant's environment_type.
+      // was created in. Comes from this tenant's payment_mode.
       cashfreeMode:
-        cfg.environmentType === 'production' ? 'production' : 'sandbox',
+        cfg.paymentMode === 'production' ? 'production' : 'sandbox',
     };
   }
 

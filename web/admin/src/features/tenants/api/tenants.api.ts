@@ -22,6 +22,7 @@ export type TenantConfig = {
   gatewayType: string;
   paymentKey: string;
   paymentSecret: string;
+  paymentMode: string;
   webhookUrl: string;
   smtpHost: string;
   smtpPort: string;
@@ -149,6 +150,7 @@ function mapRemoteTenantConfigToPayload(row: unknown): SaveTenantConfigPayload {
     gatewayType: formatGatewayLabel(gatewayRaw),
     paymentKey: pickStr(r, ["paymentClientId", "paymentKey", "payment_client_id"]),
     paymentSecret: pickStr(r, ["paymentSecretKey", "paymentSecret", "payment_secret_key"]),
+    paymentMode: pickStr(r, ["paymentMode", "payment_mode"]) || "test",
     webhookUrl: pickStr(r, ["paymentWebhookUrl", "webhookUrl", "payment_webhook_url"]),
     smtpHost: pickStr(r, ["smtpHost", "smtp_host"]),
     smtpPort,

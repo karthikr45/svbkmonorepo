@@ -31,6 +31,7 @@ function emptyTenantConfigForm(envTypeLabel: string): TenantConfigForm {
     gatewayType: "",
     paymentKey: "",
     paymentSecret: "",
+    paymentMode: "test",
     webhookUrl: "",
     smtpHost: "",
     smtpPort: "",
@@ -57,6 +58,7 @@ function serverConfigToForm(row: SaveTenantConfigPayload): TenantConfigForm {
     gatewayType: row.gatewayType ?? "",
     paymentKey: row.paymentKey ?? "",
     paymentSecret: row.paymentSecret ?? "",
+    paymentMode: row.paymentMode || "test",
     webhookUrl: row.webhookUrl ?? "",
     smtpHost: row.smtpHost ?? "",
     smtpPort: row.smtpPort ?? "",
@@ -264,6 +266,7 @@ export default function EnvConfigPage() {
       gatewayType: config.gatewayType,
       paymentKey: config.paymentKey,
       paymentSecret: config.paymentSecret,
+      paymentMode: config.paymentMode,
       webhookUrl: config.webhookUrl,
       smtpHost: config.smtpHost,
       smtpPort: config.smtpPort,
@@ -485,6 +488,20 @@ export default function EnvConfigPage() {
               ))}
             </select>
             {errors.gatewayType && <p className="text-sm text-red-600">{errors.gatewayType}</p>}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-[var(--app-text-secondary)]">
+              Mode
+            </label>
+            <select
+              value={config.paymentMode}
+              onChange={(e) => updateConfig({ paymentMode: e.target.value })}
+              className="h-11 rounded-lg border border-zinc-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-foreground/20"
+            >
+              <option value="test">Test (sandbox)</option>
+              <option value="production">Production (live)</option>
+            </select>
           </div>
 
           <Input

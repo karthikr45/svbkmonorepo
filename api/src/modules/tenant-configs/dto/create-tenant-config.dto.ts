@@ -9,7 +9,11 @@ import {
   MaxLength,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { EnvironmentType, GatewayType } from '../entities/tenant-config.entity';
+import {
+  EnvironmentType,
+  GatewayType,
+  PaymentMode,
+} from '../entities/tenant-config.entity';
 
 /** Maps empty / placeholder values to undefined so @IsOptional() skips @IsEnum. */
 const optionalEnum = <T extends Record<string, string>>(enumObj: T) =>
@@ -93,6 +97,11 @@ export class CreateTenantConfigDto {
   @IsString()
   @IsOptional()
   paymentSecret?: string;
+
+  @optionalEnum(PaymentMode)
+  @IsEnum(PaymentMode)
+  @IsOptional()
+  paymentMode?: PaymentMode;
 
   @IsString()
   @IsOptional()

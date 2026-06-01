@@ -392,9 +392,9 @@ export class ParentPortalService {
       gatewayType: receivingCfg?.gatewayType ?? resolvedGateway,
       gatewayPublicKey: receivingCfg?.paymentClientId ?? null,
       // Cashfree JS SDK must use the same mode the backend used; comes
-      // from the receiving tenant's environment_type, not env vars.
+      // from the receiving tenant's payment_mode, not env vars.
       cashfreeMode:
-        receivingCfg?.environmentType === 'production'
+        receivingCfg?.paymentMode === 'production'
           ? 'production'
           : 'sandbox',
     };
