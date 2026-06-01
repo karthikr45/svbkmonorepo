@@ -39,6 +39,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { ReceiptTemplatesModule } from './modules/receipt-templates/receipt-templates.module';
 import { SocialModule } from './modules/social/social.module';
 import { StudentIdentitiesModule } from './modules/student-identities/student-identities.module';
+import { PublicPayModule } from './modules/public-pay/public-pay.module';
 
 @Module({
   imports: [
@@ -131,6 +132,7 @@ import { StudentIdentitiesModule } from './modules/student-identities/student-id
     ReceiptTemplatesModule,
     SocialModule,
     StudentIdentitiesModule,
+    PublicPayModule,
   ],
   providers: [
     // Apply the rate limiter globally; per-route @Throttle/@SkipThrottle
