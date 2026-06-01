@@ -63,7 +63,20 @@ const TENANT_ADMIN = {
   lastName: 'Admin',
   branch: 'Main',
 };
-const ACADEMIC_YEAR = '2025-2026';
+/**
+ * Indian academic year is Apr–Mar: May 2026 is in 2026-2027,
+ * Feb 2026 is still in 2025-2026. Computed from `today` so the seed
+ * stays valid year-over-year without code edits. Override via
+ * SEED_ACADEMIC_YEAR if you need to seed a specific year.
+ */
+function currentAcademicYear(): string {
+  const override = process.env.SEED_ACADEMIC_YEAR?.trim();
+  if (override) return override;
+  const now = new Date();
+  const start = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  return `${start}-${start + 1}`;
+}
+const ACADEMIC_YEAR = currentAcademicYear();
 const DEMO_STUDENT = {
   schoolCode: 'SVBK-MAIN',
   admissionNumber: 'ADM-2024-001',

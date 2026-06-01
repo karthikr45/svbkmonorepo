@@ -20,9 +20,9 @@ import { getAllStudentsByBranch } from "@/features/students/services";
 import { getStudentById, updateStudentById } from "@/features/students/services/students.service";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
+import { useAuth } from "@/features/auth";
 
 const PAGE_SIZE = 10;
-const BRANCH = "hyd";
 const ACTION_MENU_PLACEHOLDER = "__actions__";
 type ActionMenuValue = "upload" | "addPenalty" | "exportExcel" | "waivePenalty";
 type DynamicColumn = {
@@ -435,6 +435,11 @@ export function ViewPageContent({ onNavigateUpload }: ViewPageContentProps) {
     [termFilterMeta.options],
   );
 
+  // Branch (school code) comes from the JWT — different tenants have
+  // different codes, hardcoding here used to scope everyone to "hyd".
+  const { user } = useAuth();
+  const branch = user?.branch ?? "";
+
   const [search, setSearch] = useState("");
   const [academicYear, setAcademicYear] = useState("");
   const [actionMenuValue, setActionMenuValue] = useState(ACTION_MENU_PLACEHOLDER);
@@ -490,7 +495,7 @@ export function ViewPageContent({ onNavigateUpload }: ViewPageContentProps) {
     setAcademicYear(currentYear);
   }, [academicYears, academicYear, academicYearOptions]);
 
-  const { data: rows, loading, error, refetch: refetchStudents } = useFetchStudents(BRANCH, academicYear);
+  const { data: rows, loading, error, refetch: refetchStudents } = useFetchStudents(branch, academicYear);
   const [rowsToDisplay, setRowsToDisplay] = useState<StudentFeeRow[]>([]);
 
   useEffect(() => {
@@ -900,7 +905,7 @@ export function ViewPageContent({ onNavigateUpload }: ViewPageContentProps) {
       }
 
       const yearData = await Promise.all(
-        sourceYears.map(async (year) => ({ year, rows: await getAllStudentsByBranch(BRANCH, year) }))
+        sourceYears.map(async (year) => ({ year, rows: await getAllStudentsByBranch(branch, year) }))
       );
       const combinedRows = yearData.flatMap((entry) =>
         getRowsByDateRange(getRowsByMonth(entry.rows, exportMonth), effectiveFromDate, effectiveToDate)

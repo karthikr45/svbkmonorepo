@@ -1,27 +1,33 @@
 "use client";
 
 import { useUi } from "@/context/ui-context";
+import { useAuth } from "@/features/auth";
 import { getNotifications } from "@/features/notifications/service/notification.service";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export function Navbar() {
   const { toggleSidebar } = useUi();
+  const { user } = useAuth();
   const [notification, setNotification] = useState<any>(null);
 
   useEffect(() => {
-    const fetchNotifications = async () => {
-      const branch = "hyd";
-      const role = "Admin";
+    const branch = user?.branch;
+    const role = user?.role;
+    if (!branch || !role) return;
+    let cancelled = false;
+    (async () => {
       try {
         const response = await getNotifications(role, branch);
-        setNotification(response);
+        if (!cancelled) setNotification(response);
       } catch {
-        // silent
+        /* silent */
       }
+    })();
+    return () => {
+      cancelled = true;
     };
-    fetchNotifications();
-  }, []);
+  }, [user?.branch, user?.role]);
 
   const notificationCount = notification?.notifications?.length ?? 0;
 

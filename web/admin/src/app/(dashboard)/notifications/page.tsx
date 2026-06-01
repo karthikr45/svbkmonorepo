@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/features/auth";
 import { getNotifications } from "@/features/notifications/service/notification.service";
 import { formatDate, getStatusStyles, timeAgo } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -12,19 +13,18 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 const Notifications = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>("template");
   const [notificationData, setNotificationData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    const branch = user?.branch;
+    const role = user?.role;
+    if (!branch || !role) return;
     const fetchNotifications = async () => {
       setLoading(true);
       try {
-        // const branch = "hyd";
-        // const role = "Admin";
-        const branch = localStorage.getItem("branch") ? "hyd" : "hyd";
-        const role = localStorage.getItem("role") ? "Admin" : "Admin";
-
         const response = await getNotifications(role, branch);
         setNotificationData(response);
       } catch {
@@ -34,7 +34,7 @@ const Notifications = () => {
     };
 
     fetchNotifications();
-  }, []);
+  }, [user?.branch, user?.role]);
 
   // ✅ Filter notifications based on tab
   const filteredNotifications =

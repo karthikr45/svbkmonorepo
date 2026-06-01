@@ -53,14 +53,65 @@ See `api/.env.example` for required env vars.
 
 ## Getting started
 
-```bash
-npm install -g pnpm
-pnpm install
-cp api/.env.example api/.env       # then edit DB_*, JWT secrets
+### Fresh-clone setup
 
-pnpm dev                           # run all dev servers in parallel
-pnpm build
+Prerequisites:
+
+- Node 20 (`nvm use` — `.nvmrc` is pinned)
+- pnpm 9 (`npm install -g pnpm`)
+- PostgreSQL 15+ running locally
+
+```bash
+# 1. install deps + Chromium for puppeteer
+nvm use
+pnpm install
+
+# 2. create the database
+createdb svbk          # or: psql -c 'CREATE DATABASE svbk;'
+
+# 3. env files (gitignored — commit only the .example)
+cp api/.env.example api/.env                # set DB_*, JWT_SECRET, CLIENT_URL, PUBLIC_API_BASE_URL
+cp web/admin/.env.example web/admin/.env.local 2>/dev/null || true
+cp web/parent/.env.example web/parent/.env.local 2>/dev/null || true
+
+# 4. seed: super-admin, demo tenant, system_metadata catalog.
+#    The catalog drives every dropdown in the admin UI — academic year,
+#    terms, classes, sections, gateways, country/state/city. Without it
+#    those selects render empty.
+pnpm --filter @svbk/api seed
+
+# 5. start everything (the API auto-syncs schema on first boot because
+#    DB_SYNC=true in .env.example).
+pnpm dev
 ```
+
+**Production note:** `DB_SYNC` is hard-forced off in production
+regardless of `.env` — schema there evolves via migrations under
+`api/src/migrations/`. The check in `app.module.ts` refuses to boot a
+prod instance with no migrations committed. Generate the baseline with
+`pnpm --filter @svbk/api migration:generate src/migrations/Init` before
+the first prod deploy.
+
+After seed, log into the admin app with the credentials printed by the
+seed (default `superadmin@svbk.com` / `Admin@123` — override via env
+before re-running). Override the seed's academic year with
+`SEED_ACADEMIC_YEAR=2027-2028 pnpm ... seed`; otherwise it defaults to the
+current Indian academic year (Apr–Mar).
+
+### VM setup for the receipt PDF service
+
+The API uses `puppeteer` to render PDF receipts. On a fresh Ubuntu VM,
+install Chromium's runtime libs once:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libnss3 libatk-bridge2.0-0 libxkbcommon0 \
+  libgbm1 libasound2 fonts-liberation libcups2 libxcomposite1 \
+  libxdamage1 libxrandr2 libgtk-3-0
+```
+
+The Chromium binary itself ships with `puppeteer` — no separate
+install required.
 
 ### Run a single workspace
 
