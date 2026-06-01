@@ -9,6 +9,9 @@ export interface AuthUser {
   role: string;
   tenantId: string | null;
   tenantName?: string | null;
+  // The tenant's school code on the historical "branch" column. Used to
+  // pre-fill the default branch on tenant-admin forms (Add Student, etc).
+  branch: string | null;
   id: string;
 }
 

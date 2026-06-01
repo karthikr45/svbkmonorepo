@@ -167,6 +167,7 @@ function persistTokens(payload: LoginApiData): AuthUser {
     role,
     tenantId,
     tenantName,
+    branch,
     id,
   } = payload;
 
@@ -178,6 +179,7 @@ function persistTokens(payload: LoginApiData): AuthUser {
     role,
     tenantId: tenantId ?? null,
     tenantName: tenantName ?? null,
+    branch: branch ?? null,
     id,
   };
   setStoredUser(user);

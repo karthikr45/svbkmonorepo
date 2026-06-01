@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import { getApiBaseUrl } from "@/lib/env";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { getStoredToken } from "@/features/auth/services";
+import { useAuth } from "@/features/auth";
+import { useFetchAcademicYears } from "@/features/students/hooks/useFetchStudents";
 import { AddStudentModal } from "./AddStudentModal";
 
 interface Props {
@@ -22,6 +24,22 @@ interface Props {
  */
 export function StudentsActionBar({ onUpload, onCreated }: Props) {
   const [addOpen, setAddOpen] = useState(false);
+  const { user } = useAuth();
+  const { academicYears } = useFetchAcademicYears();
+
+  // Pre-fill the Add-Student modal so admins don't retype the AY and
+  // school code every time. Branch (school code) comes from the JWT;
+  // academic year from the current-year flag, falling back to the
+  // newest configured year.
+  const defaultAcademicYear = useMemo(() => {
+    if (!academicYears?.length) return "";
+    return (
+      academicYears.find((y) => y.isCurrentYear)?.academicYear ??
+      academicYears[0]?.academicYear ??
+      ""
+    );
+  }, [academicYears]);
+  const defaultBranch = user?.branch ?? "";
 
   async function downloadTemplate(format: "xlsx" | "csv") {
     try {
@@ -90,6 +108,8 @@ export function StudentsActionBar({ onUpload, onCreated }: Props) {
 
       <AddStudentModal
         open={addOpen}
+        defaultAcademicYear={defaultAcademicYear}
+        defaultBranch={defaultBranch}
         onClose={() => setAddOpen(false)}
         onCreated={() => onCreated?.()}
       />

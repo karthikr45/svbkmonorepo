@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import {
   createStudentApi,
@@ -83,6 +83,17 @@ export function AddStudentModal({
     section: "",
     rollNo: "",
   });
+
+  // Defaults arrive asynchronously (academic-years fetch + JWT user
+  // hydration). Keep the form's branch / AY in sync with the latest
+  // props as long as the admin hasn't typed into those fields yet.
+  useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      branch: prev.branch || defaultBranch,
+      academicYear: prev.academicYear || defaultAcademicYear,
+    }));
+  }, [defaultBranch, defaultAcademicYear]);
 
   // ─── Identity search (re-admission flow) ────────────────────────
   const [identitySearch, setIdentitySearch] = useState({
