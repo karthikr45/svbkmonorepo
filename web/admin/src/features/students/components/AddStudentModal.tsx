@@ -39,6 +39,7 @@ interface Props {
   open: boolean;
   defaultAcademicYear?: string;
   defaultBranch?: string;
+  academicYearOptions?: string[];
   onClose: () => void;
   onCreated: () => void;
 }
@@ -53,6 +54,7 @@ export function AddStudentModal({
   open,
   defaultAcademicYear = "",
   defaultBranch = "",
+  academicYearOptions = [],
   onClose,
   onCreated,
 }: Props) {
@@ -415,7 +417,35 @@ export function AddStudentModal({
           <SectionHeading>Identity</SectionHeading>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             <Field label="Academic year" required>
-              <input value={form.academicYear} onChange={(e) => setForm({ ...form, academicYear: e.target.value })} placeholder="2025-2026" className="form-input" required />
+              {academicYearOptions.length > 0 ? (
+                <select
+                  value={form.academicYear}
+                  onChange={(e) =>
+                    setForm({ ...form, academicYear: e.target.value })
+                  }
+                  className="form-input"
+                  required
+                >
+                  {!form.academicYear && (
+                    <option value="">Select academic year</option>
+                  )}
+                  {academicYearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={form.academicYear}
+                  onChange={(e) =>
+                    setForm({ ...form, academicYear: e.target.value })
+                  }
+                  placeholder="2025-2026"
+                  className="form-input"
+                  required
+                />
+              )}
             </Field>
             <Field label="Branch">
               <input value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} placeholder="defaults to your branch" className="form-input" />

@@ -31,6 +31,10 @@ export function StudentsActionBar({ onUpload, onCreated }: Props) {
   // school code every time. Branch (school code) comes from the JWT;
   // academic year from the current-year flag, falling back to the
   // newest configured year.
+  const academicYearOptions = useMemo(
+    () => (academicYears ?? []).map((y) => y.academicYear),
+    [academicYears],
+  );
   const defaultAcademicYear = useMemo(() => {
     if (!academicYears?.length) return "";
     return (
@@ -110,6 +114,7 @@ export function StudentsActionBar({ onUpload, onCreated }: Props) {
         open={addOpen}
         defaultAcademicYear={defaultAcademicYear}
         defaultBranch={defaultBranch}
+        academicYearOptions={academicYearOptions}
         onClose={() => setAddOpen(false)}
         onCreated={() => onCreated?.()}
       />
