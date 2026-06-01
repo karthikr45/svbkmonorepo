@@ -1,7 +1,13 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SystemMetadata } from './entities/system-metadata.entity';
+import { DEFAULT_METADATA } from './default-metadata';
 import {
   CreateSystemMetadataDto,
   UpdateSystemMetadataDto,
@@ -9,10 +15,43 @@ import {
 
 @Injectable()
 export class SystemMetadataService {
+  private readonly logger = new Logger(SystemMetadataService.name);
+
   constructor(
     @InjectRepository(SystemMetadata)
     private readonly repo: Repository<SystemMetadata>,
   ) {}
+
+  /**
+   * Inserts any rows from DEFAULT_METADATA that don't already exist.
+   * Called on app boot so dropdowns work on a fresh clone without
+   * anyone having to run `pnpm seed` first. Idempotent — safe to run
+   * on every boot.
+   */
+  async ensureDefaults(): Promise<{ created: number }> {
+    let created = 0;
+    for (const d of DEFAULT_METADATA) {
+      const existing = await this.repo.findOne({
+        where: { type: d.type, value: d.value },
+      });
+      if (existing) continue;
+      await this.repo.save(
+        this.repo.create({
+          ...d,
+          isActive: true,
+          label: null,
+          description: null,
+        }),
+      );
+      created++;
+    }
+    if (created > 0) {
+      this.logger.log(
+        `Seeded ${created} default system_metadata row(s) on boot`,
+      );
+    }
+    return { created };
+  }
 
   /** Public read — used by tenant admins and any logged-in user. */
   async list(filters: {

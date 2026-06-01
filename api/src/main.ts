@@ -12,6 +12,7 @@ import { initSentry } from './observability/sentry';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SystemMetadata } from './modules/system-metadata/entities/system-metadata.entity';
+import { SystemMetadataService } from './modules/system-metadata/system-metadata.service';
 
 /**
  * Reference-data types the UI relies on. Warn (don't crash) if any are
@@ -130,6 +131,16 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
+
+  // Auto-seed any missing default catalog rows (idempotent). Means a
+  // fresh clone gets working dropdowns without anyone running
+  // `pnpm seed`; the seed command itself only adds demo tenant /
+  // admin / student rows on top.
+  try {
+    await app.get(SystemMetadataService).ensureDefaults();
+  } catch {
+    /* table might not exist yet on a brand-new DB before synchronize */
+  }
 
   await checkMetadataHealth(app);
 
