@@ -6,14 +6,18 @@ import {
   DeleteDateColumn,
   UpdateDateColumn,
   Index,
+  Unique,
 } from 'typeorm';
- 
+
 @Entity('academic_years')
+// One row per (tenant, AY) — NOT globally unique. Multiple tenants
+// can have the same AY value (e.g. every school has "2025-2026").
+@Unique('uq_academic_years_tenant_year', ['tenantId', 'academicYear'])
 export class AcademicYear {
   @PrimaryGeneratedColumn('uuid')
   id: string;
- 
-  @Column({ name: 'academic_year', type: 'varchar', length: 20, unique: true })
+
+  @Column({ name: 'academic_year', type: 'varchar', length: 20 })
   academicYear: string;
  
   @Column({ name: 'is_current_year', type: 'boolean', default: false })

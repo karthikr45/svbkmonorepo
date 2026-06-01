@@ -12,6 +12,7 @@ import { Tenant } from './entities/tenant.entity';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { ReceiptTemplatesService } from '../receipt-templates/receipt-templates.service';
+import { AcademicYearsService } from '../academic-years/academic-years.service';
 import { normaliseTenantType } from '../../common/constants/tenant';
 
 export type SafeTenant = Omit<Tenant, 'clientId' | 'secretKey'>;
@@ -23,6 +24,7 @@ export class TenantsService {
     private readonly tenantsRepository: Repository<Tenant>,
     @Inject(forwardRef(() => ReceiptTemplatesService))
     private readonly receiptTemplates: ReceiptTemplatesService,
+    private readonly academicYears: AcademicYearsService,
   ) {}
 
   private sanitize(tenant: Tenant): SafeTenant {
@@ -65,6 +67,15 @@ export class TenantsService {
       await this.receiptTemplates.ensureStarterForTenant(saved.id);
     } catch {
       /* non-fatal — admin can create one manually later */
+    }
+    // Pre-populate academic_years from the super-admin-curated catalog
+    // in system_metadata so the new school can issue fees immediately
+    // without an extra setup step. Idempotent — only inserts missing
+    // years; safe if the catalog is empty.
+    try {
+      await this.academicYears.syncFromMetadata(saved.id);
+    } catch {
+      /* non-fatal — admin can add years manually */
     }
     return this.sanitize(saved);
   }

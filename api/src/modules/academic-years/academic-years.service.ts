@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { AcademicYear } from './entities/academic-year.entity';
+import { SystemMetadata } from '../system-metadata/entities/system-metadata.entity';
 import { CreateAcademicYearDto } from './dto/create-academic-year.dto';
 import { UpdateAcademicYearDto } from './dto/update-academic-year.dto';
 
@@ -15,8 +16,59 @@ export class AcademicYearsService {
   constructor(
     @InjectRepository(AcademicYear)
     private readonly academicYearsRepository: Repository<AcademicYear>,
+    @InjectRepository(SystemMetadata)
+    private readonly metadataRepository: Repository<SystemMetadata>,
     private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Seeds a tenant's academic_years table from the global
+   * system_metadata catalog (type='academic_year', active rows).
+   * Idempotent — only inserts rows that don't already exist. The
+   * newest value (highest displayOrder) is flagged isCurrentYear iff
+   * the tenant has no current year yet.
+   *
+   * Called from TenantsService.create so new schools get the full AY
+   * list out of the box.
+   */
+  async syncFromMetadata(tenantId: string): Promise<{ created: number }> {
+    const metaRows = await this.metadataRepository.find({
+      where: { type: 'academic_year', isActive: true },
+      order: { displayOrder: 'ASC' },
+    });
+    if (!metaRows.length) return { created: 0 };
+
+    const existing = await this.academicYearsRepository.find({
+      where: { tenantId },
+      select: ['academicYear'],
+    });
+    const have = new Set(existing.map((r) => r.academicYear));
+    const missing = metaRows.filter((m) => !have.has(m.value));
+    if (!missing.length) return { created: 0 };
+
+    const newestValue = metaRows[metaRows.length - 1].value;
+    const hasCurrent = existing.length
+      ? (
+          await this.academicYearsRepository.findOne({
+            where: { tenantId, isCurrentYear: true },
+            select: ['id'],
+          })
+        )
+        ? true
+        : false
+      : false;
+
+    const rows = missing.map((m) =>
+      this.academicYearsRepository.create({
+        tenantId,
+        academicYear: m.value,
+        isActive: true,
+        isCurrentYear: !hasCurrent && m.value === newestValue,
+      }),
+    );
+    await this.academicYearsRepository.save(rows);
+    return { created: rows.length };
+  }
 
   async create(
     tenantId: string,
