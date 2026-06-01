@@ -11,6 +11,7 @@ import { PaymentsModule } from '../payments/payments.module';
 import { FeesModule } from '../fees/fees.module';
 import { StudentsModule } from '../students/students.module';
 import { AcademicYearsModule } from '../academic-years/academic-years.module';
+import { TenantConfigsModule } from '../tenant-configs/tenant-configs.module';
 import { ParentPortalService } from './parent-portal.service';
 import { ParentPortalController } from './parent-portal.controller';
 
@@ -29,6 +30,7 @@ import { ParentPortalController } from './parent-portal.controller';
     FeesModule,
     StudentsModule,
     AcademicYearsModule,
+    TenantConfigsModule,
   ],
   providers: [ParentPortalService],
   controllers: [ParentPortalController],

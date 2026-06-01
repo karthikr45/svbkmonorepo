@@ -100,7 +100,9 @@ export function FeeCard({
     setPayError(null);
     setSuccessMsg(null);
     try {
-      // The server picks the gateway from the tenant's configuration.
+      // The server picks the gateway from the RECEIVING tenant's
+      // configuration (the tenant that owns the fee — may be a sibling
+      // of the parent's home tenant for hostel/transport fees).
       const res = await initiatePayment(fee.id);
       const gateway = (res.payment.gateway ?? "razorpay") as Gateway;
       const raw = res.gatewayResponse as Record<string, unknown>;
@@ -111,7 +113,11 @@ export function FeeCard({
       if (!orderId) throw new Error("Gateway did not return an order id.");
 
       if (gateway === "razorpay") {
+        // Prefer the receiving tenant's public key returned by initiate.
+        // Only fall back to the parent-tenant config when the response
+        // omits it (older API revisions).
         const clientId =
+          res.gatewayPublicKey ??
           config?.paymentClientId ??
           (await fetchActivePaymentConfig()).paymentClientId;
         if (!clientId) {

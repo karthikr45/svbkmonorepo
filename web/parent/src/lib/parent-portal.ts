@@ -215,6 +215,11 @@ export interface InitiatePaymentResponse {
   payment: Payment;
   transaction: { id: string };
   gatewayResponse: Record<string, unknown>;
+  // Public key of the RECEIVING tenant's gateway (the tenant that owns
+  // the fee). Use this — not the parent's home-tenant key — to mount
+  // the checkout widget.
+  gatewayType?: string | null;
+  gatewayPublicKey?: string | null;
 }
 
 /**

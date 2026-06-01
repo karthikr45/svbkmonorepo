@@ -21,6 +21,7 @@ import { ParentStudent } from '../parents/entities/parent-student.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { ParentsService } from '../parents/parents.service';
 import { PaymentsService } from '../payments/payments.service';
+import { TenantConfigsService } from '../tenant-configs/tenant-configs.service';
 import { FeesService } from '../fees/fees.service';
 import { StudentsService } from '../students/students.service';
 import { AcademicYearsService } from '../academic-years/academic-years.service';
@@ -46,6 +47,7 @@ export class ParentPortalService {
     private readonly tenantRepo: Repository<Tenant>,
     private readonly parentsService: ParentsService,
     private readonly paymentsService: PaymentsService,
+    private readonly tenantConfigsService: TenantConfigsService,
     private readonly feesService: FeesService,
     private readonly studentsService: StudentsService,
     private readonly academicYearsService: AcademicYearsService,
@@ -127,6 +129,39 @@ export class ParentPortalService {
       where: {
         parentId,
         tenantId,
+        branch: student.schoolCode,
+        admissionNumber: student.admissionNumber,
+      },
+    });
+    if (!link) {
+      throw new ForbiddenException('You are not linked to this student');
+    }
+    return student;
+  }
+
+  /**
+   * Cross-tenant variant: the student row may live in a sibling tenant
+   * (hostel / transport) while the parent_student link lives in the
+   * parent's home tenant. Authorise by matching (schoolCode +
+   * admissionNumber) of the sibling-tenant student against the parent's
+   * links in their own tenant.
+   */
+  async ensureChildBelongsToParentCrossTenant(
+    parentHomeTenantId: string,
+    parentId: string,
+    studentTenantId: string,
+    studentId: string,
+  ): Promise<Student> {
+    const student = await this.studentRepo.findOne({
+      where: { id: studentId, tenantId: studentTenantId },
+    });
+    if (!student) {
+      throw new NotFoundException(`Student ${studentId} not found`);
+    }
+    const link = await this.linkRepo.findOne({
+      where: {
+        parentId,
+        tenantId: parentHomeTenantId,
         branch: student.schoolCode,
         admissionNumber: student.admissionNumber,
       },
@@ -289,16 +324,22 @@ export class ParentPortalService {
    * delegates to the existing PaymentsService.createOrder.
    */
   /**
-   * Gateway is read from THIS tenant's tenant_configurations — never
-   * from the request body. Clients cannot pick a different gateway
-   * than the school admin configured.
+   * Gateway is read from the STUDENT'S tenant_configurations — not the
+   * parent's home tenant. A parent linked in the school tenant may pay
+   * hostel/transport fees that live in sibling tenants, and the money
+   * must route to that sibling tenant's configured gateway.
+   * Clients cannot pick a different gateway than the school admin
+   * configured for the receiving tenant.
    */
   async initiatePayment(
     tenantId: string,
     parentId: string,
     feeId: string,
   ) {
-    const fee = await this.feeRepo.findOne({ where: { id: feeId, tenantId } });
+    // Fee may live in a sibling tenant (hostel/transport). Look it up
+    // without a tenant filter, then authorise via the cross-tenant link
+    // on (schoolCode + admissionNumber).
+    const fee = await this.feeRepo.findOne({ where: { id: feeId } });
     if (!fee) {
       throw new NotFoundException(`Fee ${feeId} not found`);
     }
@@ -310,18 +351,20 @@ export class ParentPortalService {
       throw new BadRequestException('Nothing left to pay on this fee');
     }
 
-    const student = await this.ensureChildBelongsToParent(
+    const student = await this.ensureChildBelongsToParentCrossTenant(
       tenantId,
       parentId,
+      fee.tenantId,
       fee.studentId,
     );
 
-    // The gateway is decided by the tenant's configuration, not the client.
+    // Gateway is decided by the RECEIVING tenant's configuration —
+    // the tenant that owns the fee, not the parent's home tenant.
     const resolvedGateway =
-      await this.paymentsService.resolveActiveGateway(tenantId);
+      await this.paymentsService.resolveActiveGateway(fee.tenantId);
 
-    return this.paymentsService.createOrder(tenantId, {
-      tenantId,
+    const order = await this.paymentsService.createOrder(fee.tenantId, {
+      tenantId: fee.tenantId,
       feeId: fee.id,
       paymentType: PaymentType.ONLINE,
       gateway: resolvedGateway,
@@ -336,6 +379,19 @@ export class ParentPortalService {
       rollNo: student.rollNo,
       email: student.email,
     });
+
+    // Surface the RECEIVING tenant's public gateway key so the parent
+    // client mounts the widget against the right merchant account. The
+    // parent's own /tenant-configs/active-payment only knows the
+    // parent's home tenant — which is wrong for sibling-tenant fees.
+    const receivingCfg = await this.tenantConfigsService.findActiveForTenant(
+      fee.tenantId,
+    );
+    return {
+      ...order,
+      gatewayType: receivingCfg?.gatewayType ?? resolvedGateway,
+      gatewayPublicKey: receivingCfg?.paymentClientId ?? null,
+    };
   }
 
   /**
@@ -353,8 +409,11 @@ export class ParentPortalService {
       signature?: string;
     },
   ) {
+    // Payment was created against the fee's tenant (could be a sibling
+    // of the parent's home tenant). Don't filter by the parent's
+    // tenantId — look it up by gatewayOrderId alone.
     const payment = await this.paymentRepo.findOne({
-      where: { gatewayOrderId: args.gatewayOrderId, tenantId },
+      where: { gatewayOrderId: args.gatewayOrderId },
     });
     if (!payment) {
       throw new NotFoundException('Payment order not found');
@@ -363,15 +422,20 @@ export class ParentPortalService {
       throw new BadRequestException('Order is not tied to a fee');
     }
     const fee = await this.feeRepo.findOne({
-      where: { id: payment.feeId, tenantId },
+      where: { id: payment.feeId },
     });
     if (!fee) {
       throw new NotFoundException('Fee not found for this order');
     }
-    await this.ensureChildBelongsToParent(tenantId, parentId, fee.studentId);
-
-    return this.paymentsService.verifyPayment(tenantId, {
+    await this.ensureChildBelongsToParentCrossTenant(
       tenantId,
+      parentId,
+      fee.tenantId,
+      fee.studentId,
+    );
+
+    return this.paymentsService.verifyPayment(payment.tenantId, {
+      tenantId: payment.tenantId,
       gateway: payment.gateway as PaymentGateway,
       gatewayOrderId: args.gatewayOrderId,
       gatewayPaymentId: args.gatewayPaymentId,
