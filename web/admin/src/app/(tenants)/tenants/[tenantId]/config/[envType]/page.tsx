@@ -13,6 +13,7 @@ import {
   type TenantConfig as TenantConfigPayload,
 } from "@/features/tenants/api/tenants.api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
 
 /** Form model matches API config fields (tenant id is tracked separately on the page). */
 type TenantConfigForm = Omit<TenantConfigPayload, "tenantId">;
@@ -96,6 +97,22 @@ export default function EnvConfigPage() {
   const resolvedTenantId = Array.isArray(tenantId) ? tenantId[0] : tenantId;
   const resolvedEnvParam = Array.isArray(envType) ? envType[0] : envType;
   const configIdFromQuery = searchParams.get("configId")?.trim() || undefined;
+
+  // Metadata-driven dropdown options. Falls back to a single sensible
+  // value if the API is reachable but the type hasn't been seeded yet.
+  const envMeta = useMetadata("environment_type", {
+    fallback: [
+      { value: "Production", label: "Production", displayOrder: 1, isActive: true },
+      { value: "QA", label: "QA", displayOrder: 2, isActive: true },
+      { value: "Development", label: "Development", displayOrder: 3, isActive: true },
+    ],
+  });
+  const gatewayMeta = useMetadata("payment_gateway", {
+    fallback: [
+      { value: "Razorpay", label: "Razorpay", displayOrder: 1, isActive: true },
+      { value: "Cashfree", label: "Cashfree", displayOrder: 2, isActive: true },
+    ],
+  });
 
   const goBackToTenantConfiguration = () => {
     if (resolvedTenantId) {
@@ -348,9 +365,11 @@ export default function EnvConfigPage() {
               className="h-11 cursor-not-allowed rounded-lg border border-zinc-300 bg-zinc-100 px-3 text-base text-zinc-600 opacity-90 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-300"
             >
               <option value="">Select environment</option>
-              <option value="Production">Production</option>
-              <option value="QA">QA</option>
-              <option value="Development">Development</option>
+              {envMeta.options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
             {errors.envType && <p className="text-sm text-red-600">{errors.envType}</p>}
           </div>
@@ -470,7 +489,11 @@ export default function EnvConfigPage() {
               }`}
             >
               <option value="">Select gateway</option>
-              <option value="Razorpay">Razorpay</option>
+              {gatewayMeta.options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
             {errors.gatewayType && <p className="text-sm text-red-600">{errors.gatewayType}</p>}
           </div>
