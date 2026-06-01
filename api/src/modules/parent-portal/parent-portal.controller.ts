@@ -108,7 +108,6 @@ export class ParentPortalController {
       user.tenantId,
       user.userId,
       dto.feeId,
-      dto.gateway,
     );
   }
 

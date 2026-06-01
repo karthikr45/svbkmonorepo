@@ -15,10 +15,19 @@ import { WebhookHandlerService } from './webhooks/webhook-handler.service';
 import { WebhookGatewayDetectorService } from './webhooks/webhook-gateway-detector.service';
 import { UnifiedWebhookService } from './webhooks/unified-webhook.service';
 import { TenantConfigsModule } from '../tenant-configs/tenant-configs.module';
+import { TenantConfig } from '../tenant-configs/entities/tenant-config.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Payment, Transaction, PaymentAuditLog, Fee]),
+    TypeOrmModule.forFeature([
+      Payment,
+      Transaction,
+      PaymentAuditLog,
+      Fee,
+      // Direct repo access for the webhook verifier — it needs to read
+      // payment_secret_key per tenant before the signature check.
+      TenantConfig,
+    ]),
     TenantConfigsModule,
   ],
   controllers: [PaymentsController],

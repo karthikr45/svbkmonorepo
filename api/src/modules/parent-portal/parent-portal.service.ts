@@ -288,11 +288,15 @@ export class ParentPortalService {
    * Validates the fee belongs to a child this parent is linked to, then
    * delegates to the existing PaymentsService.createOrder.
    */
+  /**
+   * Gateway is read from THIS tenant's tenant_configurations — never
+   * from the request body. Clients cannot pick a different gateway
+   * than the school admin configured.
+   */
   async initiatePayment(
     tenantId: string,
     parentId: string,
     feeId: string,
-    gateway?: PaymentGateway,
   ) {
     const fee = await this.feeRepo.findOne({ where: { id: feeId, tenantId } });
     if (!fee) {
@@ -314,7 +318,7 @@ export class ParentPortalService {
 
     // The gateway is decided by the tenant's configuration, not the client.
     const resolvedGateway =
-      gateway ?? (await this.paymentsService.resolveActiveGateway(tenantId));
+      await this.paymentsService.resolveActiveGateway(tenantId);
 
     return this.paymentsService.createOrder(tenantId, {
       tenantId,

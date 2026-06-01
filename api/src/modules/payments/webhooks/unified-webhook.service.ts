@@ -1,10 +1,14 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { WebhookGatewayDetectorService, PaymentWebhookGateway } from './webhook-gateway-detector.service';
 import { WebhookVerificationService } from './webhook-verification.service';
 import { WebhookHandlerService } from './webhook-handler.service';
 import { RazorpayWebhookDto, CashfreeWebhookDto } from '../dto/webhook.dto';
 import { PaymentAuditService } from '../payment-audit.service';
 import { AuditAction } from '../entities/payment-audit-log.entity';
+import { Payment } from '../entities/payment.entity';
+import { TenantConfig } from '../../tenant-configs/entities/tenant-config.entity';
 
 @Injectable()
 export class UnifiedWebhookService {
@@ -15,6 +19,10 @@ export class UnifiedWebhookService {
     private readonly verificationService: WebhookVerificationService,
     private readonly handlerService: WebhookHandlerService,
     private readonly auditService: PaymentAuditService,
+    @InjectRepository(Payment)
+    private readonly paymentRepo: Repository<Payment>,
+    @InjectRepository(TenantConfig)
+    private readonly tenantConfigRepo: Repository<TenantConfig>,
   ) {}
 
   async handleUnifiedWebhook(
@@ -39,7 +47,13 @@ export class UnifiedWebhookService {
 
       this.logger.log(`Processing ${gateway} webhook`);
 
-      const isValid = this.verifyWebhookSignature(gateway, payload, rawBody, headers, signatureHeader);
+      const isValid = await this.verifyWebhookSignature(
+        gateway,
+        payload,
+        rawBody,
+        headers,
+        signatureHeader,
+      );
 
       if (!isValid) {
         this.logger.warn(`Invalid signature for ${gateway} webhook`);
@@ -60,29 +74,97 @@ export class UnifiedWebhookService {
     }
   }
 
-  private verifyWebhookSignature(
+  /**
+   * Resolves the tenant from the webhook's order id, fetches THIS
+   * tenant's payment_secret_key, then verifies. Per-tenant secrets
+   * are mandatory — webhooks for tenants without a config row are
+   * rejected (returns false) so a mis-routed webhook can't slip in
+   * with a fallback secret.
+   */
+  private async verifyWebhookSignature(
     gateway: PaymentWebhookGateway,
     payload: Record<string, any>,
     rawBody: string,
     headers: Record<string, string>,
     signature: string | null,
-  ): boolean {
+  ): Promise<boolean> {
     if (!signature) {
       throw new BadRequestException(`Missing signature header for ${gateway}`);
     }
 
+    const orderId = this.extractOrderId(gateway, payload);
+    if (!orderId) {
+      this.logger.warn(`Could not extract order id from ${gateway} webhook payload`);
+      return false;
+    }
+
+    const payment = await this.paymentRepo.findOne({
+      where: { gatewayOrderId: orderId },
+      select: ['id', 'tenantId'],
+    });
+    if (!payment) {
+      this.logger.warn(
+        `Webhook references unknown order ${orderId} — refusing to verify against any tenant.`,
+      );
+      return false;
+    }
+
+    const cfg = await this.tenantConfigRepo.findOne({
+      where: { tenantId: payment.tenantId, isActive: true },
+      order: { createdAt: 'DESC' },
+      select: ['id', 'paymentSecretKey'],
+    });
+    const secret = cfg?.paymentSecretKey?.trim();
+    if (!secret) {
+      this.logger.error(
+        `Tenant ${payment.tenantId} has no payment_secret_key configured — webhook rejected.`,
+      );
+      return false;
+    }
+
     switch (gateway) {
       case PaymentWebhookGateway.RAZORPAY:
-        return this.verificationService.verifyRazorpayWebhook(payload, signature);
+        return this.verificationService.verifyRazorpayWebhook(payload, signature, secret);
 
       case PaymentWebhookGateway.CASHFREE: {
         const timestamp = headers['x-webhook-timestamp'] ?? '';
-        return this.verificationService.verifyCashfreeWebhook(rawBody, signature, timestamp);
+        return this.verificationService.verifyCashfreeWebhook(
+          rawBody,
+          signature,
+          timestamp,
+          secret,
+        );
       }
 
       default:
         throw new BadRequestException(`Unsupported gateway: ${gateway}`);
     }
+  }
+
+  /**
+   * Pull the gateway-side order id from a webhook payload. Both
+   * gateways nest it differently; this mapping is the only
+   * gateway-aware code outside of the verification + handler split.
+   */
+  private extractOrderId(
+    gateway: PaymentWebhookGateway,
+    payload: Record<string, any>,
+  ): string | null {
+    if (gateway === PaymentWebhookGateway.RAZORPAY) {
+      const entity =
+        payload?.payload?.payment?.entity ??
+        payload?.payload?.order?.entity ??
+        payload?.payload?.refund?.entity;
+      return (entity?.order_id as string | undefined) ?? null;
+    }
+    if (gateway === PaymentWebhookGateway.CASHFREE) {
+      const orderRef =
+        payload?.data?.order?.order_id ??
+        payload?.data?.payment?.order_id ??
+        payload?.order?.order_id;
+      return (orderRef as string | undefined) ?? null;
+    }
+    return null;
   }
 
   private async routeToGatewayHandler(

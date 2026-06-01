@@ -1,17 +1,15 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
-import { PaymentGateway } from '../../payments/entities/payment.entity';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsUUID } from 'class-validator';
 
+/**
+ * Parent kicks off an online payment. The gateway is NOT in this DTO
+ * by design — the tenant's admin chooses which gateway via
+ * tenant_configurations.gateway_type. Letting the client pick would
+ * let a parent attempt a different account than the school's.
+ */
 export class ParentInitiatePaymentDto {
-  @ApiPropertyOptional({ description: 'Fee record to pay against' })
+  @ApiProperty({ description: 'Fee record to pay against' })
   @IsUUID()
   @IsNotEmpty()
   feeId: string;
-
-  // Optional and normally omitted — the server picks the gateway from the
-  // tenant's active configuration. Kept only as an override for testing.
-  @ApiPropertyOptional({ enum: PaymentGateway })
-  @IsOptional()
-  @IsEnum(PaymentGateway)
-  gateway?: PaymentGateway;
 }

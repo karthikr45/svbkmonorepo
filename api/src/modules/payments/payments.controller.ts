@@ -94,33 +94,33 @@ export class PaymentsController {
   }
 
   /**
-   * DEPRECATED: Use /payments/webhooks/unified instead
-   * This endpoint is kept for backward compatibility
+   * DEPRECATED: Use /payments/webhooks/unified instead.
+   * Kept only for backward compatibility on existing Razorpay
+   * dashboards. The unified endpoint does per-tenant signature
+   * verification; this one cannot, so callers should migrate.
    */
   @Post('webhooks/razorpay')
   @ApiOperation({
     summary: 'Razorpay webhook endpoint (DEPRECATED)',
-    description: 'DEPRECATED: Use /payments/webhooks/unified instead. This endpoint is maintained for backward compatibility only.',
+    description:
+      'DEPRECATED: Use /payments/webhooks/unified instead. This endpoint ' +
+      'does not support per-tenant gateway credentials — only the unified ' +
+      'endpoint resolves the tenant from the order id before verifying.',
   })
-  async handleRazorpayWebhook(@Body() payload: any, @Headers('x-razorpay-signature') signature: string) {
-    // Verify signature
-    const isValid = this.webhookVerification.verifyRazorpayWebhook(payload, signature);
-    if (!isValid) {
-      return { status: 'invalid_signature' };
-    }
-
-    const dto: RazorpayWebhookDto = {
-      event: payload.event,
-      payload: payload.payload,
-    };
-
-    try {
-      await this.webhookHandler.handleRazorpayWebhook(dto);
-      return { status: 'ok' };
-    } catch (err) {
-      console.error('[razorpay-webhook]', err?.message);
-      return { status: 'error', message: err?.message };
-    }
+  async handleRazorpayWebhook(
+    @Body() payload: any,
+    @Headers('x-razorpay-signature') signature: string,
+    @Req() req: { rawBody?: Buffer },
+  ) {
+    // Forward to the unified path so we get per-tenant verification.
+    const rawBody =
+      req.rawBody?.toString('utf8') ?? JSON.stringify(payload ?? {});
+    const result = await this.unifiedWebhookService.handleUnifiedWebhook(
+      { 'x-razorpay-signature': signature },
+      payload,
+      rawBody,
+    );
+    return { status: 'success', ...result };
   }
 
 }
