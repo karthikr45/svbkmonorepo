@@ -132,6 +132,21 @@ export default function PublicPayPage() {
           const result = await verifyPublicPayment({ host, ...args });
           setSuccessMsg("Payment successful.");
           setLastReceiptId(result.feePaymentId ?? null);
+          // Auto-open the PDF receipt in a new tab so the parent sees
+          // confirmation without clicking anything. The visible
+          // Download Receipt button stays as a fallback (popup
+          // blockers, browser settings).
+          if (result.feePaymentId && typeof window !== "undefined") {
+            try {
+              window.open(
+                publicReceiptUrl(window.location.host, result.feePaymentId),
+                "_blank",
+                "noopener,noreferrer",
+              );
+            } catch {
+              /* popup blocked — Download Receipt button still works */
+            }
+          }
           // Re-pull the fee list so the just-paid row flips to PAID
           // and the Pay button disappears.
           await refreshFees();

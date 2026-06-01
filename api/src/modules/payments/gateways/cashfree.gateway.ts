@@ -47,15 +47,14 @@ export class CashfreeGateway implements IPaymentGateway {
         ? `${notes.studentName} | ${notes.admission} | ${notes.term} | ${notes.academicYear}`
         : undefined;
 
-      // Tell Cashfree where to ping us when payment completes (the
-      // unified webhook), and where to send the browser back when the
-      // checkout is in redirect mode. PUBLIC_API_BASE_URL takes
-      // precedence over CLIENT_URL so the webhook hits the API host,
-      // not the frontend host.
+      // Cashfree webhook — fires async after payment. We deliberately
+      // do NOT set order_meta.return_url: setting it makes the Drop-in
+      // JS SDK fall back to a full-page redirect (it can't wrap a 3DS
+      // challenge if a return URL is configured). Our parent flow
+      // uses redirectTarget="_modal" with onSuccess, so no return URL
+      // is needed.
       const apiBase = (process.env.PUBLIC_API_BASE_URL ?? '').replace(/\/$/, '');
-      const clientBase = (process.env.CLIENT_URL ?? '').replace(/\/$/, '');
       const notifyUrl = apiBase ? `${apiBase}/api/payments/webhooks` : undefined;
-      const returnUrl = clientBase ? `${clientBase}/pay?order_id={order_id}` : undefined;
 
       const response = await client.PGCreateOrder({
         order_id: orderId,
@@ -66,14 +65,7 @@ export class CashfreeGateway implements IPaymentGateway {
           customer_id: 'guest',
           customer_phone: '9999999999',
         },
-        ...(notifyUrl || returnUrl
-          ? {
-              order_meta: {
-                ...(notifyUrl ? { notify_url: notifyUrl } : {}),
-                ...(returnUrl ? { return_url: returnUrl } : {}),
-              },
-            }
-          : {}),
+        ...(notifyUrl ? { order_meta: { notify_url: notifyUrl } } : {}),
       });
 
       const order = response.data;
