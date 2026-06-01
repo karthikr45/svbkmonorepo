@@ -18,6 +18,7 @@ export enum EnvironmentType {
 
 export enum GatewayType {
   RAZORPAY = 'razorpay',
+  CASHFREE = 'cashfree',
 }
 
 @Entity('tenant_configurations')

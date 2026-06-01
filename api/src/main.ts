@@ -32,6 +32,9 @@ const REQUIRED_METADATA_TYPES = [
   'template_status',
   'environment_type',
   'payment_gateway',
+  'country',
+  'state',
+  'city',
 ];
 
 async function checkMetadataHealth(app: Awaited<ReturnType<typeof NestFactory.create>>) {

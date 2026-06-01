@@ -107,6 +107,18 @@ function TenantManagement() {
       value: v, label: v, displayOrder: i, isActive: true,
     })),
   });
+  // Country / state / city dropdowns are seeded with sensible defaults
+  // and editable by super-admin via the System Metadata UI — no code
+  // change needed to add a new city or country.
+  const countryMeta = useMetadata("country", {
+    fallback: [{ value: "India", label: "India", displayOrder: 1, isActive: true }],
+  });
+  const stateMeta = useMetadata("state", {
+    fallback: [{ value: "Telangana", label: "Telangana", displayOrder: 1, isActive: true }],
+  });
+  const cityMeta = useMetadata("city", {
+    fallback: [{ value: "Hyderabad", label: "Hyderabad", displayOrder: 1, isActive: true }],
+  });
   const INSTITUTION_TYPES = useMemo(
     () => instMeta.options.map((o) => o.value),
     [instMeta.options],
@@ -114,6 +126,18 @@ function TenantManagement() {
   const MEDIUMS = useMemo(
     () => mediumMeta.options.map((o) => o.value),
     [mediumMeta.options],
+  );
+  const COUNTRIES = useMemo(
+    () => countryMeta.options.map((o) => ({ value: o.value, label: o.label })),
+    [countryMeta.options],
+  );
+  const STATES = useMemo(
+    () => stateMeta.options.map((o) => ({ value: o.value, label: o.label })),
+    [stateMeta.options],
+  );
+  const CITIES = useMemo(
+    () => cityMeta.options.map((o) => ({ value: o.value, label: o.label })),
+    [cityMeta.options],
   );
   const BOARD_TYPES = useMemo(
     () => boardMeta.options.map((o) => o.value),
@@ -491,27 +515,72 @@ function TenantManagement() {
                   fullWidth
                 />
               </div>
-              <Input
-                label="City *"
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                error={formErrors.city}
-                fullWidth
-              />
-              <Input
-                label="State *"
-                value={formData.state}
-                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                error={formErrors.state}
-                fullWidth
-              />
-              <Input
-                label="Country *"
-                value={formData.country}
-                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                error={formErrors.country}
-                fullWidth
-              />
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  City <span className="text-red-500">*</span>
+                </span>
+                <SelectMenu
+                  aria-label="City"
+                  value={formData.city}
+                  emptyValue=""
+                  onChange={(v) => setFormData({ ...formData, city: v })}
+                  placeholder="Select city"
+                  options={CITIES}
+                  className={
+                    "w-full min-w-0 " +
+                    (formErrors.city
+                      ? "ring-2 ring-red-500/80 ring-offset-1 ring-offset-[var(--app-card-bg)]"
+                      : "")
+                  }
+                />
+                {formErrors.city && (
+                  <p className="text-sm text-red-600">{formErrors.city}</p>
+                )}
+              </div>
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  State <span className="text-red-500">*</span>
+                </span>
+                <SelectMenu
+                  aria-label="State"
+                  value={formData.state}
+                  emptyValue=""
+                  onChange={(v) => setFormData({ ...formData, state: v })}
+                  placeholder="Select state"
+                  options={STATES}
+                  className={
+                    "w-full min-w-0 " +
+                    (formErrors.state
+                      ? "ring-2 ring-red-500/80 ring-offset-1 ring-offset-[var(--app-card-bg)]"
+                      : "")
+                  }
+                />
+                {formErrors.state && (
+                  <p className="text-sm text-red-600">{formErrors.state}</p>
+                )}
+              </div>
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Country <span className="text-red-500">*</span>
+                </span>
+                <SelectMenu
+                  aria-label="Country"
+                  value={formData.country}
+                  emptyValue=""
+                  onChange={(v) => setFormData({ ...formData, country: v })}
+                  placeholder="Select country"
+                  options={COUNTRIES}
+                  className={
+                    "w-full min-w-0 " +
+                    (formErrors.country
+                      ? "ring-2 ring-red-500/80 ring-offset-1 ring-offset-[var(--app-card-bg)]"
+                      : "")
+                  }
+                />
+                {formErrors.country && (
+                  <p className="text-sm text-red-600">{formErrors.country}</p>
+                )}
+              </div>
             </div>
             <div className="mt-6 rounded-xl border border-zinc-200 p-4 bg-zinc-50/50">
               <h3 className="text-sm font-bold text-zinc-700 mb-1">Receipt numbering</h3>
