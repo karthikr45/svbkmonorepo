@@ -11,6 +11,7 @@ import { Transaction, TransactionType } from './entities/transaction.entity';
 import { CreateOrderDto } from './dto/create-payment.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
+import { CashfreeGateway } from './gateways/cashfree.gateway';
 import { PaymentAuditService } from './payment-audit.service';
 import { AuditAction } from './entities/payment-audit-log.entity';
 import { TenantConfigsService } from '../tenant-configs/tenant-configs.service';
@@ -70,7 +71,7 @@ export class PaymentsService {
     return gateway;
   }
 
-  async createOrder(tenantId: string, dto: CreateOrderDto): Promise<{ payment: Payment; transaction: Transaction; gatewayResponse: Record<string, any> }> {
+  async createOrder(tenantId: string, dto: CreateOrderDto): Promise<{ payment: Payment; transaction: Transaction; gatewayResponse: Record<string, any>; cashfreeMode: 'sandbox' | 'production' }> {
     const notes = {
       admission: dto.ADMISSION,
       academicYear: dto.academicYear,
@@ -137,7 +138,12 @@ export class PaymentsService {
         metadata: { amount: dto.amount, currency: dto.currency, notes, paymentType: 'offline' },
       });
 
-      return { payment, transaction, gatewayResponse: {} };
+      return {
+        payment,
+        transaction,
+        gatewayResponse: {},
+        cashfreeMode: CashfreeGateway.currentMode(),
+      };
     }
 
     // Online payment — call the gateway using THIS tenant's credentials.
@@ -201,7 +207,12 @@ export class PaymentsService {
       },
     });
 
-    return { payment, transaction, gatewayResponse: result.raw };
+    return {
+      payment,
+      transaction,
+      gatewayResponse: result.raw,
+      cashfreeMode: CashfreeGateway.currentMode(),
+    };
   }
 
   async verifyPayment(tenantId: string, dto: VerifyPaymentDto): Promise<{ payment: Payment; transaction: Transaction }> {

@@ -356,6 +356,7 @@ export async function createOrder(amount: number, admission: string, academicYea
     amount: Number(payment.amount ?? amount),
     currency: String(payment.currency ?? currency),
     paymentSessionId: typeof gatewayResponse.payment_session_id === "string" ? gatewayResponse.payment_session_id : undefined,
+    cashfreeMode: inner?.cashfreeMode === "production" ? "production" : "sandbox",
     key: typeof raw?.key === "string" ? raw.key : undefined,
   };
 }

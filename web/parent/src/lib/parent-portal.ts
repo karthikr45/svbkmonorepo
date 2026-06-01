@@ -220,6 +220,7 @@ export interface InitiatePaymentResponse {
   // the checkout widget.
   gatewayType?: string | null;
   gatewayPublicKey?: string | null;
+  cashfreeMode?: "sandbox" | "production";
 }
 
 /**

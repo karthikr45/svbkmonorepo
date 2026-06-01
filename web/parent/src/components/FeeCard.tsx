@@ -166,7 +166,8 @@ export function FeeCard({
             checkout: (o: unknown) => Promise<{ error?: { message?: string } }>;
           };
         };
-        const cashfree = w.Cashfree({ mode: "production" });
+        // Mode must match what the backend used to create the order.
+        const cashfree = w.Cashfree({ mode: res.cashfreeMode ?? "sandbox" });
         const result = await cashfree.checkout({
           paymentSessionId: sessionId,
           redirectTarget: "_modal",

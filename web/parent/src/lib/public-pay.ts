@@ -69,6 +69,7 @@ export interface PublicInitiateResponse {
   gatewayResponse: Record<string, unknown>;
   gatewayType: string;
   gatewayPublicKey: string;
+  cashfreeMode?: "sandbox" | "production";
 }
 
 export async function fetchPublicTenant(host: string): Promise<PublicTenantInfo> {

@@ -153,7 +153,11 @@ export function PaymentPageContent() {
 
   async function openCashfreeCheckout(order: CreateOrderResponse) {
     const _window: any = window;
-    const cashfree = _window.Cashfree({ mode: "sandbox" }); // switch to "production" for live
+    // Mode must match the backend's CASHFREE_MODE / NODE_ENV; the
+    // order response carries that signal.
+    const cashfree = _window.Cashfree({
+      mode: order.cashfreeMode ?? "sandbox",
+    });
     const result = await cashfree.checkout({
       paymentSessionId: order.paymentSessionId,
       redirectTarget: "_modal",

@@ -182,7 +182,10 @@ export default function PublicPayPage() {
             checkout: (o: unknown) => Promise<{ error?: { message?: string } }>;
           };
         };
-        const cashfree = w.Cashfree({ mode: "production" });
+        // Mode must match what the backend used to create the order
+        // (sandbox in dev, production in prod) or the SDK rejects the
+        // payment_session_id as invalid.
+        const cashfree = w.Cashfree({ mode: res.cashfreeMode ?? "sandbox" });
         const result = await cashfree.checkout({
           paymentSessionId: sessionId,
           redirectTarget: "_modal",

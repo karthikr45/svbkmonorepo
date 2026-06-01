@@ -93,6 +93,8 @@ export type CreateOrderResponse = {
   currency: string;
   /** Cashfree: session id used to open the checkout */
   paymentSessionId?: string;
+  /** Cashfree: sandbox or production — must match backend env */
+  cashfreeMode?: "sandbox" | "production";
   /** Razorpay: server-side key (optional – falls back to client key if absent) */
   key?: string;
 };

@@ -21,6 +21,7 @@ import { ParentStudent } from '../parents/entities/parent-student.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { ParentsService } from '../parents/parents.service';
 import { PaymentsService } from '../payments/payments.service';
+import { CashfreeGateway } from '../payments/gateways/cashfree.gateway';
 import { TenantConfigsService } from '../tenant-configs/tenant-configs.service';
 import { FeesService } from '../fees/fees.service';
 import { StudentsService } from '../students/students.service';
@@ -391,6 +392,9 @@ export class ParentPortalService {
       ...order,
       gatewayType: receivingCfg?.gatewayType ?? resolvedGateway,
       gatewayPublicKey: receivingCfg?.paymentClientId ?? null,
+      // Cashfree JS SDK must be initialised in the same mode the
+      // backend used to create the order.
+      cashfreeMode: CashfreeGateway.currentMode(),
     };
   }
 
