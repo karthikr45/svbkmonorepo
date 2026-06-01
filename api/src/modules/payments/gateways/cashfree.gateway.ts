@@ -17,19 +17,6 @@ import {
 export class CashfreeGateway implements IPaymentGateway {
   private readonly logger = new Logger(CashfreeGateway.name);
 
-  /**
-   * Sandbox vs production for Cashfree. Driven by CASHFREE_MODE env
-   * (explicit override) or NODE_ENV. Exposed via a static helper so
-   * the controller layer can echo the same value back to the frontend
-   * — the JS SDK's mode must match the order's environment, or it
-   * rejects payment_session_id as invalid.
-   */
-  static currentMode(): 'sandbox' | 'production' {
-    const explicit = (process.env.CASHFREE_MODE ?? '').toLowerCase();
-    if (explicit === 'production' || explicit === 'sandbox') return explicit;
-    return process.env.NODE_ENV === 'production' ? 'production' : 'sandbox';
-  }
-
   private buildClient(creds: GatewayCredentials): Cashfree {
     if (!creds.clientId || !creds.secretKey) {
       throw new InternalServerErrorException(
@@ -37,8 +24,11 @@ export class CashfreeGateway implements IPaymentGateway {
           'Add them under the tenant\'s Configuration tab.',
       );
     }
+    // Sandbox vs production comes from the tenant's active
+    // TenantConfig (environment_type) — propagated via creds.mode.
+    // No env-var coordination needed; each school chooses independently.
     const env =
-      CashfreeGateway.currentMode() === 'production'
+      creds.mode === 'production'
         ? CFEnvironment.PRODUCTION
         : CFEnvironment.SANDBOX;
     return new Cashfree(env, creds.clientId, creds.secretKey);

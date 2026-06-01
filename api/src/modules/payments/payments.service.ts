@@ -11,7 +11,6 @@ import { Transaction, TransactionType } from './entities/transaction.entity';
 import { CreateOrderDto } from './dto/create-payment.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentGatewayFactory } from './gateways/payment-gateway.factory';
-import { CashfreeGateway } from './gateways/cashfree.gateway';
 import { PaymentAuditService } from './payment-audit.service';
 import { AuditAction } from './entities/payment-audit-log.entity';
 import { TenantConfigsService } from '../tenant-configs/tenant-configs.service';
@@ -32,7 +31,9 @@ export class PaymentsService {
   /**
    * Resolves the gateway credentials for a tenant. Reads the active
    * TenantConfig — refuses to proceed if missing rather than silently
-   * falling back to a wrong key.
+   * falling back to a wrong key. The `mode` flows from the config's
+   * `environment_type` so each tenant can independently go live or
+   * stay piloting on sandbox keys.
    */
   private async credsForTenant(tenantId: string): Promise<GatewayCredentials> {
     const cfg = await this.tenantConfigsService.findActiveForTenant(tenantId);
@@ -42,7 +43,24 @@ export class PaymentsService {
           'gateway credentials under the tenant\'s Configuration tab.',
       );
     }
-    return { clientId: cfg.paymentClientId, secretKey: cfg.paymentSecretKey };
+    return {
+      clientId: cfg.paymentClientId,
+      secretKey: cfg.paymentSecretKey,
+      mode:
+        cfg.environmentType === 'production' ? 'production' : 'sandbox',
+    };
+  }
+
+  /**
+   * Public read of the gateway mode for the active TenantConfig.
+   * Exposed so callers (PublicPayService, ParentPortalService) can
+   * echo the same value back to the frontend without re-querying.
+   */
+  async getGatewayMode(
+    tenantId: string,
+  ): Promise<'sandbox' | 'production'> {
+    const cfg = await this.tenantConfigsService.findActiveForTenant(tenantId);
+    return cfg?.environmentType === 'production' ? 'production' : 'sandbox';
   }
 
   /**
@@ -142,7 +160,7 @@ export class PaymentsService {
         payment,
         transaction,
         gatewayResponse: {},
-        cashfreeMode: CashfreeGateway.currentMode(),
+        cashfreeMode: await this.getGatewayMode(tenantId),
       };
     }
 
@@ -211,7 +229,7 @@ export class PaymentsService {
       payment,
       transaction,
       gatewayResponse: result.raw,
-      cashfreeMode: CashfreeGateway.currentMode(),
+      cashfreeMode: await this.getGatewayMode(tenantId),
     };
   }
 

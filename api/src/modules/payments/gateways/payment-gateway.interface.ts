@@ -34,6 +34,12 @@ export interface GatewayCredentials {
   clientId: string;
   /** Server-side secret — used to create orders and verify signatures. */
   secretKey: string;
+  /**
+   * Sandbox or production — driven by the active TenantConfig's
+   * environment_type. Lets one school go live while another keeps
+   * piloting on test keys; no env var coordination required.
+   */
+  mode: 'sandbox' | 'production';
 }
 
 export interface IPaymentGateway {

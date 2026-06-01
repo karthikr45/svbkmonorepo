@@ -11,7 +11,6 @@ import { Student } from '../students/entities/student.entity';
 import { Fee } from '../fees/entities/fee.entity';
 import { Payment, PaymentGateway, PaymentType } from '../payments/entities/payment.entity';
 import { PaymentsService } from '../payments/payments.service';
-import { CashfreeGateway } from '../payments/gateways/cashfree.gateway';
 import { PublicInitiateDto, PublicVerifyDto } from './dto/public-pay.dto';
 
 @Injectable()
@@ -207,8 +206,9 @@ export class PublicPayService {
       gatewayType: cfg.gatewayType,
       gatewayPublicKey: cfg.paymentClientId,
       // Cashfree JS SDK must be initialised in the same mode the order
-      // was created in, or it rejects the payment_session_id.
-      cashfreeMode: CashfreeGateway.currentMode(),
+      // was created in. Comes from this tenant's environment_type.
+      cashfreeMode:
+        cfg.environmentType === 'production' ? 'production' : 'sandbox',
     };
   }
 
