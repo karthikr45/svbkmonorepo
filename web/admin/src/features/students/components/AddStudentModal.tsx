@@ -8,7 +8,6 @@ import {
 } from "@/features/students/api/students.api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { useMetadata } from "@/features/system-metadata/hooks/useMetadata";
-import { useFetchAcademicYears } from "@/features/students/hooks/useFetchStudents";
 import {
   getOutstandingApi,
   searchIdentitiesApi,
@@ -59,26 +58,26 @@ export function AddStudentModal({
   onClose,
   onCreated,
 }: Props) {
-  // Fetch academic years self-sufficiently so the modal works even if
-  // a caller forgets to pass academicYearOptions. The prop is honored
-  // when provided (avoids a duplicate request); we fall back to the
-  // hook's data otherwise.
-  const { academicYears: ownYears, loading: yearsLoading } =
-    useFetchAcademicYears();
+  // Academic year options come from super-admin-curated system_metadata
+  // (type='academic_year') — same source the Terms field already uses.
+  // No per-tenant fetch needed. `academicYearOptionsProp` is honored
+  // when a caller passes its own list (e.g. limited to AYs that have
+  // data in this tenant).
+  const { options: ayMetadataOptions, loading: yearsLoading } = useMetadata(
+    "academic_year",
+    { activeOnly: true },
+  );
   const academicYearOptions = useMemo(() => {
     if (academicYearOptionsProp && academicYearOptionsProp.length > 0)
       return academicYearOptionsProp;
-    return (ownYears ?? []).map((y) => y.academicYear);
-  }, [academicYearOptionsProp, ownYears]);
+    return ayMetadataOptions.map((o) => o.value);
+  }, [academicYearOptionsProp, ayMetadataOptions]);
   const computedDefaultAcademicYear = useMemo(() => {
     if (defaultAcademicYear) return defaultAcademicYear;
-    if (!ownYears?.length) return "";
-    return (
-      ownYears.find((y) => y.isCurrentYear)?.academicYear ??
-      ownYears[0]?.academicYear ??
-      ""
-    );
-  }, [defaultAcademicYear, ownYears]);
+    // Pick the newest AY in the metadata list — assumes displayOrder
+    // is chronological (lowest = oldest), which the seed enforces.
+    return academicYearOptions[academicYearOptions.length - 1] ?? "";
+  }, [defaultAcademicYear, academicYearOptions]);
 
   const { options: termOptions } = useMetadata("term", {
     fallback: FALLBACK_TERMS.map((v, i) => ({
